@@ -259,7 +259,7 @@ test('resolve pnpm package', (t) => {
   )
 })
 
-test.failing('resolve recursive symbol link', (t) => {
+test('resolve recursive symbol link', (t) => {
   const rootDir = join(currentDir, '..', '..')
   const workspaceProjectPath = join(rootDir, 'fixtures', 'pnpm-workspace')
   const resolver = new ResolverFactory({})
