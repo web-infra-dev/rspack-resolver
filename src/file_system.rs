@@ -146,7 +146,7 @@ impl FileSystem for FileSystemOs {
     }
 
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        dunce::canonicalize(path)
+        path.canonicalize()
     }
 }
 
