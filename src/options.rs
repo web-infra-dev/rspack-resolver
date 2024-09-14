@@ -6,7 +6,7 @@ use std::{fmt, path::PathBuf};
 /// Options are directly ported from [enhanced-resolve](https://github.com/webpack/enhanced-resolve#resolver-options).
 ///
 /// See [webpack resolve](https://webpack.js.org/configuration/resolve/) for information and examples
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct ResolveOptions {
     /// Path to TypeScript configuration file.
     ///
@@ -374,7 +374,7 @@ impl ResolveOptions {
 }
 
 /// Value for [ResolveOptions::enforce_extension]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EnforceExtension {
     Auto,
     Enabled,
@@ -418,7 +418,7 @@ where
 }
 
 /// Value for [ResolveOptions::restrictions]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum Restriction {
     Path(PathBuf),
     RegExp(String),
@@ -427,7 +427,7 @@ pub enum Restriction {
 /// Tsconfig Options for [ResolveOptions::tsconfig]
 ///
 /// Derived from [tsconfig-paths-webpack-plugin](https://github.com/dividab/tsconfig-paths-webpack-plugin#options)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct TsconfigOptions {
     /// Allows you to specify where to find the TypeScript configuration file.
     /// You may provide
@@ -440,7 +440,7 @@ pub struct TsconfigOptions {
 }
 
 /// Configuration for [TsconfigOptions::references]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum TsconfigReferences {
     Disabled,
     /// Use the `references` field from tsconfig of `config_file`.
