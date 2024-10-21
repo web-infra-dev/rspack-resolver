@@ -163,7 +163,8 @@ fn mathjs() {
 fn decimal_js() {
     let dir = dir();
     let path = dir.join("node_modules/.pnpm/mathjs@13.2.0/node_modules/mathjs/lib/esm");
-    let module_path = dir.join("node_modules/.pnpm/decimal.js@10.4.3/node_modules/decimal.js/decimal.mjs");
+    let module_path =
+        dir.join("node_modules/.pnpm/decimal.js@10.4.3/node_modules/decimal.js/decimal.mjs");
 
     let resolvers = [
         // with `extension_alias`
