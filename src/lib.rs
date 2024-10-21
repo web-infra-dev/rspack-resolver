@@ -1051,6 +1051,7 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         let Some(filename) = path.file_name() else { return Ok(None) };
         let path_without_extension = path.with_extension("");
 
+        ctx.with_fully_specified(true);
         for extension in extensions {
             let mut path_with_extension = path_without_extension.clone().into_os_string();
             path_with_extension.reserve_exact(extension.len());
@@ -1062,7 +1063,6 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             }
         }
         // Bail if path is module directory such as `ipaddr.js`
-        ctx.with_fully_specified(true);
         if !cached_path.is_file(&self.cache.fs, ctx) {
             ctx.with_fully_specified(false);
             return Ok(None);
