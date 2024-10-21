@@ -1063,16 +1063,9 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         }
         // Bail if path is module directory such as `ipaddr.js`
         ctx.with_fully_specified(true);
-        if cached_path.is_dir(&self.cache.fs, ctx) {
+        if !cached_path.is_file(&self.cache.fs, ctx) {
             ctx.with_fully_specified(false);
             return Ok(None);
-        } else if !cached_path.is_file(&self.cache.fs, ctx) {
-            if let Ok(path) =
-                self.load_package_exports(filename.to_string_lossy().as_ref(), "", cached_path, ctx)
-            {
-                ctx.with_fully_specified(false);
-                return Ok(path);
-            }
         }
         // Create a meaningful error message.
         let dir = path.parent().unwrap().to_path_buf();
