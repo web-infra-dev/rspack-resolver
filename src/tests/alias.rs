@@ -102,6 +102,7 @@ fn alias() {
         ("should resolve query in alias value", "alias_fragment#fragment_before", "/a/index#fragment_after"),
         ("should resolve dashed name", "dashed-name", "/dashed-name"),
         ("should resolve scoped package name with sub dir", "@scope/package-name/file", "/c/dir/index"),
+        ("should resolve '@' alias 3", "@/", "/c/dir/index"),
     ];
 
     for (comment, request, expected) in pass {
