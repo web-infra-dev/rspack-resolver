@@ -2,8 +2,8 @@
 
 use crate::{AliasValue, ResolveError, ResolveOptions, Resolver};
 
-#[test]
-fn ignore() {
+#[tokio::test]
+async fn ignore() {
     let f = super::fixture().join("browser-module");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -25,33 +25,33 @@ fn ignore() {
     ];
 
     for (path, request, expected) in data {
-        let resolution = resolver.resolve(&path, request);
+        let resolution = resolver.resolve(&path, request).await;
         let expected = ResolveError::Ignored(expected);
         assert_eq!(resolution, Err(expected), "{path:?} {request}");
     }
 }
 
-#[test]
-fn shared_resolvers() {
+#[tokio::test]
+async fn shared_resolvers() {
     let f = super::fixture().join("browser-module");
 
     let resolver1 = Resolver::new(ResolveOptions {
         alias_fields: vec![vec!["innerBrowser1".into(), "field".into(), "browser".into()]],
         ..ResolveOptions::default()
     });
-    let resolved_path = resolver1.resolve(&f, "./lib/main1.js").map(|r| r.full_path());
+    let resolved_path = resolver1.resolve(&f, "./lib/main1.js").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f.join("lib/main.js")));
 
     let resolver2 = resolver1.clone_with_options(ResolveOptions {
         alias_fields: vec![vec!["innerBrowser2".into(), "browser".into()]],
         ..ResolveOptions::default()
     });
-    let resolved_path = resolver2.resolve(&f, "./lib/main2.js").map(|r| r.full_path());
+    let resolved_path = resolver2.resolve(&f, "./lib/main2.js").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f.join("./lib/replaced.js")));
 }
 
-#[test]
-fn replace_file() {
+#[tokio::test]
+async fn replace_file() {
     let f = super::fixture().join("browser-module");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -86,13 +86,13 @@ fn replace_file() {
     ];
 
     for (comment, path, request, expected) in data {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn recurse_fail() {
+#[tokio::test]
+async fn recurse_fail() {
     let f = super::fixture();
 
     let resolver = Resolver::new(ResolveOptions {
@@ -108,13 +108,13 @@ fn recurse_fail() {
     ];
 
     for (comment, path, request, expected) in data {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Err(expected), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn broken() {
+#[tokio::test]
+async fn broken() {
     let f = super::fixture();
 
     let resolver = Resolver::new(ResolveOptions {
@@ -130,13 +130,13 @@ fn broken() {
     ];
 
     for (path, request, expected) in data {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, expected, "{path:?} {request}");
     }
 }
 
-#[test]
-fn crypto_js() {
+#[tokio::test]
+async fn crypto_js() {
     let f = super::fixture();
 
     let resolver = Resolver::new(ResolveOptions {
@@ -148,13 +148,13 @@ fn crypto_js() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(f.join("crypto-js"), "crypto").map(|r| r.full_path());
+    let resolved_path = resolver.resolve(f.join("crypto-js"), "crypto").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Err(ResolveError::Ignored(f.join("crypto-js"))));
 }
 
 // https://github.com/webpack/webpack/blob/87660921808566ef3b8796f8df61bd79fc026108/test/cases/resolving/browser-field/index.js#L40-L43
-#[test]
-fn recursive() {
+#[tokio::test]
+async fn recursive() {
     let f = super::fixture().join("browser-module");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -170,13 +170,13 @@ fn recursive() {
     ];
 
     for (comment, path, request) in data {
-        let resolved_path = resolver.resolve(&path, request);
+        let resolved_path = resolver.resolve(&path, request).await;
         assert_eq!(resolved_path, Err(ResolveError::Recursion), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn with_query() {
+#[tokio::test]
+async fn with_query() {
     let f = super::fixture().join("browser-module");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -184,6 +184,6 @@ fn with_query() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f, "./foo").map(|r| r.full_path());
+    let resolved_path = resolver.resolve(&f, "./foo").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f.join("lib").join("browser.js?query")));
 }

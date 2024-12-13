@@ -19,7 +19,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn read_to_string(&self, path: &Path) -> io::Result<String>;
+    async fn read_to_string(&self, path: &Path) -> io::Result<String>;
 
     /// See [std::fs::metadata]
     ///
@@ -30,7 +30,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata>;
+    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata>;
 
     /// See [std::fs::symlink_metadata]
     ///
@@ -42,7 +42,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata>;
+    async fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata>;
 
     /// See [std::fs::canonicalize]
     ///
@@ -54,7 +54,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
+    async fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
 }
 
 /// Metadata information about a file
@@ -105,38 +105,38 @@ impl Default for FileSystemOs {
     }
 }
 
-fn read_to_string(path: &Path) -> io::Result<String> {
-    // `simdutf8` is faster than `std::str::from_utf8` which `fs::read_to_string` uses internally
-    let bytes = std::fs::read(path)?;
-    if simdutf8::basic::from_utf8(&bytes).is_err() {
-        // Same error as `fs::read_to_string` produces (`io::Error::INVALID_UTF8`)
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "stream did not contain valid UTF-8",
-        ));
-    }
-    // SAFETY: `simdutf8` has ensured it's a valid UTF-8 string
-    Ok(unsafe { String::from_utf8_unchecked(bytes) })
-}
+// fn read_to_string(path: &Path) -> io::Result<String> {
+//     // `simdutf8` is faster than `std::str::from_utf8` which `fs::read_to_string` uses internally
+//     let bytes = std::fs::read(path)?;
+//     if simdutf8::basic::from_utf8(&bytes).is_err() {
+//         // Same error as `fs::read_to_string` produces (`io::Error::INVALID_UTF8`)
+//         return Err(io::Error::new(
+//             io::ErrorKind::InvalidData,
+//             "stream did not contain valid UTF-8",
+//         ));
+//     }
+//     // SAFETY: `simdutf8` has ensured it's a valid UTF-8 string
+//     Ok(unsafe { String::from_utf8_unchecked(bytes) })
+// }
 
 impl FileSystem for FileSystemOs {
-    fn read_to_string(&self, path: &Path) -> io::Result<String> {
+    async fn read_to_string(&self, path: &Path) -> io::Result<String> {
         cfg_if! {
             if #[cfg(feature = "yarn_pnp")] {
                 match VPath::from(path)? {
                     VPath::Zip(info) => {
                         self.pnp_lru.read_to_string(info.physical_base_path(), info.zip_path)
                     }
-                    VPath::Virtual(info) => read_to_string(&info.physical_base_path()),
-                    VPath::Native(path) => read_to_string(&path),
+                    VPath::Virtual(info) => tokio::fs::read_to_string(&info.physical_base_path()).await,
+                    VPath::Native(path) => tokio::fs::read_to_string(&path).await,
                 }
             } else {
-                read_to_string(path)
+                tokio::fs::read_to_string(path).await
             }
         }
     }
 
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
         cfg_if! {
             if #[cfg(feature = "yarn_pnp")] {
                 match VPath::from(path)? {
@@ -145,21 +145,21 @@ impl FileSystem for FileSystemOs {
                         .file_type(info.physical_base_path(), info.zip_path)
                         .map(FileMetadata::from),
                     VPath::Virtual(info) => {
-                        fs::metadata(info.physical_base_path()).map(FileMetadata::from)
+                        tokio::fs::metadata(info.physical_base_path()).await.map(FileMetadata::from)
                     }
-                    VPath::Native(path) => fs::metadata(path).map(FileMetadata::from),
+                    VPath::Native(path) => tokio::fs::metadata(path).await.map(FileMetadata::from),
                 }
             } else {
-                fs::metadata(path).map(FileMetadata::from)
+                tokio::fs::metadata(path).await.map(FileMetadata::from)
             }
         }
     }
 
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        fs::symlink_metadata(path).map(FileMetadata::from)
+    async fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        tokio::fs::symlink_metadata(path).await.map(FileMetadata::from)
     }
 
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+    async fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
         cfg_if! {
             if #[cfg(feature = "yarn_pnp")] {
                 match VPath::from(path)? {
@@ -175,7 +175,7 @@ impl FileSystem for FileSystemOs {
                 use std::path::Component;
                 let mut path_buf = path.to_path_buf();
                 loop {
-                    let link = fs::read_link(&path_buf)?;
+                    let link = tokio::fs::read_link(&path_buf).await?;
                     path_buf.pop();
                     for component in link.components() {
                         match component {
@@ -199,7 +199,7 @@ impl FileSystem for FileSystemOs {
                             Component::CurDir | Component::Prefix(_) => {}
                         }
                     }
-                    if !fs::symlink_metadata(&path_buf)?.is_symlink() {
+                    if !tokio::fs::symlink_metadata(&path_buf).await?.is_symlink() {
                         break;
                     }
                 }
@@ -209,8 +209,8 @@ impl FileSystem for FileSystemOs {
     }
 }
 
-#[test]
-fn metadata() {
+#[tokio::test]
+async fn metadata() {
     let meta = FileMetadata { is_file: true, is_dir: true, is_symlink: true };
     assert_eq!(
         format!("{meta:?}"),

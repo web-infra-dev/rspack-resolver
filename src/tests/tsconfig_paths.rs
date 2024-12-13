@@ -10,8 +10,8 @@ use crate::{
 };
 
 // <https://github.com/parcel-bundler/parcel/blob/b6224fd519f95e68d8b93ba90376fd94c8b76e69/packages/utils/node-resolver-rs/src/lib.rs#L2303>
-#[test]
-fn tsconfig() {
+#[tokio::test]
+async fn tsconfig() {
     let f = super::fixture_root().join("tsconfig");
 
     #[rustfmt::skip]
@@ -37,7 +37,7 @@ fn tsconfig() {
             ..ResolveOptions::default()
         });
         let path = subdir.map_or(dir.clone(), |subdir| dir.join(subdir));
-        let resolved_path = resolver.resolve(&path, request).map(|f| f.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|f| f.full_path());
         assert_eq!(resolved_path, Ok(expected), "{request} {path:?}");
     }
 
@@ -54,13 +54,13 @@ fn tsconfig() {
         ..ResolveOptions::default()
     });
     for (path, request, expected) in data {
-        let resolution = resolver.resolve(&path, request).map(|f| f.full_path());
+        let resolution = resolver.resolve(&path, request).await.map(|f| f.full_path());
         assert_eq!(resolution, expected, "{path:?} {request}");
     }
 }
 
-#[test]
-fn tsconfig_fallthrough() {
+#[tokio::test]
+async fn tsconfig_fallthrough() {
     let f = super::fixture_root().join("tsconfig");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -71,12 +71,12 @@ fn tsconfig_fallthrough() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f, "/");
+    let resolved_path = resolver.resolve(&f, "/").await;
     assert_eq!(resolved_path, Err(ResolveError::NotFound("/".into())));
 }
 
-#[test]
-fn json_with_comments() {
+#[tokio::test]
+async fn json_with_comments() {
     let f = super::fixture_root().join("tsconfig/cases/trailing-comma");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -87,12 +87,12 @@ fn json_with_comments() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f, "foo").map(|f| f.full_path());
+    let resolved_path = resolver.resolve(&f, "foo").await.map(|f| f.full_path());
     assert_eq!(resolved_path, Ok(f.join("bar.js")));
 }
 
-#[test]
-fn broken() {
+#[tokio::test]
+async fn broken() {
     let f = super::fixture_root().join("tsconfig");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -103,7 +103,7 @@ fn broken() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f, "/");
+    let resolved_path = resolver.resolve(&f, "/").await;
     let error = ResolveError::JSON(JSONError {
         path: f.join("tsconfig_broken.json"),
         message: String::from("EOF while parsing an object at line 2 column 0"),
@@ -114,8 +114,8 @@ fn broken() {
 }
 
 // <https://github.com/parcel-bundler/parcel/blob/c8f5c97a01f643b4d5c333c02d019ef2618b44a5/packages/utils/node-resolver-rs/src/tsconfig.rs#L193C12-L193C12>
-#[test]
-fn test_paths() {
+#[tokio::test]
+async fn test_paths() {
     let path = Path::new("/foo/tsconfig.json");
     let mut tsconfig_json = serde_json::json!({
         "compilerOptions": {
@@ -151,8 +151,8 @@ fn test_paths() {
 }
 
 // <https://github.com/parcel-bundler/parcel/blob/c8f5c97a01f643b4d5c333c02d019ef2618b44a5/packages/utils/node-resolver-rs/src/tsconfig.rs#L233C6-L233C19>
-#[test]
-fn test_base_url() {
+#[tokio::test]
+async fn test_base_url() {
     let path = Path::new("/foo/tsconfig.json");
     let mut tsconfig_json = serde_json::json!({
         "compilerOptions": {
@@ -176,8 +176,8 @@ fn test_base_url() {
 }
 
 // <https://github.com/parcel-bundler/parcel/blob/c8f5c97a01f643b4d5c333c02d019ef2618b44a5/packages/utils/node-resolver-rs/src/tsconfig.rs#L252>
-#[test]
-fn test_paths_and_base_url() {
+#[tokio::test]
+async fn test_paths_and_base_url() {
     let path = Path::new("/foo/tsconfig.json");
     let mut tsconfig_json = serde_json::json!({
         "compilerOptions": {
@@ -211,8 +211,8 @@ fn test_paths_and_base_url() {
 
 // Template variable ${configDir} for substitution of config files directory path
 // https://github.com/microsoft/TypeScript/pull/58042
-#[test]
-fn test_template_variable() {
+#[tokio::test]
+async fn test_template_variable() {
     let f = super::fixture_root().join("tsconfig");
     let f2 = f.join("cases").join("paths_template_variable");
 
@@ -231,7 +231,7 @@ fn test_template_variable() {
             }),
             ..ResolveOptions::default()
         });
-        let resolved_path = resolver.resolve(&dir, request).map(|f| f.full_path());
+        let resolved_path = resolver.resolve(&dir, request).await.map(|f| f.full_path());
         assert_eq!(resolved_path, Ok(expected), "{request} {tsconfig} {dir:?}");
     }
 }
@@ -316,8 +316,8 @@ mod windows_test {
     // Path matching tests from tsconfig-paths
     // * <https://github.com/dividab/tsconfig-paths/blob/master/src/__tests__/match-path-sync.test.ts>
     // * <https://github.com/dividab/tsconfig-paths/blob/master/src/__tests__/data/match-path-data.ts>
-    #[test]
-    fn match_path() {
+    #[tokio::test]
+    async fn match_path() {
         let pass = [
         OneTest {
             name: "should locate path that matches with star and exists",
@@ -489,7 +489,7 @@ OneTest {
 
         for test in pass {
             let resolved_path =
-                test.resolver(&root).resolve(&root, test.requested_module).map(|f| f.full_path());
+                test.resolver(&root).resolve(&root, test.requested_module).await.map(|f| f.full_path());
             assert_eq!(resolved_path, Ok(PathBuf::from(test.expected_path)), "{}", test.name);
         }
 
@@ -518,7 +518,7 @@ OneTest {
 
         for test in fail {
             let resolved_path =
-                test.resolver(&root).resolve(&root, test.requested_module).map(|f| f.full_path());
+                test.resolver(&root).resolve(&root, test.requested_module).await.map(|f| f.full_path());
             assert_eq!(
                 resolved_path,
                 Err(ResolveError::NotFound(test.requested_module.into())),

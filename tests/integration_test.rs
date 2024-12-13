@@ -8,33 +8,33 @@ fn dir() -> PathBuf {
     env::current_dir().unwrap()
 }
 
-fn resolve(specifier: &str) -> Resolution {
+async fn resolve(specifier: &str) -> Resolution {
     let path = dir();
-    Resolver::new(ResolveOptions::default()).resolve(path, specifier).unwrap()
+    Resolver::new(ResolveOptions::default()).resolve(path, specifier).await.unwrap()
 }
 
-#[test]
-fn clone() {
-    let resolution = resolve("./tests/package.json");
+#[tokio::test]
+async fn clone() {
+    let resolution = resolve("./tests/package.json").await;
     assert_eq!(resolution.clone(), resolution);
 }
 
-#[test]
-fn debug() {
-    let resolution = resolve("./tests/package.json");
+#[tokio::test]
+async fn debug() {
+    let resolution = resolve("./tests/package.json").await;
     let s = format!("{resolution:?}");
     assert!(!s.is_empty());
 }
 
-#[test]
-fn eq() {
-    let resolution = resolve("./tests/package.json");
+#[tokio::test]
+async fn eq() {
+    let resolution = resolve("./tests/package.json").await;
     assert_eq!(resolution, resolution);
 }
 
-#[test]
-fn package_json() {
-    let resolution = resolve("./tests/package.json");
+#[tokio::test]
+async fn package_json() {
+    let resolution = resolve("./tests/package.json").await;
     let package_json = resolution.package_json().unwrap();
     assert_eq!(package_json.name.as_ref().unwrap(), "name");
     assert_eq!(package_json.r#type.as_ref().unwrap().as_str(), "module".into());
@@ -42,9 +42,9 @@ fn package_json() {
 }
 
 #[cfg(feature = "package_json_raw_json_api")]
-#[test]
-fn package_json_raw_json_api() {
-    let resolution = resolve("./tests/package.json");
+#[tokio::test]
+async fn package_json_raw_json_api() {
+    let resolution = resolve("./tests/package.json").await;
     assert!(resolution
         .package_json()
         .unwrap()
@@ -53,40 +53,40 @@ fn package_json_raw_json_api() {
         .is_some_and(|name| name == "name"));
 }
 
-#[test]
-fn clear_cache() {
+#[tokio::test]
+async fn clear_cache() {
     let resolver = Resolver::new(ResolveOptions::default());
     resolver.clear_cache(); // exists
 }
 
-#[test]
-fn options() {
+#[tokio::test]
+async fn options() {
     let resolver = Resolver::new(ResolveOptions::default());
     let options = resolver.options();
     assert!(!format!("{options:?}").is_empty());
 }
 
-#[test]
-fn debug_resolver() {
+#[tokio::test]
+async fn debug_resolver() {
     let resolver = Resolver::new(ResolveOptions::default());
     assert!(!format!("{resolver:?}").is_empty());
 }
 
-#[test]
-fn dependencies() {
+#[tokio::test]
+async fn dependencies() {
     let path = dir();
     let mut ctx = ResolveContext::default();
     let _ = Resolver::new(ResolveOptions::default()).resolve_with_context(
         path,
         "./tests/package.json",
         &mut ctx,
-    );
+    ).await;
     assert!(!ctx.file_dependencies.is_empty());
     assert!(ctx.missing_dependencies.is_empty());
 }
 
-#[test]
-fn options_api() {
+#[tokio::test]
+async fn options_api() {
     _ = ResolveOptions::default()
         .with_builtin_modules(true)
         .with_condition_names(&[])

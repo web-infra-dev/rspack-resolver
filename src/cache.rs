@@ -1,12 +1,7 @@
-use once_cell::sync::OnceCell as OnceLock;
+use tokio::sync::OnceCell as OnceLock;
+
 use std::{
-    borrow::{Borrow, Cow},
-    convert::AsRef,
-    hash::{BuildHasherDefault, Hash, Hasher},
-    io,
-    ops::Deref,
-    path::{Path, PathBuf},
-    sync::Arc,
+    borrow::{Borrow, Cow}, convert::AsRef, future::Future, hash::{BuildHasherDefault, Hash, Hasher}, io, ops::Deref, path::{Path, PathBuf}, sync::Arc
 };
 
 use dashmap::{DashMap, DashSet};
@@ -53,16 +48,20 @@ impl<Fs: FileSystem> Cache<Fs> {
         data
     }
 
-    pub fn tsconfig<F: FnOnce(&mut TsConfig) -> Result<(), ResolveError>>(
+    pub async fn tsconfig<F, Fut>(
         &self,
         root: bool,
         path: &Path,
         callback: F, // callback for modifying tsconfig with `extends`
-    ) -> Result<Arc<TsConfig>, ResolveError> {
+    ) -> Result<Arc<TsConfig>, ResolveError>
+    where
+        F: FnOnce(TsConfig) -> Fut,
+        Fut: Future<Output = Result<TsConfig, ResolveError>>
+    {
         if let Some(tsconfig_ref) = self.tsconfigs.get(path) {
             return Ok(Arc::clone(tsconfig_ref.value()));
         }
-        let meta = self.fs.metadata(path).ok();
+        let meta = self.fs.metadata(path).await.ok();
         let tsconfig_path = if meta.is_some_and(|m| m.is_file) {
             Cow::Borrowed(path)
         } else if meta.is_some_and(|m| m.is_dir) {
@@ -75,12 +74,13 @@ impl<Fs: FileSystem> Cache<Fs> {
         let mut tsconfig_string = self
             .fs
             .read_to_string(&tsconfig_path)
+            .await
             .map_err(|_| ResolveError::TsconfigNotFound(path.to_path_buf()))?;
         let mut tsconfig =
             TsConfig::parse(root, &tsconfig_path, &mut tsconfig_string).map_err(|error| {
                 ResolveError::from_serde_json_error(tsconfig_path.to_path_buf(), &error)
             })?;
-        callback(&mut tsconfig)?;
+        tsconfig = callback(tsconfig).await?;
         let tsconfig = Arc::new(tsconfig.build());
         self.tsconfigs.insert(path.to_path_buf(), Arc::clone(&tsconfig));
         Ok(tsconfig)
@@ -164,12 +164,12 @@ impl CachedPathImpl {
         self.parent.as_ref()
     }
 
-    fn meta<Fs: FileSystem>(&self, fs: &Fs) -> Option<FileMetadata> {
-        *self.meta.get_or_init(|| fs.metadata(&self.path).ok())
+    async fn meta<Fs: FileSystem>(&self, fs: &Fs) -> Option<FileMetadata> {
+        *self.meta.get_or_init(|| async { fs.metadata(&self.path).await.ok() }).await
     }
 
-    pub fn is_file<Fs: FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
-        if let Some(meta) = self.meta(fs) {
+    pub async fn is_file<Fs: FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
+        if let Some(meta) = self.meta(fs).await {
             ctx.add_file_dependency(self.path());
             meta.is_file
         } else {
@@ -178,8 +178,8 @@ impl CachedPathImpl {
         }
     }
 
-    pub fn is_dir<Fs: FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
-        self.meta(fs).map_or_else(
+    pub async fn is_dir<Fs: FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
+        self.meta(fs).await.map_or_else(
             || {
                 ctx.add_missing_dependency(self.path());
                 false
@@ -188,40 +188,44 @@ impl CachedPathImpl {
         )
     }
 
-    pub fn realpath<Fs: FileSystem>(&self, fs: &Fs) -> io::Result<PathBuf> {
+    pub async fn realpath<Fs: FileSystem>(&self, fs: &Fs) -> io::Result<PathBuf> {
         self.canonicalized
-            .get_or_try_init(|| {
-                if fs.symlink_metadata(&self.path).is_ok_and(|m| m.is_symlink) {
-                    return fs.canonicalize(&self.path).map(Some);
+            .get_or_try_init(|| async move {
+                if fs.symlink_metadata(&self.path).await.is_ok_and(|m| m.is_symlink) {
+                    return fs.canonicalize(&self.path).await.map(Some);
                 }
                 if let Some(parent) = self.parent() {
-                    let parent_path = parent.realpath(fs)?;
+                    let parent_path = parent.realpath(fs).await?;
                     return Ok(Some(
                         parent_path.normalize_with(self.path.strip_prefix(&parent.path).unwrap()),
                     ));
                 };
                 Ok(None)
             })
+            .await
             .cloned()
             .map(|r| r.unwrap_or_else(|| self.path.clone().to_path_buf()))
     }
 
-    pub fn module_directory<Fs: FileSystem>(
+    pub async fn module_directory<Fs: FileSystem>(
         &self,
         module_name: &str,
         cache: &Cache<Fs>,
         ctx: &mut Ctx,
     ) -> Option<CachedPath> {
         let cached_path = cache.value(&self.path.join(module_name));
-        cached_path.is_dir(&cache.fs, ctx).then_some(cached_path)
+        cached_path.is_dir(&cache.fs, ctx).await.then_some(cached_path)
     }
 
-    pub fn cached_node_modules<Fs: FileSystem>(
+    pub async fn cached_node_modules<Fs: FileSystem>(
         &self,
         cache: &Cache<Fs>,
         ctx: &mut Ctx,
     ) -> Option<CachedPath> {
-        self.node_modules.get_or_init(|| self.module_directory("node_modules", cache, ctx)).clone()
+        self.node_modules
+            .get_or_init(|| self.module_directory("node_modules", cache, ctx))
+            .await
+            .clone()
     }
 
     /// Find package.json of a path by traversing parent directories.
@@ -229,7 +233,7 @@ impl CachedPathImpl {
     /// # Errors
     ///
     /// * [ResolveError::JSON]
-    pub fn find_package_json<Fs: FileSystem>(
+    pub async fn find_package_json<Fs: FileSystem>(
         &self,
         fs: &Fs,
         options: &ResolveOptions,
@@ -237,7 +241,7 @@ impl CachedPathImpl {
     ) -> Result<Option<Arc<PackageJson>>, ResolveError> {
         let mut cache_value = self;
         // Go up directories when the querying path is not a directory
-        while !cache_value.is_dir(fs, ctx) {
+        while !cache_value.is_dir(fs, ctx).await {
             if let Some(cv) = &cache_value.parent {
                 cache_value = cv.as_ref();
             } else {
@@ -246,7 +250,7 @@ impl CachedPathImpl {
         }
         let mut cache_value = Some(cache_value);
         while let Some(cv) = cache_value {
-            if let Some(package_json) = cv.package_json(fs, options, ctx)? {
+            if let Some(package_json) = cv.package_json(fs, options, ctx).await? {
                 return Ok(Some(Arc::clone(&package_json)));
             }
             cache_value = cv.parent.as_deref();
@@ -259,7 +263,7 @@ impl CachedPathImpl {
     /// # Errors
     ///
     /// * [ResolveError::JSON]
-    pub fn package_json<Fs: FileSystem>(
+    pub async fn package_json<Fs: FileSystem>(
         &self,
         fs: &Fs,
         options: &ResolveOptions,
@@ -268,13 +272,13 @@ impl CachedPathImpl {
         // Change to `std::sync::OnceLock::get_or_try_init` when it is stable.
         let result = self
             .package_json
-            .get_or_try_init(|| {
+            .get_or_try_init(|| async {
                 let package_json_path = self.path.join("package.json");
-                let Ok(package_json_string) = fs.read_to_string(&package_json_path) else {
+                let Ok(package_json_string) = fs.read_to_string(&package_json_path).await else {
                     return Ok(None);
                 };
                 let real_path = if options.symlinks {
-                    self.realpath(fs)?.join("package.json")
+                    self.realpath(fs).await?.join("package.json")
                 } else {
                     package_json_path.clone()
                 };
@@ -283,6 +287,7 @@ impl CachedPathImpl {
                     .map(Some)
                     .map_err(|error| ResolveError::from_serde_json_error(package_json_path, &error))
             })
+            .await
             .cloned();
         // https://github.com/webpack/enhanced-resolve/blob/58464fc7cb56673c9aa849e68e6300239601e615/lib/DescriptionFileUtils.js#L68-L82
         match &result {

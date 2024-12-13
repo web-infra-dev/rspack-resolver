@@ -42,7 +42,7 @@ impl MemoryFS {
 }
 
 impl FileSystem for MemoryFS {
-    fn read_to_string(&self, path: &Path) -> io::Result<String> {
+    async fn read_to_string(&self, path: &Path) -> io::Result<String> {
         use vfs::FileSystem;
         let mut file = self
             .fs
@@ -53,7 +53,7 @@ impl FileSystem for MemoryFS {
         Ok(buffer)
     }
 
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
         use vfs::FileSystem;
         let metadata = self
             .fs
@@ -64,11 +64,11 @@ impl FileSystem for MemoryFS {
         Ok(FileMetadata::new(is_file, is_dir, false))
     }
 
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        self.metadata(path)
+    async fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        self.metadata(path).await
     }
 
-    fn canonicalize(&self, _path: &Path) -> io::Result<PathBuf> {
+    async fn canonicalize(&self, _path: &Path) -> io::Result<PathBuf> {
         Err(io::Error::new(io::ErrorKind::NotFound, "not a symlink"))
     }
 }

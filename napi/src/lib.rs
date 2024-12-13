@@ -6,8 +6,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-
-use napi::{bindgen_prelude::AsyncTask, Task};
+use napi::tokio::runtime;
 use napi_derive::napi;
 use oxc_resolver::{ResolveOptions, Resolver};
 
@@ -27,8 +26,8 @@ pub struct ResolveResult {
     pub module_type: Option<String>,
 }
 
-fn resolve(resolver: &Resolver, path: &Path, request: &str) -> ResolveResult {
-    match resolver.resolve(path, request) {
+async fn resolve(resolver: &Resolver, path: &Path, request: &str) -> ResolveResult {
+    match resolver.resolve(path, request).await {
         Ok(resolution) => ResolveResult {
             path: Some(resolution.full_path().to_string_lossy().to_string()),
             error: None,
@@ -47,27 +46,7 @@ fn resolve(resolver: &Resolver, path: &Path, request: &str) -> ResolveResult {
 pub fn sync(path: String, request: String) -> ResolveResult {
     let path = PathBuf::from(path);
     let resolver = Resolver::new(ResolveOptions::default());
-    resolve(&resolver, &path, &request)
-}
-
-pub struct ResolveTask {
-    resolver: Arc<Resolver>,
-    directory: PathBuf,
-    request: String,
-}
-
-#[napi]
-impl Task for ResolveTask {
-    type Output = ResolveResult;
-    type JsValue = ResolveResult;
-
-    fn compute(&mut self) -> napi::Result<Self::Output> {
-        Ok(resolve(&self.resolver, &self.directory, &self.request))
-    }
-
-    fn resolve(&mut self, _: napi::Env, result: Self::Output) -> napi::Result<Self::JsValue> {
-        Ok(result)
-    }
+    runtime::Handle::current().block_on(resolve(&resolver, &path, &request))
 }
 
 #[napi]
@@ -109,16 +88,16 @@ impl ResolverFactory {
     #[napi]
     pub fn sync(&self, directory: String, request: String) -> ResolveResult {
         let path = PathBuf::from(directory);
-        resolve(&self.resolver, &path, &request)
+        runtime::Handle::current().block_on(resolve(&self.resolver, &path, &request))
     }
 
     /// Asynchronously resolve `specifier` at an absolute path to a `directory`.
     #[allow(clippy::needless_pass_by_value)]
     #[napi(js_name = "async")]
-    pub fn resolve_async(&self, directory: String, request: String) -> AsyncTask<ResolveTask> {
+    pub async fn resolve_async(&self, directory: String, request: String) -> ResolveResult {
         let path = PathBuf::from(directory);
         let resolver = self.resolver.clone();
-        AsyncTask::new(ResolveTask { resolver, directory: path, request })
+        resolve(&resolver, &path, &request).await
     }
 
     fn normalize_options(op: NapiResolveOptions) -> ResolveOptions {

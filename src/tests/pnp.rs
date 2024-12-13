@@ -5,8 +5,8 @@
 
 use crate::{ResolveOptions, Resolver};
 
-#[test]
-fn pnp1() {
+#[tokio::test]
+async fn pnp1() {
     let fixture = super::fixture_root().join("pnp");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -16,7 +16,7 @@ fn pnp1() {
     });
 
     assert_eq!(
-        resolver.resolve(&fixture, "is-even").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "is-even").await.map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/is-even-npm-1.0.0-9f726520dc-2728cc2f39.zip/node_modules/is-even/index.js"
         ))
@@ -37,7 +37,7 @@ fn pnp1() {
     );
 
     assert_eq!(
-        resolver.resolve(&fixture, "is-odd").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "is-odd").await.map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/is-odd-npm-3.0.1-93c3c3f41b-89ee2e353c.zip/node_modules/is-odd/index.js"
         )),

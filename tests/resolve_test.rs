@@ -6,19 +6,19 @@ fn dir() -> PathBuf {
     env::current_dir().unwrap()
 }
 
-#[test]
-fn chinese() {
+#[tokio::test]
+async fn chinese() {
     let dir = dir();
     let specifier = "./fixtures/misc/中文/中文.js";
-    let resolution = Resolver::new(ResolveOptions::default()).resolve(&dir, specifier);
+    let resolution = Resolver::new(ResolveOptions::default()).resolve(&dir, specifier).await;
     assert_eq!(
         resolution.map(rspack_resolver::Resolution::into_path_buf),
         Ok(dir.join("fixtures/misc/中文/中文.js"))
     );
 }
 
-#[test]
-fn styled_components() {
+#[tokio::test]
+async fn styled_components() {
     let dir = dir();
     let path = dir.join("fixtures/pnpm");
     let module_path = dir.join("node_modules/.pnpm/styled-components@6.1.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/styled-components");
@@ -27,7 +27,7 @@ fn styled_components() {
     // cjs
     let options =
         ResolveOptions { alias_fields: vec![vec!["browser".into()]], ..ResolveOptions::default() };
-    let resolution = Resolver::new(options).resolve(&path, specifier);
+    let resolution = Resolver::new(options).resolve(&path, specifier).await;
     assert_eq!(
         resolution.map(rspack_resolver::Resolution::into_path_buf),
         Ok(module_path.join("dist/styled-components.browser.cjs.js"))
@@ -39,15 +39,15 @@ fn styled_components() {
         main_fields: vec!["module".into()],
         ..ResolveOptions::default()
     };
-    let resolution = Resolver::new(options).resolve(&path, specifier);
+    let resolution = Resolver::new(options).resolve(&path, specifier).await;
     assert_eq!(
         resolution.map(rspack_resolver::Resolution::into_path_buf),
         Ok(module_path.join("dist/styled-components.browser.esm.js"))
     );
 }
 
-#[test]
-fn axios() {
+#[tokio::test]
+async fn axios() {
     let dir = dir();
     let path = dir.join("fixtures/pnpm");
     let module_path = dir.join("node_modules/.pnpm/axios@1.6.2/node_modules/axios");
@@ -55,7 +55,7 @@ fn axios() {
 
     // default
     let options = ResolveOptions::default();
-    let resolution = Resolver::new(options).resolve(&path, specifier);
+    let resolution = Resolver::new(options).resolve(&path, specifier).await;
     assert_eq!(
         resolution.map(rspack_resolver::Resolution::into_path_buf),
         Ok(module_path.join("index.js"))
@@ -66,7 +66,7 @@ fn axios() {
         condition_names: vec!["browser".into(), "require".into()],
         ..ResolveOptions::default()
     };
-    let resolution = Resolver::new(options).resolve(&path, specifier);
+    let resolution = Resolver::new(options).resolve(&path, specifier).await;
     assert_eq!(
         resolution.map(rspack_resolver::Resolution::into_path_buf),
         Ok(module_path.join("dist/browser/axios.cjs"))
@@ -77,15 +77,15 @@ fn axios() {
         condition_names: vec!["node".into(), "require".into()],
         ..ResolveOptions::default()
     };
-    let resolution = Resolver::new(options).resolve(&path, specifier);
+    let resolution = Resolver::new(options).resolve(&path, specifier).await;
     assert_eq!(
         resolution.map(rspack_resolver::Resolution::into_path_buf),
         Ok(module_path.join("dist/node/axios.cjs"))
     );
 }
 
-#[test]
-fn postcss() {
+#[tokio::test]
+async fn postcss() {
     let dir = dir();
     let path = dir.join("fixtures/pnpm");
     let module_path = path.join("node_modules/postcss");
@@ -95,16 +95,16 @@ fn postcss() {
     });
 
     // should ignore "path"
-    let resolution = resolver.resolve(&module_path, "path");
+    let resolution = resolver.resolve(&module_path, "path").await;
     assert_eq!(resolution, Err(ResolveError::Ignored(module_path.clone())));
 
     // should ignore "./lib/terminal-highlight"
-    let resolution = resolver.resolve(&module_path, "./lib/terminal-highlight");
+    let resolution = resolver.resolve(&module_path, "./lib/terminal-highlight").await;
     assert_eq!(resolution, Err(ResolveError::Ignored(module_path.join("lib/terminal-highlight"))));
 }
 
-#[test]
-fn ipaddr_js() {
+#[tokio::test]
+async fn ipaddr_js() {
     let dir = dir();
     let path = dir.join("fixtures/pnpm");
     let module_path =
@@ -126,13 +126,13 @@ fn ipaddr_js() {
     ];
 
     for resolver in resolvers {
-        let resolution = resolver.resolve(&path, "ipaddr.js").map(|r| r.full_path());
+        let resolution = resolver.resolve(&path, "ipaddr.js").await.map(|r| r.full_path());
         assert_eq!(resolution, Ok(module_path.clone()));
     }
 }
 
-#[test]
-fn decimal_js() {
+#[tokio::test]
+async fn decimal_js() {
     let dir = dir();
     let path = dir.join("fixtures/pnpm");
     let module_path =
@@ -153,13 +153,13 @@ fn decimal_js() {
     ];
 
     for resolver in resolvers {
-        let resolution = resolver.resolve(&path, "decimal.js").map(|r| r.full_path());
+        let resolution = resolver.resolve(&path, "decimal.js").await.map(|r| r.full_path());
         assert_eq!(resolution, Ok(module_path.clone()));
     }
 }
 
-#[test]
-fn decimal_js_from_mathjs() {
+#[tokio::test]
+async fn decimal_js_from_mathjs() {
     let dir = dir();
     let path = dir.join("node_modules/.pnpm/mathjs@13.2.0/node_modules/mathjs/lib/esm");
     let module_path =
@@ -180,7 +180,7 @@ fn decimal_js_from_mathjs() {
     ];
 
     for resolver in resolvers {
-        let resolution = resolver.resolve(&path, "decimal.js").map(|r| r.full_path());
+        let resolution = resolver.resolve(&path, "decimal.js").await.map(|r| r.full_path());
         assert_eq!(resolution, Ok(module_path.clone()));
     }
 }

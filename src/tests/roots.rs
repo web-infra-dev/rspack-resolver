@@ -8,8 +8,8 @@ fn dirname() -> PathBuf {
     super::fixture_root().join("enhanced_resolve").join("test")
 }
 
-#[test]
-fn roots() {
+#[tokio::test]
+async fn roots() {
     let f = super::fixture();
 
     let resolver = Resolver::new(ResolveOptions {
@@ -29,7 +29,7 @@ fn roots() {
     ];
 
     for (comment, request, expected) in pass {
-        let resolved_path = resolver.resolve(&f, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&f, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {request}");
     }
 
@@ -39,26 +39,26 @@ fn roots() {
     ];
 
     for (comment, request, expected) in fail {
-        let resolution = resolver.resolve(&f, request);
+        let resolution = resolver.resolve(&f, request).await;
         assert_eq!(resolution, Err(expected), "{comment} {request}");
     }
 }
 
-#[test]
-fn resolve_to_context() {
+#[tokio::test]
+async fn resolve_to_context() {
     let f = super::fixture();
     let resolver = Resolver::new(ResolveOptions {
         roots: vec![dirname(), f.clone()],
         resolve_to_context: true,
         ..ResolveOptions::default()
     });
-    let resolved_path = resolver.resolve(&f, "/fixtures/lib").map(|r| r.full_path());
+    let resolved_path = resolver.resolve(&f, "/fixtures/lib").await.map(|r| r.full_path());
     let expected = f.join("lib");
     assert_eq!(resolved_path, Ok(expected));
 }
 
-#[test]
-fn prefer_absolute() {
+#[tokio::test]
+async fn prefer_absolute() {
     let f = super::fixture();
     let resolver = Resolver::new(ResolveOptions {
         extensions: vec![".js".into()],
@@ -74,17 +74,17 @@ fn prefer_absolute() {
     ];
 
     for (comment, request, expected) in pass {
-        let resolved_path = resolver.resolve(&f, &request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&f, &request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {request}");
     }
 }
 
-#[test]
-fn roots_fall_through() {
+#[tokio::test]
+async fn roots_fall_through() {
     let f = super::fixture();
     let absolute_path = f.join("roots_fall_through/index.js");
     let specifier = absolute_path.to_string_lossy();
-    let resolution = Resolver::new(ResolveOptions::default().with_root(&f)).resolve(&f, &specifier);
+    let resolution = Resolver::new(ResolveOptions::default().with_root(&f)).resolve(&f, &specifier).await;
     assert_eq!(
         resolution.map(super::super::resolution::Resolution::into_path_buf),
         Ok(absolute_path)

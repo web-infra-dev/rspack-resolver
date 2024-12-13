@@ -3,8 +3,8 @@
 use crate::{EnforceExtension, Resolution, ResolveContext, ResolveError, ResolveOptions, Resolver};
 use rustc_hash::FxHashSet;
 
-#[test]
-fn extensions() {
+#[tokio::test]
+async fn extensions() {
     let f = super::fixture().join("extensions");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -23,7 +23,7 @@ fn extensions() {
     ];
 
     for (comment, request, expected_path) in pass {
-        let resolved_path = resolver.resolve(&f, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&f, request).await.map(|r| r.full_path());
         let expected = f.join(expected_path);
         assert_eq!(resolved_path, Ok(expected), "{comment} {request} {expected_path}");
     }
@@ -34,15 +34,15 @@ fn extensions() {
     ];
 
     for (comment, request, expected_error) in fail {
-        let resolution = resolver.resolve(&f, request);
+        let resolution = resolver.resolve(&f, request).await;
         let error = ResolveError::NotFound(expected_error);
         assert_eq!(resolution, Err(error), "{comment} {request} {resolution:?}");
     }
 }
 
 // should default enforceExtension to true when extensions includes an empty string
-#[test]
-fn default_enforce_extension() {
+#[tokio::test]
+async fn default_enforce_extension() {
     let f = super::fixture().join("extensions");
 
     let mut ctx = ResolveContext::default();
@@ -50,7 +50,8 @@ fn default_enforce_extension() {
         extensions: vec![".ts".into(), String::new(), ".js".into()],
         ..ResolveOptions::default()
     })
-    .resolve_with_context(&f, "./foo", &mut ctx);
+    .resolve_with_context(&f, "./foo", &mut ctx)
+    .await;
 
     assert_eq!(resolved.map(Resolution::into_path_buf), Ok(f.join("foo.ts")));
     assert_eq!(
@@ -61,8 +62,8 @@ fn default_enforce_extension() {
 }
 
 // should respect enforceExtension when extensions includes an empty string
-#[test]
-fn respect_enforce_extension() {
+#[tokio::test]
+async fn respect_enforce_extension() {
     let f = super::fixture().join("extensions");
 
     let mut ctx = ResolveContext::default();
@@ -71,7 +72,7 @@ fn respect_enforce_extension() {
         extensions: vec![".ts".into(), String::new(), ".js".into()],
         ..ResolveOptions::default()
     })
-    .resolve_with_context(&f, "./foo", &mut ctx);
+    .resolve_with_context(&f, "./foo", &mut ctx).await;
 
     assert_eq!(resolved.map(Resolution::into_path_buf), Ok(f.join("foo.ts")));
     assert_eq!(
@@ -81,8 +82,8 @@ fn respect_enforce_extension() {
     assert_eq!(ctx.missing_dependencies, FxHashSet::from_iter([f.join("foo")]));
 }
 
-#[test]
-fn multi_dot_extension() {
+#[tokio::test]
+async fn multi_dot_extension() {
     let f = super::fixture().join("extensions");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -98,7 +99,7 @@ fn multi_dot_extension() {
     ];
 
     for (comment, request, expected_path) in pass {
-        let resolved_path = resolver.resolve(&f, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&f, request).await.map(|r| r.full_path());
         let expected = f.join(expected_path);
         assert_eq!(resolved_path, Ok(expected), "{comment} {request} {expected_path}");
     }
@@ -109,7 +110,7 @@ fn multi_dot_extension() {
     ];
 
     for (comment, request, expected_error) in fail {
-        let resolution = resolver.resolve(&f, request);
+        let resolution = resolver.resolve(&f, request).await;
         let error = ResolveError::NotFound(expected_error);
         assert_eq!(resolution, Err(error), "{comment} {request} {resolution:?}");
     }
