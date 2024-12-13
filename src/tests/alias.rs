@@ -79,6 +79,7 @@ fn alias() {
         ("should resolve '#' alias 2", "#/index", "/c/dir/index"),
         ("should resolve '@' alias 1", "@", "/c/dir/index"),
         ("should resolve '@' alias 2", "@/index", "/c/dir/index"),
+        ("should resolve '@' alias 3", "@/", "/c/dir/index"),
         ("should resolve a recursive aliased module 1", "recursive", "/recursive/dir/index"),
         ("should resolve a recursive aliased module 2", "recursive/index", "/recursive/dir/index"),
         ("should resolve a recursive aliased module 3", "recursive/dir", "/recursive/dir/index"),
@@ -102,7 +103,6 @@ fn alias() {
         ("should resolve query in alias value", "alias_fragment#fragment_before", "/a/index#fragment_after"),
         ("should resolve dashed name", "dashed-name", "/dashed-name"),
         ("should resolve scoped package name with sub dir", "@scope/package-name/file", "/c/dir/index"),
-        ("should resolve '@' alias 3", "@/", "/c/dir/index"),
     ];
 
     for (comment, request, expected) in pass {
