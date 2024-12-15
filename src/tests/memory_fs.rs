@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use futures::future::BoxFuture;
+
 use crate::{FileMetadata, FileSystem};
 
 #[derive(Default)]
@@ -42,33 +44,37 @@ impl MemoryFS {
 }
 
 impl FileSystem for MemoryFS {
-    async fn read_to_string(&self, path: &Path) -> io::Result<String> {
-        use vfs::FileSystem;
-        let mut file = self
-            .fs
-            .open_file(path.to_string_lossy().as_ref())
-            .map_err(|err| io::Error::new(io::ErrorKind::NotFound, err))?;
-        let mut buffer = String::new();
-        file.read_to_string(&mut buffer).unwrap();
-        Ok(buffer)
+    fn read_to_string<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<String>> {
+        Box::pin(async move {
+            use vfs::FileSystem;
+            let mut file = self
+                .fs
+                .open_file(path.to_string_lossy().as_ref())
+                .map_err(|err| io::Error::new(io::ErrorKind::NotFound, err))?;
+            let mut buffer = String::new();
+            file.read_to_string(&mut buffer).unwrap();
+            Ok(buffer)
+        })
     }
 
-    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        use vfs::FileSystem;
-        let metadata = self
-            .fs
-            .metadata(path.to_string_lossy().as_ref())
-            .map_err(|err| io::Error::new(io::ErrorKind::NotFound, err))?;
-        let is_file = metadata.file_type == vfs::VfsFileType::File;
-        let is_dir = metadata.file_type == vfs::VfsFileType::Directory;
-        Ok(FileMetadata::new(is_file, is_dir, false))
+    fn metadata<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<FileMetadata>> {
+        Box::pin(async move {
+            use vfs::FileSystem;
+            let metadata = self
+                .fs
+                .metadata(path.to_string_lossy().as_ref())
+                .map_err(|err| io::Error::new(io::ErrorKind::NotFound, err))?;
+            let is_file = metadata.file_type == vfs::VfsFileType::File;
+            let is_dir = metadata.file_type == vfs::VfsFileType::Directory;
+            Ok(FileMetadata::new(is_file, is_dir, false))
+        })
     }
 
-    async fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        self.metadata(path).await
+    fn symlink_metadata<'a>(&'a self, path: &'a Path) -> BoxFuture<io::Result<FileMetadata>> {
+        Box::pin(async move { self.metadata(path).await })
     }
 
-    async fn canonicalize(&self, _path: &Path) -> io::Result<PathBuf> {
-        Err(io::Error::new(io::ErrorKind::NotFound, "not a symlink"))
+    fn canonicalize(&self, _path: &Path) -> BoxFuture<io::Result<PathBuf>> {
+        Box::pin(async move { Err(io::Error::new(io::ErrorKind::NotFound, "not a symlink")) })
     }
 }

@@ -71,7 +71,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::future::try_join_all;
+use futures::future::{try_join_all, BoxFuture};
 use rustc_hash::FxHashSet;
 use serde_json::Value as JSONValue;
 
@@ -136,7 +136,7 @@ impl<Fs: FileSystem + Default> ResolverGeneric<Fs> {
     }
 }
 
-impl<Fs: FileSystem> ResolverGeneric<Fs> {
+impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     pub fn new_with_file_system(file_system: Fs, options: ResolveOptions) -> Self {
         Self { cache: Arc::new(Cache::new(file_system)), options: options.sanitize() }
     }
@@ -233,7 +233,8 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         let path = self.load_realpath(&cached_path).await?;
         // enhanced-resolve: restrictions
         self.check_restrictions(&path)?;
-        let package_json = cached_path.find_package_json(&self.cache.fs, &self.options, ctx).await?;
+        let package_json =
+            cached_path.find_package_json(&self.cache.fs, &self.options, ctx).await?;
         if let Some(package_json) = &package_json {
             // path must be inside the package.
             debug_assert!(path.starts_with(package_json.directory()));
@@ -252,21 +253,25 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
     /// Y: path
     ///
     /// <https://nodejs.org/api/modules.html#all-together>
-    async fn require(
-        &self,
-        cached_path: &CachedPath,
-        specifier: &str,
-        ctx: &mut Ctx,
-    ) -> Result<CachedPath, ResolveError> {
-        ctx.test_for_infinite_recursion()?;
+    fn require<'a>(
+        &'a self,
+        cached_path: &'a CachedPath,
+        specifier: &'a str,
+        ctx: &'a mut Ctx,
+    ) -> BoxFuture<'a, Result<CachedPath, ResolveError>> {
+        let fut = async move {
+            ctx.test_for_infinite_recursion()?;
 
-        // enhanced-resolve: parse
-        let (parsed, try_fragment_as_path) = self.load_parse(cached_path, specifier, ctx).await?;
-        if let Some(path) = try_fragment_as_path {
-            return Ok(path);
-        }
+            // enhanced-resolve: parse
+            let (parsed, try_fragment_as_path) =
+                self.load_parse(cached_path, specifier, ctx).await?;
+            if let Some(path) = try_fragment_as_path {
+                return Ok(path);
+            }
 
-        self.require_without_parse(cached_path, parsed.path(), ctx).await
+            self.require_without_parse(cached_path, parsed.path(), ctx).await
+        };
+        Box::pin(fut)
     }
 
     async fn require_without_parse(
@@ -276,12 +281,16 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         ctx: &mut Ctx,
     ) -> Result<CachedPath, ResolveError> {
         // tsconfig-paths
-        if let Some(path) = self.load_tsconfig_paths(cached_path, specifier, &mut Ctx::default()).await? {
+        if let Some(path) =
+            self.load_tsconfig_paths(cached_path, specifier, &mut Ctx::default()).await?
+        {
             return Ok(path);
         }
 
         // enhanced-resolve: try alias
-        if let Some(path) = self.load_alias(cached_path, specifier, &self.options.alias, ctx).await? {
+        if let Some(path) =
+            self.load_alias(cached_path, specifier, &self.options.alias, ctx).await?
+        {
             return Ok(path);
         }
 
@@ -327,9 +336,10 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                     return Err(err);
                 }
                 // enhanced-resolve: try fallback
-                self.load_alias(cached_path, specifier, &self.options.fallback, ctx).await
+                self.load_alias(cached_path, specifier, &self.options.fallback, ctx)
+                    .await
                     .and_then(|value| value.ok_or(err))
-            },
+            }
         }
     }
 
@@ -362,7 +372,9 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             .next()
             .is_some_and(|c| matches!(c, Component::RootDir | Component::Prefix(_))));
         if !self.options.prefer_relative && self.options.prefer_absolute {
-            if let Ok(path) = self.load_package_self_or_node_modules(cached_path, specifier, ctx).await {
+            if let Ok(path) =
+                self.load_package_self_or_node_modules(cached_path, specifier, ctx).await
+            {
                 return Ok(path);
             }
         }
@@ -523,7 +535,8 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         // 2. If X.js is a file, load X.js as JavaScript text. STOP
         // 3. If X.json is a file, parse X.json to a JavaScript Object. STOP
         // 4. If X.node is a file, load X.node as binary addon. STOP
-        if let Some(path) = self.load_extensions(cached_path, &self.options.extensions, ctx).await? {
+        if let Some(path) = self.load_extensions(cached_path, &self.options.extensions, ctx).await?
+        {
             return Ok(Some(path));
         }
         Ok(None)
@@ -653,7 +666,9 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             // 1. If X/index.js is a file, load X/index.js as JavaScript text. STOP
             // 2. If X/index.json is a file, parse X/index.json to a JavaScript object. STOP
             // 3. If X/index.node is a file, load X/index.node as binary addon. STOP
-            if let Some(path) = self.load_extensions(&cached_path, &self.options.extensions, ctx).await? {
+            if let Some(path) =
+                self.load_extensions(&cached_path, &self.options.extensions, ctx).await?
+            {
                 return Ok(Some(path));
             }
         }
@@ -708,7 +723,8 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                     continue;
                 }
 
-                let Some(cached_path) = self.get_module_directory(cached_path, module_name, ctx).await
+                let Some(cached_path) =
+                    self.get_module_directory(cached_path, module_name, ctx).await
                 else {
                     continue;
                 };
@@ -749,7 +765,9 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                 // c. LOAD_AS_DIRECTORY(DIR/X)
                 let node_module_file = cached_path.path().normalize_with(specifier);
                 let cached_path = self.cache.value(&node_module_file);
-                if let Some(path) = self.load_as_file_or_directory(&cached_path, specifier, ctx).await? {
+                if let Some(path) =
+                    self.load_as_file_or_directory(&cached_path, specifier, ctx).await?
+                {
                     return Ok(Some(path));
                 }
             }
@@ -822,7 +840,8 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
     ) -> ResolveResult {
         // 2. If X does not match this pattern or DIR/NAME/package.json is not a file,
         //    return.
-        let Some(package_json) = cached_path.package_json(&self.cache.fs, &self.options, ctx).await?
+        let Some(package_json) =
+            cached_path.package_json(&self.cache.fs, &self.options, ctx).await?
         else {
             return Ok(None);
         };
@@ -832,12 +851,10 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         //    `package.json` "exports", ["node", "require"]) defined in the ESM resolver.
         // Note: The subpath is not prepended with a dot on purpose
         for exports in package_json.exports_fields(&self.options.exports_fields) {
-            if let Some(path) = self.package_exports_resolve(
-                cached_path.path(),
-                &format!(".{subpath}"),
-                exports,
-                ctx,
-            ).await? {
+            if let Some(path) = self
+                .package_exports_resolve(cached_path.path(), &format!(".{subpath}"), exports, ctx)
+                .await?
+            {
                 // 6. RESOLVE_ESM_MATCH(MATCH)
                 return self.resolve_esm_match(specifier, &path, ctx).await;
             };
@@ -872,8 +889,9 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             // Note: The subpath is not prepended with a dot on purpose
             // because `package_exports_resolve` matches subpath without the leading dot.
             for exports in package_json.exports_fields(&self.options.exports_fields) {
-                if let Some(cached_path) =
-                    self.package_exports_resolve(package_url, &format!(".{subpath}"), exports, ctx).await?
+                if let Some(cached_path) = self
+                    .package_exports_resolve(package_url, &format!(".{subpath}"), exports, ctx)
+                    .await?
                 {
                     // 6. RESOLVE_ESM_MATCH(MATCH)
                     return self.resolve_esm_match(specifier, &cached_path, ctx).await;
@@ -967,14 +985,17 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             for r in specifiers {
                 match r {
                     AliasValue::Path(alias_value) => {
-                        if let Some(path) = self.load_alias_value(
-                            cached_path,
-                            alias_key,
-                            alias_value,
-                            specifier,
-                            ctx,
-                            &mut should_stop,
-                        ).await? {
+                        if let Some(path) = self
+                            .load_alias_value(
+                                cached_path,
+                                alias_key,
+                                alias_value,
+                                specifier,
+                                ctx,
+                                &mut should_stop,
+                            )
+                            .await?
+                        {
                             return Ok(Some(path));
                         }
                     }
@@ -1126,11 +1147,13 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         let Some(tsconfig_options) = &self.options.tsconfig else {
             return Ok(None);
         };
-        let tsconfig = self.load_tsconfig(
-            /* root */ true,
-            &tsconfig_options.config_file,
-            &tsconfig_options.references,
-        ).await?;
+        let tsconfig = self
+            .load_tsconfig(
+                /* root */ true,
+                &tsconfig_options.config_file,
+                &tsconfig_options.references,
+            )
+            .await?;
         let paths = tsconfig.resolve(cached_path.path(), specifier);
         for path in paths {
             let cached_path = self.cache.value(&path);
@@ -1141,71 +1164,85 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         Ok(None)
     }
 
-    async fn load_tsconfig(
-        &self,
+    fn load_tsconfig<'a>(
+        &'a self,
         root: bool,
-        path: &Path,
-        references: &TsconfigReferences,
-    ) -> Result<Arc<TsConfig>, ResolveError> {
-        self.cache.tsconfig(root, path, |mut tsconfig| async move {
-            let directory = self.cache.value(tsconfig.directory());
-            tracing::trace!(tsconfig = ?tsconfig, "load_tsconfig");
+        path: &'a Path,
+        references: &'a TsconfigReferences,
+    ) -> BoxFuture<'a, Result<Arc<TsConfig>, ResolveError>> {
+        let fut = async move {
+            self.cache
+            .tsconfig(root, path, |mut tsconfig| async move {
+                let directory = self.cache.value(tsconfig.directory());
+                tracing::trace!(tsconfig = ?tsconfig, "load_tsconfig");
 
-            // Extend tsconfig
-            if let Some(extends) = &tsconfig.extends {
-                let extended_tsconfig_paths = match extends {
-                    ExtendsField::Single(s) => {
-                        vec![self.get_extended_tsconfig_path(&directory, &tsconfig, s).await?]
+                // Extend tsconfig
+                if let Some(extends) = &tsconfig.extends {
+                    let extended_tsconfig_paths = match extends {
+                        ExtendsField::Single(s) => {
+                            vec![self.get_extended_tsconfig_path(&directory, &tsconfig, s).await?]
+                        }
+                        ExtendsField::Multiple(specifiers) => {
+                            try_join_all(
+                                specifiers.iter().map(|s| {
+                                    self.get_extended_tsconfig_path(&directory, &tsconfig, s)
+                                }),
+                            )
+                            .await?
+                        }
+                    };
+                    for extended_tsconfig_path in extended_tsconfig_paths {
+                        let extended_tsconfig = self
+                            .load_tsconfig(
+                                /* root */ false,
+                                &extended_tsconfig_path,
+                                &TsconfigReferences::Disabled,
+                            )
+                            .await?;
+                        tsconfig.extend_tsconfig(&extended_tsconfig);
                     }
-                    ExtendsField::Multiple(specifiers) => try_join_all(specifiers
-                        .iter()
-                        .map(|s| self.get_extended_tsconfig_path(&directory, &tsconfig, s))).await?,
-                };
-                for extended_tsconfig_path in extended_tsconfig_paths {
-                    let extended_tsconfig = self.load_tsconfig(
-                        /* root */ false,
-                        &extended_tsconfig_path,
-                        &TsconfigReferences::Disabled,
-                    ).await?;
-                    tsconfig.extend_tsconfig(&extended_tsconfig);
                 }
-            }
 
-            // Load project references
-            match references {
-                TsconfigReferences::Disabled => {
-                    tsconfig.references.drain(..);
+                // Load project references
+                match references {
+                    TsconfigReferences::Disabled => {
+                        tsconfig.references.drain(..);
+                    }
+                    TsconfigReferences::Auto => {}
+                    TsconfigReferences::Paths(paths) => {
+                        tsconfig.references = paths
+                            .iter()
+                            .map(|path| ProjectReference { path: path.clone(), tsconfig: None })
+                            .collect();
+                    }
                 }
-                TsconfigReferences::Auto => {}
-                TsconfigReferences::Paths(paths) => {
-                    tsconfig.references = paths
-                        .iter()
-                        .map(|path| ProjectReference { path: path.clone(), tsconfig: None })
-                        .collect();
+                if !tsconfig.references.is_empty() {
+                    let directory = tsconfig.directory().to_path_buf();
+                    for reference in &mut tsconfig.references {
+                        let reference_tsconfig_path = directory.normalize_with(&reference.path);
+                        let tsconfig = self
+                            .cache
+                            .tsconfig(
+                                /* root */ true,
+                                &reference_tsconfig_path,
+                                |reference_tsconfig| async {
+                                    if reference_tsconfig.path == tsconfig.path {
+                                        return Err(ResolveError::TsconfigSelfReference(
+                                            reference_tsconfig.path.clone(),
+                                        ));
+                                    }
+                                    Ok(reference_tsconfig)
+                                },
+                            )
+                            .await?;
+                        reference.tsconfig.replace(tsconfig);
+                    }
                 }
-            }
-            if !tsconfig.references.is_empty() {
-                let directory = tsconfig.directory().to_path_buf();
-                for reference in &mut tsconfig.references {
-                    let reference_tsconfig_path = directory.normalize_with(&reference.path);
-                    let tsconfig = self.cache.tsconfig(
-                        /* root */ true,
-                        &reference_tsconfig_path,
-                        |reference_tsconfig| async {
-                            if reference_tsconfig.path == tsconfig.path {
-                                return Err(ResolveError::TsconfigSelfReference(
-                                    reference_tsconfig.path.clone(),
-                                ));
-                            }
-                            Ok(reference_tsconfig)
-                        },
-                    ).await?;
-                    reference.tsconfig.replace(tsconfig);
-                }
-            }
 
-            Ok(tsconfig)
-        }).await
+                Ok(tsconfig)
+            }).await
+        };
+        Box::pin(fut)
     }
 
     async fn get_extended_tsconfig_path(
@@ -1254,7 +1291,8 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         for module_name in &self.options.modules {
             for cached_path in std::iter::successors(Some(cached_path), |p| p.parent()) {
                 // 1. Let packageURL be the URL resolution of "node_modules/" concatenated with packageSpecifier, relative to parentURL.
-                let Some(cached_path) = self.get_module_directory(cached_path, module_name, ctx).await
+                let Some(cached_path) =
+                    self.get_module_directory(cached_path, module_name, ctx).await
                 else {
                     continue;
                 };
@@ -1271,12 +1309,15 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                         // 5. If pjson is not null and pjson.exports is not null or undefined, then
                         // 1. Return the result of PACKAGE_EXPORTS_RESOLVE(packageURL, packageSubpath, pjson.exports, defaultConditions).
                         for exports in package_json.exports_fields(&self.options.exports_fields) {
-                            if let Some(path) = self.package_exports_resolve(
-                                cached_path.path(),
-                                &format!(".{subpath}"),
-                                exports,
-                                ctx,
-                            ).await? {
+                            if let Some(path) = self
+                                .package_exports_resolve(
+                                    cached_path.path(),
+                                    &format!(".{subpath}"),
+                                    exports,
+                                    ctx,
+                                )
+                                .await?
+                            {
                                 return Ok(Some(path));
                             }
                         }
@@ -1304,107 +1345,118 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
     }
 
     /// PACKAGE_EXPORTS_RESOLVE(packageURL, subpath, exports, conditions)
-    async fn package_exports_resolve(
-        &self,
-        package_url: &Path,
-        subpath: &str,
-        exports: &JSONValue,
-        ctx: &mut Ctx,
-    ) -> ResolveResult {
-        let conditions = &self.options.condition_names;
-        // 1. If exports is an Object with both a key starting with "." and a key not starting with ".", throw an Invalid Package Configuration error.
-        if let JSONValue::Object(map) = exports {
-            let mut has_dot = false;
-            let mut without_dot = false;
-            for key in map.keys() {
-                let starts_with_dot_or_hash = key.starts_with(['.', '#']);
-                has_dot = has_dot || starts_with_dot_or_hash;
-                without_dot = without_dot || !starts_with_dot_or_hash;
-                if has_dot && without_dot {
-                    return Err(ResolveError::InvalidPackageConfig(
+    fn package_exports_resolve<'a>(
+        &'a self,
+        package_url: &'a Path,
+        subpath: &'a str,
+        exports: &'a JSONValue,
+        ctx: &'a mut Ctx,
+    ) -> BoxFuture<'a, ResolveResult> {
+        let fut = async move {
+            let conditions = &self.options.condition_names;
+            // 1. If exports is an Object with both a key starting with "." and a key not starting with ".", throw an Invalid Package Configuration error.
+            if let JSONValue::Object(map) = exports {
+                let mut has_dot = false;
+                let mut without_dot = false;
+                for key in map.keys() {
+                    let starts_with_dot_or_hash = key.starts_with(['.', '#']);
+                    has_dot = has_dot || starts_with_dot_or_hash;
+                    without_dot = without_dot || !starts_with_dot_or_hash;
+                    if has_dot && without_dot {
+                        return Err(ResolveError::InvalidPackageConfig(
+                            package_url.join("package.json"),
+                        ));
+                    }
+                }
+            }
+            // 2. If subpath is equal to ".", then
+            // Note: subpath is not prepended with a dot when passed in.
+            if subpath == "." {
+                // enhanced-resolve appends query and fragment when resolving exports field
+                // https://github.com/webpack/enhanced-resolve/blob/a998c7d218b7a9ec2461fc4fddd1ad5dd7687485/lib/ExportsFieldPlugin.js#L57-L62
+                // This is only need when querying the main export, otherwise ctx is passed through.
+                if ctx.query.is_some() || ctx.fragment.is_some() {
+                    let query = ctx.query.clone().unwrap_or_default();
+                    let fragment = ctx.fragment.clone().unwrap_or_default();
+                    return Err(ResolveError::PackagePathNotExported(
+                        format!("./{}{query}{fragment}", subpath.trim_start_matches('.')),
                         package_url.join("package.json"),
                     ));
                 }
-            }
-        }
-        // 2. If subpath is equal to ".", then
-        // Note: subpath is not prepended with a dot when passed in.
-        if subpath == "." {
-            // enhanced-resolve appends query and fragment when resolving exports field
-            // https://github.com/webpack/enhanced-resolve/blob/a998c7d218b7a9ec2461fc4fddd1ad5dd7687485/lib/ExportsFieldPlugin.js#L57-L62
-            // This is only need when querying the main export, otherwise ctx is passed through.
-            if ctx.query.is_some() || ctx.fragment.is_some() {
-                let query = ctx.query.clone().unwrap_or_default();
-                let fragment = ctx.fragment.clone().unwrap_or_default();
-                return Err(ResolveError::PackagePathNotExported(
-                    format!("./{}{query}{fragment}", subpath.trim_start_matches('.')),
-                    package_url.join("package.json"),
-                ));
-            }
-            // 1. Let mainExport be undefined.
-            let main_export = match exports {
-                // 2. If exports is a String or Array, or an Object containing no keys starting with ".", then
-                JSONValue::String(_) | JSONValue::Array(_) => {
-                    // 1. Set mainExport to exports.
-                    Some(exports)
+                // 1. Let mainExport be undefined.
+                let main_export = match exports {
+                    // 2. If exports is a String or Array, or an Object containing no keys starting with ".", then
+                    JSONValue::String(_) | JSONValue::Array(_) => {
+                        // 1. Set mainExport to exports.
+                        Some(exports)
+                    }
+                    // 3. Otherwise if exports is an Object containing a "." property, then
+                    JSONValue::Object(map) => {
+                        // 1. Set mainExport to exports["."].
+                        map.get(".").map_or_else(
+                            || {
+                                if map
+                                    .keys()
+                                    .any(|key| key.starts_with("./") || key.starts_with('#'))
+                                {
+                                    None
+                                } else {
+                                    Some(exports)
+                                }
+                            },
+                            Some,
+                        )
+                    }
+                    _ => None,
+                };
+                // 4. If mainExport is not undefined, then
+                if let Some(main_export) = main_export {
+                    // 1. Let resolved be the result of PACKAGE_TARGET_RESOLVE( packageURL, mainExport, null, false, conditions).
+                    let resolved = self
+                        .package_target_resolve(
+                            package_url,
+                            ".",
+                            main_export,
+                            None,
+                            /* is_imports */ false,
+                            conditions,
+                            ctx,
+                        )
+                        .await?;
+                    // 2. If resolved is not null or undefined, return resolved.
+                    if let Some(path) = resolved {
+                        return Ok(Some(path));
+                    }
                 }
-                // 3. Otherwise if exports is an Object containing a "." property, then
-                JSONValue::Object(map) => {
-                    // 1. Set mainExport to exports["."].
-                    map.get(".").map_or_else(
-                        || {
-                            if map.keys().any(|key| key.starts_with("./") || key.starts_with('#')) {
-                                None
-                            } else {
-                                Some(exports)
-                            }
-                        },
-                        Some,
+            }
+            // 3. Otherwise, if exports is an Object and all keys of exports start with ".", then
+            if let JSONValue::Object(exports) = exports {
+                // 1. Let matchKey be the string "./" concatenated with subpath.
+                // Note: `package_imports_exports_resolve` does not require the leading dot.
+                let match_key = &subpath;
+                // 2. Let resolved be the result of PACKAGE_IMPORTS_EXPORTS_RESOLVE( matchKey, exports, packageURL, false, conditions).
+                if let Some(path) = self
+                    .package_imports_exports_resolve(
+                        match_key,
+                        exports,
+                        package_url,
+                        /* is_imports */ false,
+                        conditions,
+                        ctx,
                     )
-                }
-                _ => None,
-            };
-            // 4. If mainExport is not undefined, then
-            if let Some(main_export) = main_export {
-                // 1. Let resolved be the result of PACKAGE_TARGET_RESOLVE( packageURL, mainExport, null, false, conditions).
-                let resolved = self.package_target_resolve(
-                    package_url,
-                    ".",
-                    main_export,
-                    None,
-                    /* is_imports */ false,
-                    conditions,
-                    ctx,
-                ).await?;
-                // 2. If resolved is not null or undefined, return resolved.
-                if let Some(path) = resolved {
+                    .await?
+                {
+                    // 3. If resolved is not null or undefined, return resolved.
                     return Ok(Some(path));
                 }
             }
-        }
-        // 3. Otherwise, if exports is an Object and all keys of exports start with ".", then
-        if let JSONValue::Object(exports) = exports {
-            // 1. Let matchKey be the string "./" concatenated with subpath.
-            // Note: `package_imports_exports_resolve` does not require the leading dot.
-            let match_key = &subpath;
-            // 2. Let resolved be the result of PACKAGE_IMPORTS_EXPORTS_RESOLVE( matchKey, exports, packageURL, false, conditions).
-            if let Some(path) = self.package_imports_exports_resolve(
-                match_key,
-                exports,
-                package_url,
-                /* is_imports */ false,
-                conditions,
-                ctx,
-            ).await? {
-                // 3. If resolved is not null or undefined, return resolved.
-                return Ok(Some(path));
-            }
-        }
-        // 4. Throw a Package Path Not Exported error.
-        Err(ResolveError::PackagePathNotExported(
-            subpath.to_string(),
-            package_url.join("package.json"),
-        ))
+            // 4. Throw a Package Path Not Exported error.
+            Err(ResolveError::PackagePathNotExported(
+                subpath.to_string(),
+                package_url.join("package.json"),
+            ))
+        };
+        Box::pin(fut)
     }
 
     /// PACKAGE_IMPORTS_RESOLVE(specifier, parentURL, conditions)
@@ -1437,14 +1489,17 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                     ));
                 }
             }
-            if let Some(path) = self.package_imports_exports_resolve(
-                specifier,
-                imports,
-                package_json.directory(),
-                /* is_imports */ true,
-                &self.options.condition_names,
-                ctx,
-            ).await? {
+            if let Some(path) = self
+                .package_imports_exports_resolve(
+                    specifier,
+                    imports,
+                    package_json.directory(),
+                    /* is_imports */ true,
+                    &self.options.condition_names,
+                    ctx,
+                )
+                .await?
+            {
                 // 2. If resolved is not null or undefined, return resolved.
                 return Ok(Some(path));
             }
@@ -1481,15 +1536,17 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             // 1. Let target be the value of matchObj[matchKey].
             if let Some(target) = match_obj.get(match_key) {
                 // 2. Return the result of PACKAGE_TARGET_RESOLVE(packageURL, target, null, isImports, conditions).
-                return self.package_target_resolve(
-                    package_url,
-                    match_key,
-                    target,
-                    None,
-                    is_imports,
-                    conditions,
-                    ctx,
-                ).await;
+                return self
+                    .package_target_resolve(
+                        package_url,
+                        match_key,
+                        target,
+                        None,
+                        is_imports,
+                        conditions,
+                        ctx,
+                    )
+                    .await;
             }
         }
 
@@ -1532,15 +1589,17 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         }
         if let Some(best_target) = best_target {
             // 3. Return the result of PACKAGE_TARGET_RESOLVE(packageURL, target, patternMatch, isImports, conditions).
-            return self.package_target_resolve(
-                package_url,
-                best_key,
-                best_target,
-                Some(best_match),
-                is_imports,
-                conditions,
-                ctx,
-            ).await;
+            return self
+                .package_target_resolve(
+                    package_url,
+                    best_key,
+                    best_target,
+                    Some(best_match),
+                    is_imports,
+                    conditions,
+                    ctx,
+                )
+                .await;
         }
         // 4. Return null.
         Ok(None)
@@ -1548,153 +1607,160 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
 
     /// PACKAGE_TARGET_RESOLVE(packageURL, target, patternMatch, isImports, conditions)
     #[allow(clippy::too_many_arguments)]
-    async fn package_target_resolve(
-        &self,
-        package_url: &Path,
-        target_key: &str,
-        target: &JSONValue,
-        pattern_match: Option<&str>,
+    fn package_target_resolve<'a>(
+        &'a self,
+        package_url: &'a Path,
+        target_key: &'a str,
+        target: &'a JSONValue,
+        pattern_match: Option<&'a str>,
         is_imports: bool,
-        conditions: &[String],
-        ctx: &mut Ctx,
-    ) -> ResolveResult {
-        fn normalize_string_target<'a>(
-            target_key: &'a str,
-            target: &'a str,
-            pattern_match: Option<&'a str>,
-            package_url: &Path,
-        ) -> Result<Cow<'a, str>, ResolveError> {
-            let target = if let Some(pattern_match) = pattern_match {
-                if !target_key.contains('*') && !target.contains('*') {
-                    // enhanced-resolve behaviour
-                    // TODO: [DEP0148] DeprecationWarning: Use of deprecated folder mapping "./dist/" in the "exports" field module resolution of the package at xxx/package.json.
-                    if target_key.ends_with('/') && target.ends_with('/') {
-                        Cow::Owned(format!("{target}{pattern_match}"))
+        conditions: &'a[String],
+        ctx: &'a mut Ctx,
+    ) -> BoxFuture<'a, ResolveResult> {
+        let fut = async move {
+            fn normalize_string_target<'a>(
+                target_key: &'a str,
+                target: &'a str,
+                pattern_match: Option<&'a str>,
+                package_url: &Path,
+            ) -> Result<Cow<'a, str>, ResolveError> {
+                let target = if let Some(pattern_match) = pattern_match {
+                    if !target_key.contains('*') && !target.contains('*') {
+                        // enhanced-resolve behaviour
+                        // TODO: [DEP0148] DeprecationWarning: Use of deprecated folder mapping "./dist/" in the "exports" field module resolution of the package at xxx/package.json.
+                        if target_key.ends_with('/') && target.ends_with('/') {
+                            Cow::Owned(format!("{target}{pattern_match}"))
+                        } else {
+                            return Err(ResolveError::InvalidPackageConfigDirectory(
+                                package_url.join("package.json"),
+                            ));
+                        }
                     } else {
-                        return Err(ResolveError::InvalidPackageConfigDirectory(
-                            package_url.join("package.json"),
-                        ));
+                        Cow::Owned(target.replace('*', pattern_match))
                     }
                 } else {
-                    Cow::Owned(target.replace('*', pattern_match))
-                }
-            } else {
-                Cow::Borrowed(target)
-            };
-            Ok(target)
-        }
-
-        match target {
-            // 1. If target is a String, then
-            JSONValue::String(target) => {
-                // 1. If target does not start with "./", then
-                if !target.starts_with("./") {
-                    // 1. If isImports is false, or if target starts with "../" or "/", or if target is a valid URL, then
-                    if !is_imports || target.starts_with("../") || target.starts_with('/') {
-                        // 1. Throw an Invalid Package Target error.
+                    Cow::Borrowed(target)
+                };
+                Ok(target)
+            }
+    
+            match target {
+                // 1. If target is a String, then
+                JSONValue::String(target) => {
+                    // 1. If target does not start with "./", then
+                    if !target.starts_with("./") {
+                        // 1. If isImports is false, or if target starts with "../" or "/", or if target is a valid URL, then
+                        if !is_imports || target.starts_with("../") || target.starts_with('/') {
+                            // 1. Throw an Invalid Package Target error.
+                            return Err(ResolveError::InvalidPackageTarget(
+                                target.to_string(),
+                                target_key.to_string(),
+                                package_url.join("package.json"),
+                            ));
+                        }
+                        // 2. If patternMatch is a String, then
+                        //   1. Return PACKAGE_RESOLVE(target with every instance of "*" replaced by patternMatch, packageURL + "/").
+                        let target =
+                            normalize_string_target(target_key, target, pattern_match, package_url)?;
+                        let package_url = self.cache.value(package_url);
+                        // // 3. Return PACKAGE_RESOLVE(target, packageURL + "/").
+                        return self.package_resolve(&package_url, &target, ctx).await;
+                    }
+    
+                    // 2. If target split on "/" or "\" contains any "", ".", "..", or "node_modules" segments after the first "." segment, case insensitive and including percent encoded variants, throw an Invalid Package Target error.
+                    // 3. Let resolvedTarget be the URL resolution of the concatenation of packageURL and target.
+                    // 4. Assert: resolvedTarget is contained in packageURL.
+                    // 5. If patternMatch is null, then
+                    let target =
+                        normalize_string_target(target_key, target, pattern_match, package_url)?;
+                    if Path::new(target.as_ref()).is_invalid_exports_target() {
                         return Err(ResolveError::InvalidPackageTarget(
                             target.to_string(),
                             target_key.to_string(),
                             package_url.join("package.json"),
                         ));
                     }
-                    // 2. If patternMatch is a String, then
-                    //   1. Return PACKAGE_RESOLVE(target with every instance of "*" replaced by patternMatch, packageURL + "/").
-                    let target =
-                        normalize_string_target(target_key, target, pattern_match, package_url)?;
-                    let package_url = self.cache.value(package_url);
-                    // // 3. Return PACKAGE_RESOLVE(target, packageURL + "/").
-                    return self.package_resolve(&package_url, &target, ctx).await;
+                    let resolved_target = package_url.normalize_with(target.as_ref());
+                    // 6. If patternMatch split on "/" or "\" contains any "", ".", "..", or "node_modules" segments, case insensitive and including percent encoded variants, throw an Invalid Module Specifier error.
+                    // 7. Return the URL resolution of resolvedTarget with every instance of "*" replaced with patternMatch.
+                    let value = self.cache.value(&resolved_target);
+                    return Ok(Some(value));
                 }
-
-                // 2. If target split on "/" or "\" contains any "", ".", "..", or "node_modules" segments after the first "." segment, case insensitive and including percent encoded variants, throw an Invalid Package Target error.
-                // 3. Let resolvedTarget be the URL resolution of the concatenation of packageURL and target.
-                // 4. Assert: resolvedTarget is contained in packageURL.
-                // 5. If patternMatch is null, then
-                let target =
-                    normalize_string_target(target_key, target, pattern_match, package_url)?;
-                if Path::new(target.as_ref()).is_invalid_exports_target() {
-                    return Err(ResolveError::InvalidPackageTarget(
-                        target.to_string(),
-                        target_key.to_string(),
-                        package_url.join("package.json"),
-                    ));
+                // 2. Otherwise, if target is a non-null Object, then
+                JSONValue::Object(target) => {
+                    // 1. If exports contains any index property keys, as defined in ECMA-262 6.1.7 Array Index, throw an Invalid Package Configuration error.
+                    // 2. For each property p of target, in object insertion order as,
+                    for (key, target_value) in target {
+                        // 1. If p equals "default" or conditions contains an entry for p, then
+                        if key == "default" || conditions.contains(key) {
+                            // 1. Let targetValue be the value of the p property in target.
+                            // 2. Let resolved be the result of PACKAGE_TARGET_RESOLVE( packageURL, targetValue, patternMatch, isImports, conditions).
+                            let resolved = self
+                                .package_target_resolve(
+                                    package_url,
+                                    target_key,
+                                    target_value,
+                                    pattern_match,
+                                    is_imports,
+                                    conditions,
+                                    ctx,
+                                )
+                                .await;
+                            // 3. If resolved is equal to undefined, continue the loop.
+                            if let Some(path) = resolved? {
+                                // 4. Return resolved.
+                                return Ok(Some(path));
+                            }
+                        }
+                    }
+                    // 3. Return undefined.
+                    return Ok(None);
                 }
-                let resolved_target = package_url.normalize_with(target.as_ref());
-                // 6. If patternMatch split on "/" or "\" contains any "", ".", "..", or "node_modules" segments, case insensitive and including percent encoded variants, throw an Invalid Module Specifier error.
-                // 7. Return the URL resolution of resolvedTarget with every instance of "*" replaced with patternMatch.
-                let value = self.cache.value(&resolved_target);
-                return Ok(Some(value));
-            }
-            // 2. Otherwise, if target is a non-null Object, then
-            JSONValue::Object(target) => {
-                // 1. If exports contains any index property keys, as defined in ECMA-262 6.1.7 Array Index, throw an Invalid Package Configuration error.
-                // 2. For each property p of target, in object insertion order as,
-                for (key, target_value) in target {
-                    // 1. If p equals "default" or conditions contains an entry for p, then
-                    if key == "default" || conditions.contains(key) {
-                        // 1. Let targetValue be the value of the p property in target.
-                        // 2. Let resolved be the result of PACKAGE_TARGET_RESOLVE( packageURL, targetValue, patternMatch, isImports, conditions).
-                        let resolved = self.package_target_resolve(
-                            package_url,
-                            target_key,
-                            target_value,
-                            pattern_match,
-                            is_imports,
-                            conditions,
-                            ctx,
-                        ).await;
-                        // 3. If resolved is equal to undefined, continue the loop.
-                        if let Some(path) = resolved? {
-                            // 4. Return resolved.
+                // 3. Otherwise, if target is an Array, then
+                JSONValue::Array(targets) => {
+                    // 1. If _target.length is zero, return null.
+                    if targets.is_empty() {
+                        // Note: return PackagePathNotExported has the same effect as return because there are no matches.
+                        return Err(ResolveError::PackagePathNotExported(
+                            pattern_match.unwrap_or(".").to_string(),
+                            package_url.join("package.json"),
+                        ));
+                    }
+                    // 2. For each item targetValue in target, do
+                    for (i, target_value) in targets.iter().enumerate() {
+                        // 1. Let resolved be the result of PACKAGE_TARGET_RESOLVE( packageURL, targetValue, patternMatch, isImports, conditions), continuing the loop on any Invalid Package Target error.
+                        let resolved = self
+                            .package_target_resolve(
+                                package_url,
+                                target_key,
+                                target_value,
+                                pattern_match,
+                                is_imports,
+                                conditions,
+                                ctx,
+                            )
+                            .await;
+    
+                        if resolved.is_err() && i == targets.len() {
+                            return resolved;
+                        }
+    
+                        // 2. If resolved is undefined, continue the loop.
+                        if let Ok(Some(path)) = resolved {
+                            // 3. Return resolved.
                             return Ok(Some(path));
                         }
                     }
+                    // 3. Return or throw the last fallback resolution null return or error.
+                    // Note: see `resolved.is_err() && i == targets.len()`
                 }
-                // 3. Return undefined.
-                return Ok(None);
+                _ => {}
             }
-            // 3. Otherwise, if target is an Array, then
-            JSONValue::Array(targets) => {
-                // 1. If _target.length is zero, return null.
-                if targets.is_empty() {
-                    // Note: return PackagePathNotExported has the same effect as return because there are no matches.
-                    return Err(ResolveError::PackagePathNotExported(
-                        pattern_match.unwrap_or(".").to_string(),
-                        package_url.join("package.json"),
-                    ));
-                }
-                // 2. For each item targetValue in target, do
-                for (i, target_value) in targets.iter().enumerate() {
-                    // 1. Let resolved be the result of PACKAGE_TARGET_RESOLVE( packageURL, targetValue, patternMatch, isImports, conditions), continuing the loop on any Invalid Package Target error.
-                    let resolved = self.package_target_resolve(
-                        package_url,
-                        target_key,
-                        target_value,
-                        pattern_match,
-                        is_imports,
-                        conditions,
-                        ctx,
-                    ).await;
-
-                    if resolved.is_err() && i == targets.len() {
-                        return resolved;
-                    }
-
-                    // 2. If resolved is undefined, continue the loop.
-                    if let Ok(Some(path)) = resolved {
-                        // 3. Return resolved.
-                        return Ok(Some(path));
-                    }
-                }
-                // 3. Return or throw the last fallback resolution null return or error.
-                // Note: see `resolved.is_err() && i == targets.len()`
-            }
-            _ => {}
-        }
-        // 4. Otherwise, if target is null, return null.
-        Ok(None)
-        // 5. Otherwise throw an Invalid Package Target error.
+            // 4. Otherwise, if target is null, return null.
+            Ok(None)
+            // 5. Otherwise throw an Invalid Package Target error.
+        };
+        Box::pin(fut)
     }
 
     // Returns (module, subpath)

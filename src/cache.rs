@@ -1,7 +1,15 @@
+use futures::future::BoxFuture;
 use tokio::sync::OnceCell as OnceLock;
 
 use std::{
-    borrow::{Borrow, Cow}, convert::AsRef, future::Future, hash::{BuildHasherDefault, Hash, Hasher}, io, ops::Deref, path::{Path, PathBuf}, sync::Arc
+    borrow::{Borrow, Cow},
+    convert::AsRef,
+    future::Future,
+    hash::{BuildHasherDefault, Hash, Hasher},
+    io,
+    ops::Deref,
+    path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use dashmap::{DashMap, DashSet};
@@ -56,7 +64,7 @@ impl<Fs: FileSystem> Cache<Fs> {
     ) -> Result<Arc<TsConfig>, ResolveError>
     where
         F: FnOnce(TsConfig) -> Fut,
-        Fut: Future<Output = Result<TsConfig, ResolveError>>
+        Fut: Future<Output = Result<TsConfig, ResolveError>>,
     {
         if let Some(tsconfig_ref) = self.tsconfigs.get(path) {
             return Ok(Arc::clone(tsconfig_ref.value()));
@@ -188,23 +196,30 @@ impl CachedPathImpl {
         )
     }
 
-    pub async fn realpath<Fs: FileSystem>(&self, fs: &Fs) -> io::Result<PathBuf> {
-        self.canonicalized
-            .get_or_try_init(|| async move {
-                if fs.symlink_metadata(&self.path).await.is_ok_and(|m| m.is_symlink) {
-                    return fs.canonicalize(&self.path).await.map(Some);
-                }
-                if let Some(parent) = self.parent() {
-                    let parent_path = parent.realpath(fs).await?;
-                    return Ok(Some(
-                        parent_path.normalize_with(self.path.strip_prefix(&parent.path).unwrap()),
-                    ));
-                };
-                Ok(None)
-            })
-            .await
-            .cloned()
-            .map(|r| r.unwrap_or_else(|| self.path.clone().to_path_buf()))
+    pub fn realpath<'a, Fs: FileSystem + Send + Sync>(
+        &'a self,
+        fs: &'a Fs,
+    ) -> BoxFuture<'a, io::Result<PathBuf>> {
+        let fut = async move {
+            self.canonicalized
+                .get_or_try_init(|| async move {
+                    if fs.symlink_metadata(&self.path).await.is_ok_and(|m| m.is_symlink) {
+                        return fs.canonicalize(&self.path).await.map(Some);
+                    }
+                    if let Some(parent) = self.parent() {
+                        let parent_path = parent.realpath(fs).await?;
+                        return Ok(Some(
+                            parent_path
+                                .normalize_with(self.path.strip_prefix(&parent.path).unwrap()),
+                        ));
+                    };
+                    Ok(None)
+                })
+                .await
+                .cloned()
+                .map(|r| r.unwrap_or_else(|| self.path.clone().to_path_buf()))
+        };
+        Box::pin(fut)
     }
 
     pub async fn module_directory<Fs: FileSystem>(
@@ -233,7 +248,7 @@ impl CachedPathImpl {
     /// # Errors
     ///
     /// * [ResolveError::JSON]
-    pub async fn find_package_json<Fs: FileSystem>(
+    pub async fn find_package_json<Fs: FileSystem + Send + Sync>(
         &self,
         fs: &Fs,
         options: &ResolveOptions,
@@ -263,7 +278,7 @@ impl CachedPathImpl {
     /// # Errors
     ///
     /// * [ResolveError::JSON]
-    pub async fn package_json<Fs: FileSystem>(
+    pub async fn package_json<Fs: FileSystem + Send + Sync>(
         &self,
         fs: &Fs,
         options: &ResolveOptions,
