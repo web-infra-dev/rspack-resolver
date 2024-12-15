@@ -156,8 +156,8 @@ fn bench_resolver(c: &mut Criterion) {
     let mut group = c.benchmark_group("resolver");
 
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
-        let oxc_resolver = oxc_resolver();
         b.iter(|| {
+            let oxc_resolver = oxc_resolver();
             for (path, request) in data {
                 _ = oxc_resolver.resolve(path, request);
             }
@@ -165,8 +165,8 @@ fn bench_resolver(c: &mut Criterion) {
     });
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
-        let oxc_resolver = oxc_resolver();
         b.iter(|| {
+            let oxc_resolver = oxc_resolver();
             data.par_iter().for_each(|(path, request)| {
                 _ = oxc_resolver.resolve(path, request);
             });
@@ -177,8 +177,8 @@ fn bench_resolver(c: &mut Criterion) {
         BenchmarkId::from_parameter("resolve from symlinks"),
         &symlinks_range,
         |b, data| {
-            let oxc_resolver = oxc_resolver();
             b.iter(|| {
+                let oxc_resolver = oxc_resolver();
                 for i in data.clone() {
                     assert!(
                         oxc_resolver.resolve(&symlink_test_dir, &format!("./file{i}")).is_ok(),
