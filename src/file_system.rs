@@ -106,19 +106,19 @@ impl Default for FileSystemOs {
     }
 }
 
-// fn read_to_string(path: &Path) -> io::Result<String> {
-//     // `simdutf8` is faster than `std::str::from_utf8` which `fs::read_to_string` uses internally
-//     let bytes = std::fs::read(path)?;
-//     if simdutf8::basic::from_utf8(&bytes).is_err() {
-//         // Same error as `fs::read_to_string` produces (`io::Error::INVALID_UTF8`)
-//         return Err(io::Error::new(
-//             io::ErrorKind::InvalidData,
-//             "stream did not contain valid UTF-8",
-//         ));
-//     }
-//     // SAFETY: `simdutf8` has ensured it's a valid UTF-8 string
-//     Ok(unsafe { String::from_utf8_unchecked(bytes) })
-// }
+fn read_to_string(path: &Path) -> io::Result<String> {
+    // `simdutf8` is faster than `std::str::from_utf8` which `fs::read_to_string` uses internally
+    let bytes = std::fs::read(path)?;
+    if simdutf8::basic::from_utf8(&bytes).is_err() {
+        // Same error as `fs::read_to_string` produces (`io::Error::INVALID_UTF8`)
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        ));
+    }
+    // SAFETY: `simdutf8` has ensured it's a valid UTF-8 string
+    Ok(unsafe { String::from_utf8_unchecked(bytes) })
+}
 
 impl FileSystem for FileSystemOs {
     fn read_to_string<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<String>> {
@@ -129,11 +129,11 @@ impl FileSystem for FileSystemOs {
                         VPath::Zip(info) => {
                             self.pnp_lru.read_to_string(info.physical_base_path(), info.zip_path)
                         }
-                        VPath::Virtual(info) => tokio::fs::read_to_string(&info.physical_base_path()).await,
-                        VPath::Native(path) => tokio::fs::read_to_string(&path).await,
+                        VPath::Virtual(info) => read_to_string(&info.physical_base_path()),
+                        VPath::Native(path) => read_to_string(&path),
                     }
                 } else {
-                    tokio::fs::read_to_string(path).await
+                    read_to_string(path)
                 }
             }
         };
@@ -150,12 +150,12 @@ impl FileSystem for FileSystemOs {
                             .file_type(info.physical_base_path(), info.zip_path)
                             .map(FileMetadata::from),
                         VPath::Virtual(info) => {
-                            tokio::fs::metadata(info.physical_base_path()).await.map(FileMetadata::from)
+                            fs::metadata(info.physical_base_path()).map(FileMetadata::from)
                         }
-                        VPath::Native(path) => tokio::fs::metadata(path).await.map(FileMetadata::from),
+                        VPath::Native(path) => fs::metadata(path).map(FileMetadata::from),
                     }
                 } else {
-                    tokio::fs::metadata(path).await.map(FileMetadata::from)
+                    fs::metadata(path).map(FileMetadata::from)
                 }
             }
         };
@@ -163,7 +163,7 @@ impl FileSystem for FileSystemOs {
     }
 
     fn symlink_metadata<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<FileMetadata>> {
-        let fut = async move { tokio::fs::symlink_metadata(path).await.map(FileMetadata::from) };
+        let fut = async move { fs::symlink_metadata(path).map(FileMetadata::from) };
         Box::pin(fut)
     }
 
@@ -184,7 +184,7 @@ impl FileSystem for FileSystemOs {
                     use std::path::Component;
                     let mut path_buf = path.to_path_buf();
                     loop {
-                        let link = tokio::fs::read_link(&path_buf).await?;
+                        let link = fs::read_link(&path_buf)?;
                         path_buf.pop();
                         for component in link.components() {
                             match component {
@@ -208,7 +208,7 @@ impl FileSystem for FileSystemOs {
                                 Component::CurDir | Component::Prefix(_) => {}
                             }
                         }
-                        if !tokio::fs::symlink_metadata(&path_buf).await?.is_symlink() {
+                        if !fs::symlink_metadata(&path_buf)?.is_symlink() {
                             break;
                         }
                     }
