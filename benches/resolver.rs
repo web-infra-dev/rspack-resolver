@@ -191,7 +191,7 @@ fn bench_resolver(c: &mut Criterion) {
     });
 
     group.bench_with_input(
-        BenchmarkId::from_parameter("resolve from symlinks"),
+        BenchmarkId::from_parameter("resolve-from-symlinks"),
         &symlinks_range,
         |b, data| {
             let runner = runtime::Builder::new_current_thread().build().expect("failed to create tokio runtime");
@@ -202,6 +202,24 @@ fn bench_resolver(c: &mut Criterion) {
                         oxc_resolver.resolve(&symlink_test_dir, &format!("./file{i}")).is_ok(),
                         "file{i}.js"
                     );
+                }
+            });
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::from_parameter("resolve-from-symlinks-multi-thread"),
+        &symlinks_range,
+        |b, data| {
+            let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+            b.to_async(runner).iter(|| async {
+                let oxc_resolver = Arc::new(oxc_resolver());
+
+                let handles = data.clone().map(|i| {
+                    create_async_resolve_task(oxc_resolver.clone(), symlink_test_dir.clone(), format!("./file{i}").to_string())
+                });
+                for handle in handles {
+                    let _ = handle.await;
                 }
             });
         },
