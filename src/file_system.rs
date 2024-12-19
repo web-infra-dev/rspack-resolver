@@ -1,4 +1,5 @@
 use cfg_if::cfg_if;
+use futures::future::BoxFuture;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -19,7 +20,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn read_to_string(&self, path: &Path) -> io::Result<String>;
+    fn read_to_string<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<String>>;
 
     /// See [std::fs::metadata]
     ///
@@ -30,7 +31,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata>;
+    fn metadata<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<FileMetadata>>;
 
     /// See [std::fs::symlink_metadata]
     ///
@@ -42,7 +43,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata>;
+    fn symlink_metadata<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<FileMetadata>>;
 
     /// See [std::fs::canonicalize]
     ///
@@ -54,7 +55,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
+    fn canonicalize<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<PathBuf>>;
 }
 
 /// Metadata information about a file
@@ -120,97 +121,107 @@ fn read_to_string(path: &Path) -> io::Result<String> {
 }
 
 impl FileSystem for FileSystemOs {
-    fn read_to_string(&self, path: &Path) -> io::Result<String> {
-        cfg_if! {
-            if #[cfg(feature = "yarn_pnp")] {
-                match VPath::from(path)? {
-                    VPath::Zip(info) => {
-                        self.pnp_lru.read_to_string(info.physical_base_path(), info.zip_path)
+    fn read_to_string<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<String>> {
+        let fut = async move {
+            cfg_if! {
+                if #[cfg(feature = "yarn_pnp")] {
+                    match VPath::from(path)? {
+                        VPath::Zip(info) => {
+                            self.pnp_lru.read_to_string(info.physical_base_path(), info.zip_path)
+                        }
+                        VPath::Virtual(info) => read_to_string(&info.physical_base_path()),
+                        VPath::Native(path) => read_to_string(&path),
                     }
-                    VPath::Virtual(info) => read_to_string(&info.physical_base_path()),
-                    VPath::Native(path) => read_to_string(&path),
+                } else {
+                    read_to_string(path)
                 }
-            } else {
-                read_to_string(path)
             }
-        }
+        };
+        Box::pin(fut)
     }
 
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        cfg_if! {
-            if #[cfg(feature = "yarn_pnp")] {
-                match VPath::from(path)? {
-                    VPath::Zip(info) => self
-                        .pnp_lru
-                        .file_type(info.physical_base_path(), info.zip_path)
-                        .map(FileMetadata::from),
-                    VPath::Virtual(info) => {
-                        fs::metadata(info.physical_base_path()).map(FileMetadata::from)
+    fn metadata<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<FileMetadata>> {
+        let fut = async move {
+            cfg_if! {
+                if #[cfg(feature = "yarn_pnp")] {
+                    match VPath::from(path)? {
+                        VPath::Zip(info) => self
+                            .pnp_lru
+                            .file_type(info.physical_base_path(), info.zip_path)
+                            .map(FileMetadata::from),
+                        VPath::Virtual(info) => {
+                            fs::metadata(info.physical_base_path()).map(FileMetadata::from)
+                        }
+                        VPath::Native(path) => fs::metadata(path).map(FileMetadata::from),
                     }
-                    VPath::Native(path) => fs::metadata(path).map(FileMetadata::from),
+                } else {
+                    fs::metadata(path).map(FileMetadata::from)
                 }
-            } else {
-                fs::metadata(path).map(FileMetadata::from)
             }
-        }
+        };
+        Box::pin(fut)
     }
 
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        fs::symlink_metadata(path).map(FileMetadata::from)
+    fn symlink_metadata<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<FileMetadata>> {
+        let fut = async move { fs::symlink_metadata(path).map(FileMetadata::from) };
+        Box::pin(fut)
     }
 
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        cfg_if! {
-            if #[cfg(feature = "yarn_pnp")] {
-                match VPath::from(path)? {
-                    VPath::Zip(info) => {
-                        dunce::canonicalize(info.physical_base_path().join(info.zip_path))
+    fn canonicalize<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<PathBuf>> {
+        let fut = async move {
+            cfg_if! {
+                if #[cfg(feature = "yarn_pnp")] {
+                    match VPath::from(path)? {
+                        VPath::Zip(info) => {
+                            dunce::canonicalize(info.physical_base_path().join(info.zip_path))
+                        }
+                        VPath::Virtual(info) => dunce::canonicalize(info.physical_base_path()),
+                        VPath::Native(path) => dunce::canonicalize(path),
                     }
-                    VPath::Virtual(info) => dunce::canonicalize(info.physical_base_path()),
-                    VPath::Native(path) => dunce::canonicalize(path),
-                }
-            } else if #[cfg(not(target_os = "wasi"))]{
-                dunce::canonicalize(path)
-            } else {
-                use std::path::Component;
-                let mut path_buf = path.to_path_buf();
-                loop {
-                    let link = fs::read_link(&path_buf)?;
-                    path_buf.pop();
-                    for component in link.components() {
-                        match component {
-                            Component::ParentDir => {
-                                path_buf.pop();
-                            }
-                            Component::Normal(seg) => {
-                                #[cfg(target_family = "wasm")]
-                                // Need to trim the extra \0 introduces by https://github.com/nodejs/uvwasi/issues/262
-                                {
-                                    path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
+                } else if #[cfg(not(target_os = "wasi"))]{
+                    dunce::canonicalize(path)
+                } else {
+                    use std::path::Component;
+                    let mut path_buf = path.to_path_buf();
+                    loop {
+                        let link = fs::read_link(&path_buf)?;
+                        path_buf.pop();
+                        for component in link.components() {
+                            match component {
+                                Component::ParentDir => {
+                                    path_buf.pop();
                                 }
-                                #[cfg(not(target_family = "wasm"))]
-                                {
-                                    path_buf.push(seg);
+                                Component::Normal(seg) => {
+                                    #[cfg(target_family = "wasm")]
+                                    // Need to trim the extra \0 introduces by https://github.com/nodejs/uvwasi/issues/262
+                                    {
+                                        path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
+                                    }
+                                    #[cfg(not(target_family = "wasm"))]
+                                    {
+                                        path_buf.push(seg);
+                                    }
                                 }
+                                Component::RootDir => {
+                                    path_buf = PathBuf::from("/");
+                                }
+                                Component::CurDir | Component::Prefix(_) => {}
                             }
-                            Component::RootDir => {
-                                path_buf = PathBuf::from("/");
-                            }
-                            Component::CurDir | Component::Prefix(_) => {}
+                        }
+                        if !fs::symlink_metadata(&path_buf)?.is_symlink() {
+                            break;
                         }
                     }
-                    if !fs::symlink_metadata(&path_buf)?.is_symlink() {
-                        break;
-                    }
+                    Ok(path_buf)
                 }
-                Ok(path_buf)
             }
-        }
+        };
+        Box::pin(fut)
     }
 }
 
-#[test]
-fn metadata() {
+#[tokio::test]
+async fn metadata() {
     let meta = FileMetadata { is_file: true, is_dir: true, is_symlink: true };
     assert_eq!(
         format!("{meta:?}"),

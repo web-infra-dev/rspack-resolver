@@ -152,8 +152,8 @@ impl From<io::Error> for ResolveError {
     }
 }
 
-#[test]
-fn test_into_io_error() {
+#[tokio::test]
+async fn test_into_io_error() {
     use std::io::{self, ErrorKind};
     let error_string = "IOError occurred";
     let string_error = io::Error::new(ErrorKind::Interrupted, error_string.to_string());
@@ -177,8 +177,8 @@ fn test_into_io_error() {
     );
 }
 
-#[test]
-fn test_coverage() {
+#[tokio::test]
+async fn test_coverage() {
     let error = ResolveError::NotFound("x".into());
     assert_eq!(format!("{error:?}"), r#"NotFound("x")"#);
     assert_eq!(error.clone(), error);

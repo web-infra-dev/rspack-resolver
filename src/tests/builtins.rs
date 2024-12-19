@@ -2,16 +2,16 @@ use std::path::Path;
 
 use crate::{ResolveError, ResolveOptions, Resolver};
 
-#[test]
-fn builtins_off() {
+#[tokio::test]
+async fn builtins_off() {
     let f = Path::new("/");
     let resolver = Resolver::default();
-    let resolved_path = resolver.resolve(f, "zlib").map(|r| r.full_path());
+    let resolved_path = resolver.resolve(f, "zlib").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Err(ResolveError::NotFound("zlib".into())));
 }
 
-#[test]
-fn builtins() {
+#[tokio::test]
+async fn builtins() {
     let f = Path::new("/");
 
     let resolver = Resolver::new(ResolveOptions::default().with_builtin_modules(true));
@@ -87,25 +87,25 @@ fn builtins() {
     for request in pass {
         let prefixed_request = format!("node:{request}");
         for request in [prefixed_request.clone(), request.to_string()] {
-            let resolved_path = resolver.resolve(f, &request).map(|r| r.full_path());
+            let resolved_path = resolver.resolve(f, &request).await.map(|r| r.full_path());
             let err = ResolveError::Builtin(prefixed_request.clone());
             assert_eq!(resolved_path, Err(err), "{request}");
         }
     }
 }
 
-#[test]
-fn fail() {
+#[tokio::test]
+async fn fail() {
     let f = Path::new("/");
     let resolver = Resolver::new(ResolveOptions::default().with_builtin_modules(true));
     let request = "xxx";
-    let resolved_path = resolver.resolve(f, request);
+    let resolved_path = resolver.resolve(f, request).await;
     let err = ResolveError::NotFound(request.to_string());
     assert_eq!(resolved_path, Err(err), "{request}");
 }
 
-#[test]
-fn imports() {
+#[tokio::test]
+async fn imports() {
     let f = super::fixture().join("builtins");
     let resolver = Resolver::new(ResolveOptions {
         builtin_modules: true,
@@ -114,7 +114,7 @@ fn imports() {
     });
 
     for request in ["#fs", "#http"] {
-        let resolved_path = resolver.resolve(f.clone(), request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(f.clone(), request).await.map(|r| r.full_path());
         let err = ResolveError::Builtin(format!("node:{}", request.trim_start_matches('#')));
         assert_eq!(resolved_path, Err(err));
     }

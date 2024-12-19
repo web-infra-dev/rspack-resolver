@@ -7,8 +7,8 @@ use serde_json::json;
 use crate::{Ctx, JSONMap, PathUtil, ResolveError, ResolveOptions, Resolver};
 use std::path::Path;
 
-#[test]
-fn test_simple() {
+#[tokio::test]
+async fn test_simple() {
     let f = super::fixture().join("imports-field");
     let f2 = super::fixture().join("imports-exports-wildcard/node_modules/m/");
 
@@ -30,7 +30,7 @@ fn test_simple() {
     ];
 
     for (comment, path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 
@@ -45,13 +45,13 @@ fn test_simple() {
     ];
 
     for (comment, path, request, error) in fail {
-        let resolution = resolver.resolve(&path, request);
+        let resolution = resolver.resolve(&path, request).await;
         assert_eq!(resolution, Err(error), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn shared_resolvers() {
+#[tokio::test]
+async fn shared_resolvers() {
     let f = super::fixture().join("imports-field");
 
     // field name #1
@@ -63,7 +63,7 @@ fn shared_resolvers() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver1.resolve(&f, "#imports-field").map(|r| r.full_path());
+    let resolved_path = resolver1.resolve(&f, "#imports-field").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f.join("b.js")));
 
     // field name #2
@@ -72,7 +72,7 @@ fn shared_resolvers() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver2.resolve(&f, "#b").map(|r| r.full_path());
+    let resolved_path = resolver2.resolve(&f, "#b").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f.join("a.js")));
 }
 
@@ -105,8 +105,8 @@ fn imports_field(value: serde_json::Value) -> JSONMap {
     serde_json::from_str(&s).unwrap()
 }
 
-#[test]
-fn test_cases() {
+#[tokio::test]
+async fn test_cases() {
     let test_cases = [
         TestCase {
             name: "sample #1",
@@ -1304,6 +1304,7 @@ fn test_cases() {
                 &case.condition_names.iter().map(ToString::to_string).collect::<Vec<_>>(),
                 &mut Ctx::default(),
             )
+            .await
             .map(|p| p.map(|p| p.to_path_buf()));
         if let Some(expect) = case.expect {
             if expect.is_empty() {

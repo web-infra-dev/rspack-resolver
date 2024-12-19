@@ -5,11 +5,11 @@ use rustc_hash::FxHashSet;
 use crate::{JSONError, Resolution, ResolveContext, ResolveError, ResolveOptions, Resolver};
 
 // should not resolve main in incorrect description file #1
-#[test]
-fn incorrect_description_file_1() {
+#[tokio::test]
+async fn incorrect_description_file_1() {
     let f = super::fixture().join("incorrect-package");
     let mut ctx = ResolveContext::default();
-    let resolution = Resolver::default().resolve_with_context(f.join("pack1"), ".", &mut ctx);
+    let resolution = Resolver::default().resolve_with_context(f.join("pack1"), ".", &mut ctx).await;
     let error = ResolveError::JSON(JSONError {
         path: f.join("pack1/package.json"),
         message: String::from("EOF while parsing a value at line 3 column 0"),
@@ -25,10 +25,10 @@ fn incorrect_description_file_1() {
 }
 
 // should not resolve main in incorrect description file #2
-#[test]
-fn incorrect_description_file_2() {
+#[tokio::test]
+async fn incorrect_description_file_2() {
     let f = super::fixture().join("incorrect-package");
-    let resolution = Resolver::default().resolve(f.join("pack2"), ".");
+    let resolution = Resolver::default().resolve(f.join("pack2"), ".").await;
     let error = ResolveError::JSON(JSONError {
         path: f.join("pack2/package.json"),
         message: String::from("EOF while parsing a value at line 1 column 0"),
@@ -39,27 +39,27 @@ fn incorrect_description_file_2() {
 }
 
 // should not resolve main in incorrect description file #3
-#[test]
-fn incorrect_description_file_3() {
+#[tokio::test]
+async fn incorrect_description_file_3() {
     let f = super::fixture().join("incorrect-package");
-    let resolution = Resolver::default().resolve(f.join("pack2"), ".");
+    let resolution = Resolver::default().resolve(f.join("pack2"), ".").await;
     assert!(resolution.is_err());
 }
 
 // `enhanced_resolve` does not have this test case
-#[test]
-fn no_description_file() {
+#[tokio::test]
+async fn no_description_file() {
     let f = super::fixture_root().join("enhanced_resolve");
 
     // has description file
     let resolver = Resolver::default();
     assert_eq!(
-        resolver.resolve(&f, ".").map(Resolution::into_path_buf),
+        resolver.resolve(&f, ".").await.map(Resolution::into_path_buf),
         Ok(f.join("lib/index.js"))
     );
 
     // without description file
     let resolver =
         Resolver::new(ResolveOptions { description_files: vec![], ..ResolveOptions::default() });
-    assert_eq!(resolver.resolve(&f, "."), Err(ResolveError::NotFound(".".into())));
+    assert_eq!(resolver.resolve(&f, ".").await, Err(ResolveError::NotFound(".".into())));
 }
