@@ -2,13 +2,13 @@ extern crate napi;
 extern crate napi_derive;
 extern crate oxc_resolver;
 
+use napi::tokio::runtime;
+use napi_derive::napi;
+use oxc_resolver::{ResolveOptions, Resolver};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use napi::tokio::runtime;
-use napi_derive::napi;
-use oxc_resolver::{ResolveOptions, Resolver};
 
 use self::{
     options::{NapiResolveOptions, StrOrStrList},

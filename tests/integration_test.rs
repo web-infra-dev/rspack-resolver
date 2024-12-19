@@ -76,11 +76,9 @@ async fn debug_resolver() {
 async fn dependencies() {
     let path = dir();
     let mut ctx = ResolveContext::default();
-    let _ = Resolver::new(ResolveOptions::default()).resolve_with_context(
-        path,
-        "./tests/package.json",
-        &mut ctx,
-    ).await;
+    let _ = Resolver::new(ResolveOptions::default())
+        .resolve_with_context(path, "./tests/package.json", &mut ctx)
+        .await;
     assert!(!ctx.file_dependencies.is_empty());
     assert!(ctx.missing_dependencies.is_empty());
 }

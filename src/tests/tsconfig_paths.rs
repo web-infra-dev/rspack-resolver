@@ -488,8 +488,11 @@ OneTest {
         let root = PathBuf::from("/root");
 
         for test in pass {
-            let resolved_path =
-                test.resolver(&root).resolve(&root, test.requested_module).await.map(|f| f.full_path());
+            let resolved_path = test
+                .resolver(&root)
+                .resolve(&root, test.requested_module)
+                .await
+                .map(|f| f.full_path());
             assert_eq!(resolved_path, Ok(PathBuf::from(test.expected_path)), "{}", test.name);
         }
 
@@ -517,8 +520,11 @@ OneTest {
         ];
 
         for test in fail {
-            let resolved_path =
-                test.resolver(&root).resolve(&root, test.requested_module).await.map(|f| f.full_path());
+            let resolved_path = test
+                .resolver(&root)
+                .resolve(&root, test.requested_module)
+                .await
+                .map(|f| f.full_path());
             assert_eq!(
                 resolved_path,
                 Err(ResolveError::NotFound(test.requested_module.into())),

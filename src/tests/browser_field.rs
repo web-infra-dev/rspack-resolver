@@ -148,7 +148,8 @@ async fn crypto_js() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(f.join("crypto-js"), "crypto").await.map(|r| r.full_path());
+    let resolved_path =
+        resolver.resolve(f.join("crypto-js"), "crypto").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Err(ResolveError::Ignored(f.join("crypto-js"))));
 }
 

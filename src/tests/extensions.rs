@@ -72,7 +72,8 @@ async fn respect_enforce_extension() {
         extensions: vec![".ts".into(), String::new(), ".js".into()],
         ..ResolveOptions::default()
     })
-    .resolve_with_context(&f, "./foo", &mut ctx).await;
+    .resolve_with_context(&f, "./foo", &mut ctx)
+    .await;
 
     assert_eq!(resolved.map(Resolution::into_path_buf), Ok(f.join("foo.ts")));
     assert_eq!(

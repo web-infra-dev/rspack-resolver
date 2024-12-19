@@ -84,7 +84,8 @@ async fn roots_fall_through() {
     let f = super::fixture();
     let absolute_path = f.join("roots_fall_through/index.js");
     let specifier = absolute_path.to_string_lossy();
-    let resolution = Resolver::new(ResolveOptions::default().with_root(&f)).resolve(&f, &specifier).await;
+    let resolution =
+        Resolver::new(ResolveOptions::default().with_root(&f)).resolve(&f, &specifier).await;
     assert_eq!(
         resolution.map(super::super::resolution::Resolution::into_path_buf),
         Ok(absolute_path)

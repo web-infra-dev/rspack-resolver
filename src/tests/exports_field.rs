@@ -93,7 +93,8 @@ async fn exports_not_browser_field1() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f, "exports-field/dist/main.js").await.map(|r| r.full_path());
+    let resolved_path =
+        resolver.resolve(&f, "exports-field/dist/main.js").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f.join("node_modules/exports-field/lib/lib2/main.js")));
 }
 
@@ -109,7 +110,8 @@ async fn exports_not_browser_field2() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f2, "exports-field/dist/main.js").await.map(|r| r.full_path());
+    let resolved_path =
+        resolver.resolve(&f2, "exports-field/dist/main.js").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f2.join("node_modules/exports-field/lib/browser.js")));
 }
 

@@ -1172,75 +1172,77 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ) -> BoxFuture<'a, Result<Arc<TsConfig>, ResolveError>> {
         let fut = async move {
             self.cache
-            .tsconfig(root, path, |mut tsconfig| async move {
-                let directory = self.cache.value(tsconfig.directory());
-                tracing::trace!(tsconfig = ?tsconfig, "load_tsconfig");
+                .tsconfig(root, path, |mut tsconfig| async move {
+                    let directory = self.cache.value(tsconfig.directory());
+                    tracing::trace!(tsconfig = ?tsconfig, "load_tsconfig");
 
-                // Extend tsconfig
-                if let Some(extends) = &tsconfig.extends {
-                    let extended_tsconfig_paths = match extends {
-                        ExtendsField::Single(s) => {
-                            vec![self.get_extended_tsconfig_path(&directory, &tsconfig, s).await?]
-                        }
-                        ExtendsField::Multiple(specifiers) => {
-                            try_join_all(
-                                specifiers.iter().map(|s| {
+                    // Extend tsconfig
+                    if let Some(extends) = &tsconfig.extends {
+                        let extended_tsconfig_paths = match extends {
+                            ExtendsField::Single(s) => {
+                                vec![
                                     self.get_extended_tsconfig_path(&directory, &tsconfig, s)
-                                }),
-                            )
-                            .await?
+                                        .await?,
+                                ]
+                            }
+                            ExtendsField::Multiple(specifiers) => {
+                                try_join_all(specifiers.iter().map(|s| {
+                                    self.get_extended_tsconfig_path(&directory, &tsconfig, s)
+                                }))
+                                .await?
+                            }
+                        };
+                        for extended_tsconfig_path in extended_tsconfig_paths {
+                            let extended_tsconfig = self
+                                .load_tsconfig(
+                                    /* root */ false,
+                                    &extended_tsconfig_path,
+                                    &TsconfigReferences::Disabled,
+                                )
+                                .await?;
+                            tsconfig.extend_tsconfig(&extended_tsconfig);
                         }
-                    };
-                    for extended_tsconfig_path in extended_tsconfig_paths {
-                        let extended_tsconfig = self
-                            .load_tsconfig(
-                                /* root */ false,
-                                &extended_tsconfig_path,
-                                &TsconfigReferences::Disabled,
-                            )
-                            .await?;
-                        tsconfig.extend_tsconfig(&extended_tsconfig);
                     }
-                }
 
-                // Load project references
-                match references {
-                    TsconfigReferences::Disabled => {
-                        tsconfig.references.drain(..);
+                    // Load project references
+                    match references {
+                        TsconfigReferences::Disabled => {
+                            tsconfig.references.drain(..);
+                        }
+                        TsconfigReferences::Auto => {}
+                        TsconfigReferences::Paths(paths) => {
+                            tsconfig.references = paths
+                                .iter()
+                                .map(|path| ProjectReference { path: path.clone(), tsconfig: None })
+                                .collect();
+                        }
                     }
-                    TsconfigReferences::Auto => {}
-                    TsconfigReferences::Paths(paths) => {
-                        tsconfig.references = paths
-                            .iter()
-                            .map(|path| ProjectReference { path: path.clone(), tsconfig: None })
-                            .collect();
+                    if !tsconfig.references.is_empty() {
+                        let directory = tsconfig.directory().to_path_buf();
+                        for reference in &mut tsconfig.references {
+                            let reference_tsconfig_path = directory.normalize_with(&reference.path);
+                            let tsconfig = self
+                                .cache
+                                .tsconfig(
+                                    /* root */ true,
+                                    &reference_tsconfig_path,
+                                    |reference_tsconfig| async {
+                                        if reference_tsconfig.path == tsconfig.path {
+                                            return Err(ResolveError::TsconfigSelfReference(
+                                                reference_tsconfig.path.clone(),
+                                            ));
+                                        }
+                                        Ok(reference_tsconfig)
+                                    },
+                                )
+                                .await?;
+                            reference.tsconfig.replace(tsconfig);
+                        }
                     }
-                }
-                if !tsconfig.references.is_empty() {
-                    let directory = tsconfig.directory().to_path_buf();
-                    for reference in &mut tsconfig.references {
-                        let reference_tsconfig_path = directory.normalize_with(&reference.path);
-                        let tsconfig = self
-                            .cache
-                            .tsconfig(
-                                /* root */ true,
-                                &reference_tsconfig_path,
-                                |reference_tsconfig| async {
-                                    if reference_tsconfig.path == tsconfig.path {
-                                        return Err(ResolveError::TsconfigSelfReference(
-                                            reference_tsconfig.path.clone(),
-                                        ));
-                                    }
-                                    Ok(reference_tsconfig)
-                                },
-                            )
-                            .await?;
-                        reference.tsconfig.replace(tsconfig);
-                    }
-                }
 
-                Ok(tsconfig)
-            }).await
+                    Ok(tsconfig)
+                })
+                .await
         };
         Box::pin(fut)
     }
@@ -1614,7 +1616,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         target: &'a JSONValue,
         pattern_match: Option<&'a str>,
         is_imports: bool,
-        conditions: &'a[String],
+        conditions: &'a [String],
         ctx: &'a mut Ctx,
     ) -> BoxFuture<'a, ResolveResult> {
         let fut = async move {
@@ -1643,7 +1645,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                 };
                 Ok(target)
             }
-    
+
             match target {
                 // 1. If target is a String, then
                 JSONValue::String(target) => {
@@ -1660,13 +1662,17 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                         }
                         // 2. If patternMatch is a String, then
                         //   1. Return PACKAGE_RESOLVE(target with every instance of "*" replaced by patternMatch, packageURL + "/").
-                        let target =
-                            normalize_string_target(target_key, target, pattern_match, package_url)?;
+                        let target = normalize_string_target(
+                            target_key,
+                            target,
+                            pattern_match,
+                            package_url,
+                        )?;
                         let package_url = self.cache.value(package_url);
                         // // 3. Return PACKAGE_RESOLVE(target, packageURL + "/").
                         return self.package_resolve(&package_url, &target, ctx).await;
                     }
-    
+
                     // 2. If target split on "/" or "\" contains any "", ".", "..", or "node_modules" segments after the first "." segment, case insensitive and including percent encoded variants, throw an Invalid Package Target error.
                     // 3. Let resolvedTarget be the URL resolution of the concatenation of packageURL and target.
                     // 4. Assert: resolvedTarget is contained in packageURL.
@@ -1740,11 +1746,11 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                                 ctx,
                             )
                             .await;
-    
+
                         if resolved.is_err() && i == targets.len() {
                             return resolved;
                         }
-    
+
                         // 2. If resolved is undefined, continue the loop.
                         if let Ok(Some(path)) = resolved {
                             // 3. Return resolved.
