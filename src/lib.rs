@@ -708,7 +708,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ) -> ResolveResult {
         #[cfg(feature = "yarn_pnp")]
         {
-            if let Some(resolved_path) = self.load_pnp(cached_path, specifier, ctx)? {
+            if let Some(resolved_path) = self.load_pnp(cached_path, specifier, ctx).await? {
                 return Ok(Some(resolved_path));
             }
         }
@@ -776,7 +776,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     }
 
     #[cfg(feature = "yarn_pnp")]
-    fn load_pnp(
+    async fn load_pnp(
         &self,
         cached_path: &CachedPath,
         specifier: &str,
@@ -788,17 +788,19 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         match resolution {
             Ok(pnp::Resolution::Resolved(path, subpath)) => {
                 let cached_path = self.cache.value(&path);
-                let export_resolution = self.load_package_exports(
-                    specifier,
-                    &subpath.unwrap_or_default(),
-                    &cached_path,
-                    ctx,
-                )?;
+                let export_resolution = self
+                    .load_package_exports(
+                        specifier,
+                        &subpath.unwrap_or_default(),
+                        &cached_path,
+                        ctx,
+                    )
+                    .await?;
                 if export_resolution.is_some() {
                     return Ok(export_resolution);
                 }
                 let file_or_directory_resolution =
-                    self.load_as_file_or_directory(&cached_path, specifier, ctx)?;
+                    self.load_as_file_or_directory(&cached_path, specifier, ctx).await?;
                 if file_or_directory_resolution.is_some() {
                     return Ok(file_or_directory_resolution);
                 }

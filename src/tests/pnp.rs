@@ -30,6 +30,7 @@ async fn pnp1() {
                 ),
                 "is-odd"
             )
+            .await
             .map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/is-odd-npm-0.1.2-9d980a9da8-7dc6c6fd00.zip/node_modules/is-odd/index.js"
