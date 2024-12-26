@@ -767,7 +767,8 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         &self,
         cached_path: &CachedPath,
     ) -> Result<Option<Ref<'_, CachedPath, Option<pnp::Manifest>>>, ResolveError> {
-        let entry = self.pnp_cache
+        let entry = self
+            .pnp_cache
             .entry(cached_path.clone())
             .or_insert_with(|| pnp::find_pnp_manifest(cached_path.path()).unwrap());
 
@@ -781,8 +782,7 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         specifier: &str,
         ctx: &mut Ctx,
     ) -> Result<Option<CachedPath>, ResolveError> {
-        let pnp_manifest
-            = self.find_pnp_manifest(cached_path)?;
+        let pnp_manifest = self.find_pnp_manifest(cached_path)?;
 
         if let Some(pnp_manifest) = pnp_manifest.as_ref() {
             if let Some(pnp_manifest) = pnp_manifest.as_ref() {
@@ -790,19 +790,25 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                 let mut path = cached_path.to_path_buf();
                 path.push("");
 
-                let resolution
-                    = pnp::resolve_to_unqualified_via_manifest(pnp_manifest, specifier, path);
+                let resolution =
+                    pnp::resolve_to_unqualified_via_manifest(pnp_manifest, specifier, path);
 
                 match resolution {
                     Ok(pnp::Resolution::Resolved(path, subpath)) => {
                         let cached_path = self.cache.value(&path);
 
-                        let export_resolution = self.load_package_exports(specifier, &subpath.unwrap_or_default(), &cached_path, ctx)?;
+                        let export_resolution = self.load_package_exports(
+                            specifier,
+                            &subpath.unwrap_or_default(),
+                            &cached_path,
+                            ctx,
+                        )?;
                         if export_resolution.is_some() {
                             return Ok(export_resolution);
                         }
 
-                        let file_or_directory_resolution = self.load_as_file_or_directory(&cached_path, specifier, ctx)?;
+                        let file_or_directory_resolution =
+                            self.load_as_file_or_directory(&cached_path, specifier, ctx)?;
                         if file_or_directory_resolution.is_some() {
                             return Ok(file_or_directory_resolution);
                         }
@@ -811,7 +817,7 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                     }
 
                     Ok(pnp::Resolution::Skipped) => Ok(None),
-                    Err(_) => Err(ResolveError::NotFound(specifier.to_string()))
+                    Err(_) => Err(ResolveError::NotFound(specifier.to_string())),
                 }
             } else {
                 Ok(None)
