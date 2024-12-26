@@ -765,13 +765,13 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
     fn find_pnp_manifest(
         &self,
         cached_path: &CachedPath,
-    ) -> Result<Option<Ref<'_, CachedPath, Option<pnp::Manifest>>>, ResolveError> {
+    ) -> Option<Ref<'_, CachedPath, Option<pnp::Manifest>>> {
         let entry = self
             .pnp_cache
             .entry(cached_path.clone())
             .or_insert_with(|| pnp::find_pnp_manifest(cached_path.path()).unwrap());
 
-        Ok(Some(entry.downgrade()))
+        Some(entry.downgrade())
     }
 
     #[cfg(feature = "yarn_pnp")]
@@ -781,7 +781,7 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         specifier: &str,
         ctx: &mut Ctx,
     ) -> Result<Option<CachedPath>, ResolveError> {
-        let pnp_manifest = self.find_pnp_manifest(cached_path)?;
+        let pnp_manifest = self.find_pnp_manifest(cached_path);
 
         if let Some(pnp_manifest) = pnp_manifest.as_ref() {
             if let Some(pnp_manifest) = pnp_manifest.as_ref() {
