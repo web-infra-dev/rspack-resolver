@@ -109,6 +109,7 @@ fn broken() {
         message: String::from("EOF while parsing an object at line 2 column 0"),
         line: 2,
         column: 0,
+        content: Some("{\n".to_string()),
     });
     assert_eq!(resolved_path, Err(error));
 }
