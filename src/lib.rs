@@ -138,7 +138,10 @@ impl<Fs: FileSystem + Default> ResolverGeneric<Fs> {
 
         Self {
             options: options.sanitize(),
-            cache: Arc::new(Cache::new(VirtualFileSystem::new_with_options(Fs::default(), fs_options))),
+            cache: Arc::new(Cache::new(VirtualFileSystem::new_with_options(
+                Fs::default(),
+                fs_options,
+            ))),
             #[cfg(feature = "yarn_pnp")]
             pnp_cache: Arc::new(DashMap::default()),
         }
@@ -151,7 +154,10 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
 
         Self {
             options: options.sanitize(),
-            cache: Arc::new(Cache::new(VirtualFileSystem::new_with_options(file_system, fs_options))),
+            cache: Arc::new(Cache::new(VirtualFileSystem::new_with_options(
+                file_system,
+                fs_options,
+            ))),
             #[cfg(feature = "yarn_pnp")]
             pnp_cache: Arc::new(DashMap::default()),
         }

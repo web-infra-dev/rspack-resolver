@@ -137,17 +137,17 @@ impl<T> VirtualFileSystem<T> {
 impl<T: FileSystem> FileSystem for VirtualFileSystem<T> {
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         cfg_if! {
-            if #[cfg(feature = "yarn_pnp")] {
-              if self.options.enable_pnp {
-                  return match VPath::from(path)? {
-                      VPath::Zip(info) => self.pnp_lru.read(info.physical_base_path(), info.zip_path),
-                      VPath::Virtual(info) => std::fs::read(info.physical_base_path()),
-                      VPath::Native(path) => std::fs::read(&path),
-                  }
-              }
-          }}
-  
-        self.internal_fs.read(path)          
+          if #[cfg(feature = "yarn_pnp")] {
+            if self.options.enable_pnp {
+                return match VPath::from(path)? {
+                    VPath::Zip(info) => self.pnp_lru.read(info.physical_base_path(), info.zip_path),
+                    VPath::Virtual(info) => std::fs::read(info.physical_base_path()),
+                    VPath::Native(path) => std::fs::read(&path),
+                }
+            }
+        }}
+
+        self.internal_fs.read(path)
     }
 
     fn read_to_string(&self, path: &Path) -> io::Result<String> {
@@ -204,13 +204,8 @@ impl<T: FileSystem> FileSystem for VirtualFileSystem<T> {
 }
 
 /// Operating System
+#[derive(Default)]
 pub struct FileSystemOs;
-
-impl Default for FileSystemOs {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 fn buffer_to_string(bytes: Vec<u8>) -> io::Result<String> {
     // `simdutf8` is faster than `std::str::from_utf8` which `fs::read_to_string` uses internally
