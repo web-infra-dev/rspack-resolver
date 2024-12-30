@@ -1,7 +1,6 @@
 use cfg_if::cfg_if;
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fmt::Debug, fs, io, path::{Path, PathBuf}
 };
 
 #[cfg(feature = "yarn_pnp")]
@@ -90,6 +89,7 @@ impl From<fs::Metadata> for FileMetadata {
     }
 }
 
+#[derive(Debug)]
 pub struct FileSystemOptions {
     #[cfg(feature = "yarn_pnp")]
     pub enable_pnp: bool,
@@ -105,13 +105,27 @@ impl Default for FileSystemOptions {
 }
 
 /// Operating System
-pub struct FileSystemOs {
+pub struct PnpFileSystem {
     options: FileSystemOptions,
     #[cfg(feature = "yarn_pnp")]
     pnp_lru: LruZipCache<Vec<u8>>,
 }
+impl Debug for PnpFileSystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PnpFileSystem").field("options", &self.options).finish()
+    }
+}
+impl PnpFileSystem {
+    pub fn new(options: FileSystemOptions)-> Self{
+        Self {
+            options,
+            #[cfg(feature = "yarn_pnp")]
+            pnp_lru: LruZipCache::new(50, pnp::fs::open_zip_via_read_p)
+        }
+    }
+}
 
-impl Default for FileSystemOs {
+impl Default for PnpFileSystem {
     fn default() -> Self {
         Self {
             options: FileSystemOptions::default(),
@@ -134,7 +148,7 @@ fn buffer_to_string(bytes: Vec<u8>) -> io::Result<String> {
     Ok(unsafe { String::from_utf8_unchecked(bytes) })
 }
 
-impl FileSystem for FileSystemOs {
+impl FileSystem for PnpFileSystem {
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         cfg_if! {
           if #[cfg(feature = "yarn_pnp")] {
