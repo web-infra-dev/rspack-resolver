@@ -78,7 +78,7 @@ use serde_json::Value as JSONValue;
 pub use crate::{
     builtins::NODEJS_BUILTINS,
     error::{JSONError, ResolveError, SpecifierError},
-    file_system::{FileMetadata, FileSystem, FileSystemOs},
+    file_system::{FileMetadata, FileSystem, FileSystemOptions, PnpFileSystem},
     options::{
         Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,
         TsconfigReferences,
@@ -109,7 +109,7 @@ pub struct ResolveContext {
 }
 
 /// Resolver with the current operating system as the file system
-pub type Resolver = ResolverGeneric<FileSystemOs>;
+pub type Resolver = ResolverGeneric<PnpFileSystem>;
 
 /// Generic implementation of the resolver, can be configured by the [FileSystem] trait
 pub struct ResolverGeneric<Fs> {
