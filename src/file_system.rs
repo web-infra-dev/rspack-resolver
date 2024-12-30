@@ -68,10 +68,10 @@ pub struct FileMetadata {
     pub is_file: bool,
     pub is_dir: bool,
     pub is_symlink: bool,
-    pub atime_ms: Option<u64>,
-    pub mtime_ms: Option<u64>,
-    pub ctime_ms: Option<u64>,
-    pub size: Option<u64>,
+    pub atime_ms: u64,
+    pub mtime_ms: u64,
+    pub ctime_ms: u64,
+    pub size: u64,
 }
 
 impl FileMetadata {
@@ -80,10 +80,10 @@ impl FileMetadata {
             is_file,
             is_dir,
             is_symlink,
-            atime_ms: None,
-            mtime_ms: None,
-            ctime_ms: None,
-            size: None,
+            atime_ms: 0,
+            mtime_ms: 0,
+            ctime_ms: 0,
+            size: 0
         }
     }
 }
@@ -99,15 +99,15 @@ impl From<fs::Metadata> for FileMetadata {
     fn from(metadata: fs::Metadata) -> Self {
         Self {
             #[allow(clippy::cast_sign_loss)]
-            mtime_ms: Some(metadata.mtime() as u64),
+            mtime_ms: metadata.mtime() as u64,
             #[allow(clippy::cast_sign_loss)]
-            atime_ms: Some(metadata.atime() as u64),
+            atime_ms:metadata.atime() as u64,
             is_symlink: metadata.is_symlink(),
             is_dir: metadata.is_dir(),
             is_file: metadata.is_file(),
             #[allow(clippy::cast_sign_loss)]
-            ctime_ms: Some(metadata.ctime() as u64),
-            size: Some(metadata.size())
+            ctime_ms: metadata.ctime() as u64,
+            size:metadata.size()
         }
     }
 }
@@ -278,9 +278,9 @@ fn metadata() {
         is_file: true,
         is_dir: true,
         is_symlink: true,
-        atime_ms: None,
-        mtime_ms: None,
-        ctime_ms: None,
-        size: None,
+        atime_ms: 0,
+        mtime_ms: 0,
+        ctime_ms: 0,
+        size: 0
     };
 }
