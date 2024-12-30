@@ -78,7 +78,7 @@ use serde_json::Value as JSONValue;
 pub use crate::{
     builtins::NODEJS_BUILTINS,
     error::{JSONError, ResolveError, SpecifierError},
-    file_system::{FileMetadata, FileSystem, PnpFileSystem,FileSystemOptions},
+    file_system::{FileMetadata, FileSystem, FileSystemOptions, PnpFileSystem},
     options::{
         Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,
         TsconfigReferences,

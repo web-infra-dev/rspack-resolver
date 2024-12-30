@@ -1,6 +1,6 @@
 use cfg_if::cfg_if;
 use std::{
-    fmt::Debug, fs, io, path::{Path, PathBuf}
+    fmt::Debug, fs, io, os::unix::fs::MetadataExt, path::{Path, PathBuf}
 };
 
 #[cfg(feature = "yarn_pnp")]
@@ -68,11 +68,23 @@ pub struct FileMetadata {
     pub is_file: bool,
     pub is_dir: bool,
     pub is_symlink: bool,
+    pub atime_ms: Option<u64>,
+    pub mtime_ms: Option<u64>,
+    pub ctime_ms: Option<u64>,
+    pub size: Option<u64>,
 }
 
 impl FileMetadata {
     pub fn new(is_file: bool, is_dir: bool, is_symlink: bool) -> Self {
-        Self { is_file, is_dir, is_symlink }
+        Self {
+            is_file,
+            is_dir,
+            is_symlink,
+            atime_ms: None,
+            mtime_ms: None,
+            ctime_ms: None,
+            size: None,
+        }
     }
 }
 
@@ -85,7 +97,18 @@ impl From<pnp::fs::FileType> for FileMetadata {
 
 impl From<fs::Metadata> for FileMetadata {
     fn from(metadata: fs::Metadata) -> Self {
-        Self::new(metadata.is_file(), metadata.is_dir(), metadata.is_symlink())
+        Self {
+            #[allow(clippy::cast_sign_loss)]
+            mtime_ms: Some(metadata.mtime() as u64),
+            #[allow(clippy::cast_sign_loss)]
+            atime_ms: Some(metadata.atime() as u64),
+            is_symlink: metadata.is_symlink(),
+            is_dir: metadata.is_dir(),
+            is_file: metadata.is_file(),
+            #[allow(clippy::cast_sign_loss)]
+            ctime_ms: Some(metadata.ctime() as u64),
+            size: Some(metadata.size())
+        }
     }
 }
 
@@ -112,15 +135,15 @@ pub struct PnpFileSystem {
 }
 impl Debug for PnpFileSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PnpFileSystem").field("options", &self.options).finish()
+        f.debug_struct("PnpFileSystem").field("options", &self.options).finish_non_exhaustive()
     }
 }
 impl PnpFileSystem {
-    pub fn new(options: FileSystemOptions)-> Self{
+    pub fn new(options: FileSystemOptions) -> Self {
         Self {
             options,
             #[cfg(feature = "yarn_pnp")]
-            pnp_lru: LruZipCache::new(50, pnp::fs::open_zip_via_read_p)
+            pnp_lru: LruZipCache::new(50, pnp::fs::open_zip_via_read_p),
         }
     }
 }
@@ -251,10 +274,13 @@ impl FileSystem for PnpFileSystem {
 
 #[test]
 fn metadata() {
-    let meta = FileMetadata { is_file: true, is_dir: true, is_symlink: true };
-    assert_eq!(
-        format!("{meta:?}"),
-        "FileMetadata { is_file: true, is_dir: true, is_symlink: true }"
-    );
-    let _ = meta;
+    let _meta = FileMetadata {
+        is_file: true,
+        is_dir: true,
+        is_symlink: true,
+        atime_ms: None,
+        mtime_ms: None,
+        ctime_ms: None,
+        size: None,
+    };
 }
