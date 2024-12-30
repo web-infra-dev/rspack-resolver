@@ -115,7 +115,7 @@ impl Default for FileSystemOptions {
     }
 }
 
-pub struct PnpFileSystem<T> {
+pub struct VirtualFileSystem<T> {
     options: FileSystemOptions,
     internal_fs: T,
 
@@ -123,7 +123,7 @@ pub struct PnpFileSystem<T> {
     pnp_lru: LruZipCache<Vec<u8>>,
 }
 
-impl<T> PnpFileSystem<T> {
+impl<T> VirtualFileSystem<T> {
     pub fn new_with_options(internal_fs: T, options: FileSystemOptions) -> Self {
         Self {
             options,
@@ -134,7 +134,7 @@ impl<T> PnpFileSystem<T> {
     }
 }
 
-impl<T: FileSystem> FileSystem for PnpFileSystem<T> {
+impl<T: FileSystem> FileSystem for VirtualFileSystem<T> {
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         cfg_if! {
           if #[cfg(feature = "yarn_pnp")] {

@@ -72,14 +72,14 @@ use std::{
 };
 
 use dashmap::{mapref::one::Ref, DashMap};
-use file_system::FileSystemOptions;
+use file_system::{FileSystemOptions, VirtualFileSystem};
 use rustc_hash::FxHashSet;
 use serde_json::Value as JSONValue;
 
 pub use crate::{
     builtins::NODEJS_BUILTINS,
     error::{JSONError, ResolveError, SpecifierError},
-    file_system::{FileMetadata, FileSystem, FileSystemOs, PnpFileSystem},
+    file_system::{FileMetadata, FileSystem, FileSystemOs},
     options::{
         Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,
         TsconfigReferences,
@@ -115,7 +115,7 @@ pub type Resolver = ResolverGeneric<FileSystemOs>;
 /// Generic implementation of the resolver, can be configured by the [FileSystem] trait
 pub struct ResolverGeneric<Fs> {
     options: ResolveOptions,
-    cache: Arc<Cache<PnpFileSystem<Fs>>>,
+    cache: Arc<Cache<VirtualFileSystem<Fs>>>,
     #[cfg(feature = "yarn_pnp")]
     pnp_cache: Arc<DashMap<CachedPath, Option<pnp::Manifest>>>,
 }
@@ -138,7 +138,10 @@ impl<Fs: FileSystem + Default> ResolverGeneric<Fs> {
 
         Self {
             options: options.sanitize(),
-            cache: Arc::new(Cache::new(PnpFileSystem::new_with_options(Fs::default(), fs_options))),
+            cache: Arc::new(Cache::new(VirtualFileSystem::new_with_options(
+                Fs::default(),
+                fs_options,
+            ))),
             #[cfg(feature = "yarn_pnp")]
             pnp_cache: Arc::new(DashMap::default()),
         }
@@ -151,7 +154,10 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
 
         Self {
             options: options.sanitize(),
-            cache: Arc::new(Cache::new(PnpFileSystem::new_with_options(file_system, fs_options))),
+            cache: Arc::new(Cache::new(VirtualFileSystem::new_with_options(
+                file_system,
+                fs_options,
+            ))),
             #[cfg(feature = "yarn_pnp")]
             pnp_cache: Arc::new(DashMap::default()),
         }
