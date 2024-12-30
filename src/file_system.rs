@@ -1,6 +1,9 @@
 use cfg_if::cfg_if;
 use std::{
-    fmt::Debug, fs, io, os::unix::fs::MetadataExt, path::{Path, PathBuf}
+    fmt::Debug,
+    fs, io,
+    os::unix::fs::MetadataExt,
+    path::{Path, PathBuf},
 };
 
 #[cfg(feature = "yarn_pnp")]
@@ -76,15 +79,7 @@ pub struct FileMetadata {
 
 impl FileMetadata {
     pub fn new(is_file: bool, is_dir: bool, is_symlink: bool) -> Self {
-        Self {
-            is_file,
-            is_dir,
-            is_symlink,
-            atime_ms: 0,
-            mtime_ms: 0,
-            ctime_ms: 0,
-            size: 0
-        }
+        Self { is_file, is_dir, is_symlink, atime_ms: 0, mtime_ms: 0, ctime_ms: 0, size: 0 }
     }
 }
 
@@ -101,13 +96,13 @@ impl From<fs::Metadata> for FileMetadata {
             #[allow(clippy::cast_sign_loss)]
             mtime_ms: metadata.mtime() as u64,
             #[allow(clippy::cast_sign_loss)]
-            atime_ms:metadata.atime() as u64,
+            atime_ms: metadata.atime() as u64,
             is_symlink: metadata.is_symlink(),
             is_dir: metadata.is_dir(),
             is_file: metadata.is_file(),
             #[allow(clippy::cast_sign_loss)]
             ctime_ms: metadata.ctime() as u64,
-            size:metadata.size()
+            size: metadata.size(),
         }
     }
 }
@@ -281,6 +276,6 @@ fn metadata() {
         atime_ms: 0,
         mtime_ms: 0,
         ctime_ms: 0,
-        size: 0
+        size: 0,
     };
 }
