@@ -274,9 +274,7 @@ impl CachedPathImpl {
             .package_json
             .get_or_try_init(|| {
                 let package_json_path = self.path.join("package.json");
-                println!("Reading the package.json for {:?}", package_json_path);
                 let Ok(package_json_string) = fs.read_to_string(&package_json_path) else {
-                    println!("Failed");
                     return Ok(None);
                 };
                 let real_path = if options.symlinks {
@@ -296,7 +294,6 @@ impl CachedPathImpl {
                     })
             })
             .cloned();
-        println!("Result: {:?}", result);
         // https://github.com/webpack/enhanced-resolve/blob/58464fc7cb56673c9aa849e68e6300239601e615/lib/DescriptionFileUtils.js#L68-L82
         match &result {
             Ok(Some(package_json)) => {

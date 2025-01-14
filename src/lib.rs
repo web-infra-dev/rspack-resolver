@@ -1393,7 +1393,6 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                 }
                 _ => None,
             };
-            println!("main_export: {:?}", main_export);
             // 4. If mainExport is not undefined, then
             if let Some(main_export) = main_export {
                 // 1. Let resolved be the result of PACKAGE_TARGET_RESOLVE( packageURL, mainExport, null, false, conditions).
