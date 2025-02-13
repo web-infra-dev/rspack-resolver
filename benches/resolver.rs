@@ -6,6 +6,7 @@ use std::{
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rayon::prelude::*;
+use rspack_resolver::{ResolveOptions, Resolver};
 
 fn data() -> Vec<(PathBuf, &'static str)> {
     let cwd = env::current_dir().unwrap().join("fixtures/enhanced_resolve");
@@ -184,6 +185,29 @@ fn bench_resolver(c: &mut Criterion) {
                         oxc_resolver.resolve(&symlink_test_dir, &format!("./file{i}")).is_ok(),
                         "file{i}.js"
                     );
+                }
+            });
+        },
+    );
+
+    let base = env::current_dir().unwrap().join("fixtures/yarn-pnp-benchmark");
+    let package_list = fs::read_to_string(base.join("pkgs.txt")).unwrap().trim().to_string();
+    let pkgs = package_list.split("\n").collect::<Vec<_>>();
+
+    group.bench_with_input(
+        BenchmarkId::from_parameter("resolve in large pnp project"),
+        &pkgs,
+        |b, data| {
+            let resolver = Resolver::new(ResolveOptions {
+                condition_names: vec!["import".into()],
+                main_fields: vec!["main".into(), "types".into()],
+                enable_pnp: true,
+                ..Default::default()
+            });
+            b.iter(|| {
+                for pkg in data {
+                    let r = resolver.resolve(&base, pkg);
+                    assert!(r.is_ok(), "npm {pkg}");
                 }
             });
         },
