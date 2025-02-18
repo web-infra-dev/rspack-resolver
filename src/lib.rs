@@ -794,30 +794,32 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                 pnp::resolve_to_unqualified_via_manifest(pnp_manifest, specifier, path);
 
             match resolution {
-                Ok(pnp::Resolution::Resolved(path, mut subpath)) => {
+                Ok(pnp::Resolution::Resolved(path, subpath)) => {
                     let cached_path = self.cache.value(&path);
 
-                    if let Some(subpath) = subpath.as_mut() {
-                        subpath.insert(0, '/');
+                    let inner_request = subpath.clone().map_or_else(
+                        || ".".to_string(),
+                        |mut p| {
+                            p.insert_str(0, "./");
+                            p
+                        },
+                    );
+
+                    // is a npm package root
+                    let self_resolution = self.load_package_self(&cached_path, &specifier, ctx)?;
+
+                    if self_resolution.is_some() {
+                        return Ok(self_resolution);
                     }
 
-                    let export_resolution = self.load_package_exports(
-                        specifier,
-                        &subpath.unwrap_or_default(),
-                        &cached_path,
-                        ctx,
-                    )?;
-                    if export_resolution.is_some() {
-                        return Ok(export_resolution);
-                    }
+                    let inner_resolver =
+                        self.clone_with_options(ResolveOptions { ..self.options().clone() });
 
-                    let file_or_directory_resolution =
-                        self.load_as_file_or_directory(&cached_path, specifier, ctx)?;
-                    if file_or_directory_resolution.is_some() {
-                        return Ok(file_or_directory_resolution);
-                    }
+                    let Ok(inner_resolution) = inner_resolver.resolve(&path, &inner_request) else {
+                        return Err(ResolveError::NotFound(specifier.to_string()));
+                    };
 
-                    Err(ResolveError::NotFound(specifier.to_string()))
+                    Ok(Some(self.cache.value(inner_resolution.path())))
                 }
 
                 Ok(pnp::Resolution::Skipped) => Ok(None),
