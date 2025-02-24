@@ -797,7 +797,7 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                 Ok(pnp::Resolution::Resolved(path, subpath)) => {
                     let cached_path = self.cache.value(&path);
 
-                    let inner_request = subpath.clone().map_or_else(
+                    let inner_request = subpath.map_or_else(
                         || ".".to_string(),
                         |mut p| {
                             p.insert_str(0, "./");
@@ -806,14 +806,13 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                     );
 
                     // is a npm package root
-                    let self_resolution = self.load_package_self(&cached_path, &specifier, ctx)?;
+                    let self_resolution = self.load_package_self(&cached_path, specifier, ctx)?;
 
                     if self_resolution.is_some() {
                         return Ok(self_resolution);
                     }
 
-                    let inner_resolver =
-                        self.clone_with_options(ResolveOptions { ..self.options().clone() });
+                    let inner_resolver = self.clone_with_options(self.options().clone());
 
                     let Ok(inner_resolution) = inner_resolver.resolve(&path, &inner_request) else {
                         return Err(ResolveError::NotFound(specifier.to_string()));
