@@ -797,6 +797,12 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                 Ok(pnp::Resolution::Resolved(path, subpath)) => {
                     let cached_path = self.cache.value(&path);
 
+                    let export_resolution = self.load_package_self(&cached_path, specifier, ctx)?;
+                    // can be found in pnp cached folder
+                    if export_resolution.is_some() {
+                        return Ok(export_resolution);
+                    }
+
                     let inner_request = subpath.map_or_else(
                         || ".".to_string(),
                         |mut p| {
@@ -804,16 +810,9 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                             p
                         },
                     );
-
-                    // is a npm package root
-                    let self_resolution = self.load_package_self(&cached_path, specifier, ctx)?;
-
-                    if self_resolution.is_some() {
-                        return Ok(self_resolution);
-                    }
-
                     let inner_resolver = self.clone_with_options(self.options().clone());
 
+                    // try as file or directory `path` in the pnp folder
                     let Ok(inner_resolution) = inner_resolver.resolve(&path, &inner_request) else {
                         return Err(ResolveError::NotFound(specifier.to_string()));
                     };
