@@ -10,9 +10,9 @@ fn resolve_abs_main() {
     let dirname = env::current_dir().unwrap().join("fixtures");
     let f = dirname.join("invalid/main.js");
     // a's main field id `/dist/index.js`
-    let resolved_path = resolver.resolve(&f, "a").unwrap().path();
+    let resolution = resolver.resolve(&f, "a").unwrap();
 
-    assert_eq!(resolved_path, dirname.join("invalid/node_modules/a/dist/index.js"));
+    assert_eq!(resolution.path(), dirname.join("invalid/node_modules/a/dist/index.js"));
 }
 
 #[test]
