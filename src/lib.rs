@@ -70,7 +70,7 @@ use std::{
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
-
+use std::fmt::format;
 use dashmap::{mapref::one::Ref, DashMap};
 use rustc_hash::FxHashSet;
 use serde_json::Value as JSONValue;
@@ -544,8 +544,16 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             {
                 // b. If "main" is a falsy value, GOTO 2.
                 for main_field in package_json.main_fields(&self.options.main_fields) {
+
+                    // ref https://github.com/webpack/enhanced-resolve/blob/main/lib/MainFieldPlugin.js#L66-L67
+                    let main_field = if main_field.starts_with("./") || main_field.starts_with("../"){
+                        Cow::Borrowed(main_field)
+                    }else{
+                        Cow::Owned(format!("./{main_field}"))
+                    };
+
                     // c. let M = X + (json main field)
-                    let main_field_path = cached_path.path().normalize_with(main_field);
+                    let main_field_path = cached_path.path().normalize_with(main_field.as_ref());
                     // d. LOAD_AS_FILE(M)
                     let cached_path = self.cache.value(&main_field_path);
                     if let Ok(Some(path)) = self.load_as_file(&cached_path, ctx) {
