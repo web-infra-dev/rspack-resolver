@@ -3,7 +3,7 @@ members  = ["napi"]
 resolver = "2"
 
 [package]
-version      = "0.3.6"
+version      = "0.5.3"
 name         = "rspack_resolver"
 authors      = ["Rspack"]
 categories   = ["development-tools"]
@@ -89,7 +89,7 @@ indexmap = { version = "2.2.6", features = ["serde"] }
 cfg-if = "1.0"
 simdutf8 = { version = "0.1.4", features = ["aarch64_neon"] }
 
-pnp = { version = "0.9.0", optional = true }
+pnp = { version = "0.9.1", optional = true }
 
 document-features = { version = "0.2.8", optional = true }
 tokio = { version = "1.42.0", features = ["sync", "rt", "macros"] }
@@ -102,7 +102,7 @@ tokio = { version = "1.42.0", features = ["rt", "rt-multi-thread"] }
 normalize-path = { version = "0.2.1" }
 
 [features]
-default = []
+default = ["yarn_pnp"]
 ## Enables the [PackageJson::raw_json] API,
 ## which returns the `package.json` with `serde_json::Value`.
 package_json_raw_json_api = []

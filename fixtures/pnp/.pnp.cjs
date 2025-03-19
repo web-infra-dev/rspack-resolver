@@ -28,7 +28,10 @@ const RAW_RUNTIME_STATE =
         "packageLocation": "./",\
         "packageDependencies": [\
           ["is-even", "npm:1.0.0"],\
-          ["is-odd", "npm:3.0.1"]\
+          ["is-odd", "npm:3.0.1"],\
+          ["lib", "link:./shared::locator=pnp%40workspace%3A."],\
+          ["lodash.zip", "npm:4.2.0"],\
+          ["preact", "npm:10.25.4"]\
         ],\
         "linkType": "SOFT"\
       }]\
@@ -97,15 +100,46 @@ const RAW_RUNTIME_STATE =
         "linkType": "HARD"\
       }]\
     ]],\
+    ["lib", [\
+      ["link:./shared::locator=pnp%40workspace%3A.", {\
+        "packageLocation": "./shared/",\
+        "packageDependencies": [\
+          ["lib", "link:./shared::locator=pnp%40workspace%3A."]\
+        ],\
+        "linkType": "SOFT",\
+        "discardFromLookup": true\
+      }]\
+    ]],\
+    ["lodash.zip", [\
+      ["npm:4.2.0", {\
+        "packageLocation": "./.yarn/cache/lodash.zip-npm-4.2.0-5299417ec8-e596da80a6.zip/node_modules/lodash.zip/",\
+        "packageDependencies": [\
+          ["lodash.zip", "npm:4.2.0"]\
+        ],\
+        "linkType": "HARD"\
+      }]\
+    ]],\
     ["pnp", [\
       ["workspace:.", {\
         "packageLocation": "./",\
         "packageDependencies": [\
           ["pnp", "workspace:."],\
           ["is-even", "npm:1.0.0"],\
-          ["is-odd", "npm:3.0.1"]\
+          ["is-odd", "npm:3.0.1"],\
+          ["lib", "link:./shared::locator=pnp%40workspace%3A."],\
+          ["lodash.zip", "npm:4.2.0"],\
+          ["preact", "npm:10.25.4"]\
         ],\
         "linkType": "SOFT"\
+      }]\
+    ]],\
+    ["preact", [\
+      ["npm:10.25.4", {\
+        "packageLocation": "./.yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact/",\
+        "packageDependencies": [\
+          ["preact", "npm:10.25.4"]\
+        ],\
+        "linkType": "HARD"\
       }]\
     ]]\
   ]\

@@ -74,6 +74,13 @@ use std::{
     sync::Arc,
 };
 
+<<<<<<< HEAD
+use futures::future::{try_join_all, BoxFuture};
+use rustc_hash::FxHashSet;
+use serde_json::Value as JSONValue;
+
+=======
+>>>>>>> origin/main
 pub use crate::{
     builtins::NODEJS_BUILTINS,
     error::{JSONError, ResolveError, SpecifierError},
@@ -94,7 +101,6 @@ use crate::{
     tsconfig::ExtendsField,
     tsconfig::{ProjectReference, TsConfig},
 };
-use futures::future::{try_join_all, BoxFuture};
 
 type ResolveResult = Result<Option<CachedPath>, ResolveError>;
 
@@ -732,10 +738,15 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ) -> ResolveResult {
         #[cfg(feature = "yarn_pnp")]
         {
+<<<<<<< HEAD
+            if let Some(resolved_path) = self.load_pnp(cached_path, specifier, ctx).await? {
+                return Ok(Some(resolved_path));
+=======
             if self.options.enable_pnp {
-                if let Some(resolved_path) = self.load_pnp(cached_path, specifier, ctx).await? {
+                if let Some(resolved_path) = self.load_pnp(cached_path, specifier, ctx)? {
                     return Ok(Some(resolved_path));
                 }
+>>>>>>> origin/main
             }
         }
 
@@ -802,6 +813,9 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     }
 
     #[cfg(feature = "yarn_pnp")]
+<<<<<<< HEAD
+    async fn load_pnp(
+=======
     fn find_pnp_manifest(
         &self,
         cached_path: &CachedPath,
@@ -815,13 +829,41 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     }
 
     #[cfg(feature = "yarn_pnp")]
-    async fn load_pnp(
+    fn load_pnp(
+>>>>>>> origin/main
         &self,
         cached_path: &CachedPath,
         specifier: &str,
         ctx: &mut Ctx,
     ) -> Result<Option<CachedPath>, ResolveError> {
+<<<<<<< HEAD
+        let Some(pnp_manifest) = &self.options.pnp_manifest else { return Ok(None) };
+        let resolution =
+            pnp::resolve_to_unqualified_via_manifest(pnp_manifest, specifier, cached_path.path());
+        match resolution {
+            Ok(pnp::Resolution::Resolved(path, subpath)) => {
+                let cached_path = self.cache.value(&path);
+                let export_resolution = self
+                    .load_package_exports(
+                        specifier,
+                        &subpath.unwrap_or_default(),
+                        &cached_path,
+                        ctx,
+                    )
+                    .await?;
+                if export_resolution.is_some() {
+                    return Ok(export_resolution);
+                }
+                let file_or_directory_resolution =
+                    self.load_as_file_or_directory(&cached_path, specifier, ctx).await?;
+                if file_or_directory_resolution.is_some() {
+                    return Ok(file_or_directory_resolution);
+                }
+                Err(ResolveError::NotFound(specifier.to_string()))
+            }
+=======
         let pnp_manifest = self.find_pnp_manifest(cached_path);
+>>>>>>> origin/main
 
         if let Some(pnp_manifest) = pnp_manifest.as_ref() {
             // `resolve_to_unqualified` requires a trailing slash
@@ -835,8 +877,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                 Ok(pnp::Resolution::Resolved(path, subpath)) => {
                     let cached_path = self.cache.value(&path);
 
-                    let export_resolution =
-                        self.load_package_self(&cached_path, specifier, ctx).await?;
+                    let export_resolution = self.load_package_self(&cached_path, specifier, ctx)?;
                     // can be found in pnp cached folder
                     if export_resolution.is_some() {
                         return Ok(export_resolution);
@@ -852,8 +893,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                     let inner_resolver = self.clone_with_options(self.options().clone());
 
                     // try as file or directory `path` in the pnp folder
-                    let Ok(inner_resolution) = inner_resolver.resolve(&path, &inner_request).await
-                    else {
+                    let Ok(inner_resolution) = inner_resolver.resolve(&path, &inner_request) else {
                         return Err(ResolveError::NotFound(specifier.to_string()));
                     };
 

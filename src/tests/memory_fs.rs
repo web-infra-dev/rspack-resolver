@@ -56,6 +56,12 @@ impl FileSystem for MemoryFS {
             Ok(buffer)
         })
     }
+    fn read<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<Vec<u8>>> {
+        Box::pin(async move {
+            let buf = self.read_to_string(path).await?;
+            Ok(buf.into_bytes())
+        })
+    }
 
     fn metadata<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, io::Result<FileMetadata>> {
         Box::pin(async move {
