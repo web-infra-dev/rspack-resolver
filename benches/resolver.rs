@@ -180,7 +180,7 @@ fn bench_resolver(c: &mut Criterion) {
     });
 
     group.bench_with_input(
-        BenchmarkId::from_parameter("resolve-from-symlinks"),
+        BenchmarkId::from_parameter("resolve from symlinks"),
         &symlinks_range,
         |b, data| {
             let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
@@ -200,7 +200,7 @@ fn bench_resolver(c: &mut Criterion) {
     );
 
     group.bench_with_input(
-        BenchmarkId::from_parameter("resolve-from-symlinks-multi-thread"),
+        BenchmarkId::from_parameter("resolve from symlinks multi thread"),
         &symlinks_range,
         |b, data| {
             let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
