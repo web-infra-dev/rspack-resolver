@@ -27,7 +27,7 @@ pub struct Cache<Fs> {
     tsconfigs: DashMap<PathBuf, Arc<TsConfig>, BuildHasherDefault<FxHasher>>,
 }
 
-impl<Fs: FileSystem> Cache<Fs> {
+impl<Fs: Send + Sync + FileSystem> Cache<Fs> {
     pub fn new(fs: Fs) -> Self {
         Self { fs, paths: DashSet::default(), tsconfigs: DashMap::default() }
     }
@@ -63,8 +63,8 @@ impl<Fs: FileSystem> Cache<Fs> {
         callback: F, // callback for modifying tsconfig with `extends`
     ) -> Result<Arc<TsConfig>, ResolveError>
     where
-        F: FnOnce(TsConfig) -> Fut,
-        Fut: Future<Output = Result<TsConfig, ResolveError>>,
+        F: FnOnce(TsConfig) -> Fut + Send,
+        Fut: Send + Future<Output = Result<TsConfig, ResolveError>>,
     {
         if let Some(tsconfig_ref) = self.tsconfigs.get(path) {
             return Ok(Arc::clone(tsconfig_ref.value()));
@@ -176,11 +176,11 @@ impl CachedPathImpl {
         self.parent.as_ref()
     }
 
-    async fn meta<Fs: FileSystem>(&self, fs: &Fs) -> Option<FileMetadata> {
+    async fn meta<Fs: Send + Sync + FileSystem>(&self, fs: &Fs) -> Option<FileMetadata> {
         *self.meta.get_or_init(|| async { fs.metadata(&self.path).await.ok() }).await
     }
 
-    pub async fn is_file<Fs: FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
+    pub async fn is_file<Fs: Send + Sync + FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
         if let Some(meta) = self.meta(fs).await {
             ctx.add_file_dependency(self.path());
             meta.is_file
@@ -190,7 +190,7 @@ impl CachedPathImpl {
         }
     }
 
-    pub async fn is_dir<Fs: FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
+    pub async fn is_dir<Fs: Send + Sync + FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
         self.meta(fs).await.map_or_else(
             || {
                 ctx.add_missing_dependency(self.path());
@@ -226,7 +226,7 @@ impl CachedPathImpl {
         Box::pin(fut)
     }
 
-    pub async fn module_directory<Fs: FileSystem>(
+    pub async fn module_directory<Fs: Send + Sync + FileSystem>(
         &self,
         module_name: &str,
         cache: &Cache<Fs>,
@@ -236,7 +236,7 @@ impl CachedPathImpl {
         cached_path.is_dir(&cache.fs, ctx).await.then_some(cached_path)
     }
 
-    pub async fn cached_node_modules<Fs: FileSystem>(
+    pub async fn cached_node_modules<Fs: Send + Sync + FileSystem>(
         &self,
         cache: &Cache<Fs>,
         ctx: &mut Ctx,

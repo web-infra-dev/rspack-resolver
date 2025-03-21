@@ -125,13 +125,13 @@ impl<Fs> fmt::Debug for ResolverGeneric<Fs> {
     }
 }
 
-impl<Fs: FileSystem + Default> Default for ResolverGeneric<Fs> {
+impl<Fs: Send + Sync + FileSystem + Default> Default for ResolverGeneric<Fs> {
     fn default() -> Self {
         Self::new(ResolveOptions::default())
     }
 }
 
-impl<Fs: FileSystem + Default> ResolverGeneric<Fs> {
+impl<Fs: Send + Sync + FileSystem + Default> ResolverGeneric<Fs> {
     pub fn new(options: ResolveOptions) -> Self {
         Self {
             options: options.sanitize(),
@@ -184,7 +184,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     /// # Errors
     ///
     /// * See [ResolveError]
-    pub async fn resolve<P: AsRef<Path>>(
+    pub async fn resolve<P: Send + AsRef<Path>>(
         &self,
         directory: P,
         specifier: &str,
@@ -198,7 +198,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     /// # Errors
     ///
     /// * See [ResolveError]
-    pub async fn resolve_with_context<P: AsRef<Path>>(
+    pub async fn resolve_with_context<P: Send + AsRef<Path>>(
         &self,
         directory: P,
         specifier: &str,
