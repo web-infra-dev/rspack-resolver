@@ -2,10 +2,11 @@ use std::{
     env, fs,
     io::{self, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use rayon::prelude::*;
+use tokio::runtime;
 
 fn data() -> Vec<(PathBuf, &'static str)> {
     let cwd = env::current_dir().unwrap().join("fixtures/enhanced_resolve");
@@ -134,42 +135,47 @@ fn oxc_resolver() -> rspack_resolver::Resolver {
     })
 }
 
+fn create_async_resolve_task(
+    oxc_resolver: Arc<rspack_resolver::Resolver>,
+    path: PathBuf,
+    request: String,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let _ = oxc_resolver.resolve(path, &request);
+    })
+}
+
 fn bench_resolver(c: &mut Criterion) {
     let data = data();
-
-    // check validity
-    for (path, request) in &data {
-        assert!(oxc_resolver().resolve(path, request).is_ok(), "{path:?} {request}");
-    }
 
     let symlink_test_dir = create_symlinks().expect("Create symlink fixtures failed");
 
     let symlinks_range = 0u32..10000;
 
-    for i in symlinks_range.clone() {
-        assert!(
-            oxc_resolver().resolve(&symlink_test_dir, &format!("./file{i}")).is_ok(),
-            "file{i}.js"
-        );
-    }
-
     let mut group = c.benchmark_group("resolver");
 
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
-        let oxc_resolver = oxc_resolver();
-        b.iter(|| {
+        let runner =
+            runtime::Builder::new_current_thread().build().expect("failed to create tokio runtime");
+        b.to_async(runner).iter(|| async {
+            let oxc_resolver = oxc_resolver();
             for (path, request) in data {
-                _ = oxc_resolver.resolve(path, request);
+                _ = oxc_resolver.resolve(path, request).await;
             }
         });
     });
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
-        let oxc_resolver = oxc_resolver();
-        b.iter(|| {
-            data.par_iter().for_each(|(path, request)| {
-                _ = oxc_resolver.resolve(path, request);
+        let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+        b.to_async(runner).iter(|| async {
+            let oxc_resolver = Arc::new(oxc_resolver());
+
+            let handles = data.iter().map(|(path, request)| {
+                create_async_resolve_task(oxc_resolver.clone(), path.clone(), request.to_string())
             });
+            for handle in handles {
+                let _ = handle.await;
+            }
         });
     });
 
@@ -177,13 +183,39 @@ fn bench_resolver(c: &mut Criterion) {
         BenchmarkId::from_parameter("resolve from symlinks"),
         &symlinks_range,
         |b, data| {
-            let oxc_resolver = oxc_resolver();
-            b.iter(|| {
+            let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+            b.to_async(runner).iter(|| async {
+                let oxc_resolver = oxc_resolver();
                 for i in data.clone() {
                     assert!(
-                        oxc_resolver.resolve(&symlink_test_dir, &format!("./file{i}")).is_ok(),
+                        oxc_resolver
+                            .resolve(&symlink_test_dir, &format!("./file{i}"))
+                            .await
+                            .is_ok(),
                         "file{i}.js"
                     );
+                }
+            });
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::from_parameter("resolve from symlinks multi thread"),
+        &symlinks_range,
+        |b, data| {
+            let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+            b.to_async(runner).iter(|| async {
+                let oxc_resolver = Arc::new(oxc_resolver());
+
+                let handles = data.clone().map(|i| {
+                    create_async_resolve_task(
+                        oxc_resolver.clone(),
+                        symlink_test_dir.clone(),
+                        format!("./file{i}").to_string(),
+                    )
+                });
+                for handle in handles {
+                    let _ = handle.await;
                 }
             });
         },

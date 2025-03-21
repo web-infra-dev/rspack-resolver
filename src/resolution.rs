@@ -76,8 +76,8 @@ impl Resolution {
     }
 }
 
-#[test]
-fn test() {
+#[tokio::test]
+async fn test() {
     let resolution = Resolution {
         path: PathBuf::from("foo"),
         query: Some("?query".to_string()),

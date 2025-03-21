@@ -9,8 +9,8 @@ use crate::{ResolveError, ResolveOptions, Resolver, Restriction};
 // * should try to find alternative #3
 
 // should respect string restriction
-#[test]
-fn restriction1() {
+#[tokio::test]
+async fn restriction1() {
     let fixture = super::fixture();
     let f = fixture.join("restrictions");
 
@@ -20,6 +20,6 @@ fn restriction1() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver.resolve(&f, "pck2");
+    let resolution = resolver.resolve(&f, "pck2").await;
     assert_eq!(resolution, Err(ResolveError::Restriction(fixture.join("c.js"), f)));
 }

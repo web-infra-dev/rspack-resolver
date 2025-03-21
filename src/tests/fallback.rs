@@ -1,8 +1,8 @@
 //! https://github.com/webpack/enhanced-resolve/blob/main/test/fallback.test.js
 
-#[test]
+#[tokio::test]
 #[cfg(not(target_os = "windows"))] // MemoryFS's path separator is always `/` so the test will not pass in windows.
-fn fallback() {
+async fn fallback() {
     use super::memory_fs::MemoryFS;
     use crate::{AliasValue, ResolveError, ResolveOptions, ResolverGeneric};
     use std::path::{Path, PathBuf};
@@ -83,7 +83,7 @@ fn fallback() {
     ];
 
     for (comment, request, expected) in pass {
-        let resolved_path = resolver.resolve(f, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(f, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(PathBuf::from(expected)), "{comment} {request}");
     }
 
@@ -94,7 +94,7 @@ fn fallback() {
     ];
 
     for (comment, request, expected) in ignore {
-        let resolution = resolver.resolve(f, request);
+        let resolution = resolver.resolve(f, request).await;
         assert_eq!(resolution, Err(expected), "{comment} {request}");
     }
 }

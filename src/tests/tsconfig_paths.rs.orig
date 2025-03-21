@@ -103,8 +103,13 @@ async fn broken() {
         ..ResolveOptions::default()
     });
 
+<<<<<<< HEAD
     let resolved_path = resolver.resolve(&f, "/").await;
+    let error = ResolveError::JSON(JSONError {
+=======
+    let resolved_path = resolver.resolve(&f, "/");
     let _error = ResolveError::JSON(JSONError {
+>>>>>>> origin/main
         path: f.join("tsconfig_broken.json"),
         message: String::from("EOF while parsing an object at line 2 column 0"),
         line: 2,
@@ -114,8 +119,8 @@ async fn broken() {
     assert!(matches!(resolved_path, Err(ResolveError::JSON(_))));
 }
 
-#[tokio::test]
-async fn empty() {
+#[test]
+fn empty() {
     let f = super::fixture_root().join("tsconfig/cases/empty");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -126,7 +131,7 @@ async fn empty() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f, "./index").await.map(|f| f.full_path());
+    let resolved_path = resolver.resolve(&f, "./index").map(|f| f.full_path());
     assert_eq!(resolved_path, Ok(f.join("index.js")));
 }
 

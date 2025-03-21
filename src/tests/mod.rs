@@ -34,8 +34,8 @@ pub fn fixture() -> PathBuf {
     fixture_root().join("enhanced_resolve").join("test").join("fixtures")
 }
 
-#[test]
-fn threaded_environment() {
+#[tokio::test]
+async fn threaded_environment() {
     let cwd = env::current_dir().unwrap();
     let resolver = Arc::new(Resolver::default());
     for _ in 0..2 {
