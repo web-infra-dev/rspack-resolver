@@ -157,8 +157,9 @@ fn bench_resolver(c: &mut Criterion) {
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
         let runner =
             runtime::Builder::new_current_thread().build().expect("failed to create tokio runtime");
+        let oxc_resolver = oxc_resolver();
+
         b.to_async(runner).iter(|| async {
-            let oxc_resolver = oxc_resolver();
             for (path, request) in data {
                 _ = oxc_resolver.resolve(path, request).await;
             }
@@ -167,12 +168,13 @@ fn bench_resolver(c: &mut Criterion) {
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
         let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
-        b.to_async(runner).iter(|| async {
-            let oxc_resolver = Arc::new(oxc_resolver());
+        let oxc_resolver = Arc::new(oxc_resolver());
 
+        b.to_async(runner).iter(|| async {
             let handles = data.iter().map(|(path, request)| {
                 create_async_resolve_task(oxc_resolver.clone(), path.clone(), request.to_string())
             });
+
             for handle in handles {
                 let _ = handle.await;
             }
@@ -184,8 +186,9 @@ fn bench_resolver(c: &mut Criterion) {
         &symlinks_range,
         |b, data| {
             let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+            let oxc_resolver = oxc_resolver();
+
             b.to_async(runner).iter(|| async {
-                let oxc_resolver = oxc_resolver();
                 for i in data.clone() {
                     assert!(
                         oxc_resolver
@@ -204,9 +207,9 @@ fn bench_resolver(c: &mut Criterion) {
         &symlinks_range,
         |b, data| {
             let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
-            b.to_async(runner).iter(|| async {
-                let oxc_resolver = Arc::new(oxc_resolver());
+            let oxc_resolver = Arc::new(oxc_resolver());
 
+            b.to_async(runner).iter(|| async {
                 let handles = data.clone().map(|i| {
                     create_async_resolve_task(
                         oxc_resolver.clone(),
