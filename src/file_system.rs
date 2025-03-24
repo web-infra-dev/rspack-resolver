@@ -122,6 +122,7 @@ impl Default for FileSystemOs {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[async_trait::async_trait]
 impl FileSystem for FileSystemOs {
     async fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
