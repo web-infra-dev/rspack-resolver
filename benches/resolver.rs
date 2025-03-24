@@ -140,7 +140,7 @@ fn create_async_resolve_task(
     oxc_resolver: Arc<rspack_resolver::Resolver>,
     path: PathBuf,
     request: String,
-) -> impl Future<Output=()> {
+) -> impl Future<Output = ()> {
     async move {
         let _ = oxc_resolver.resolve(path, &request);
     }
@@ -232,4 +232,5 @@ fn bench_resolver(c: &mut Criterion) {
     );
 }
 
-criterion_group!(resolver, bench_resolver);criterion_main!(resolver);
+criterion_group!(resolver, bench_resolver);
+criterion_main!(resolver);
