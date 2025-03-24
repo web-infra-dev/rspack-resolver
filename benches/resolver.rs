@@ -1,12 +1,13 @@
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::future::Future;
 use std::{
     env, fs,
     io::{self, Write},
     path::{Path, PathBuf},
     sync::Arc,
 };
-
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use tokio::runtime;
+use tokio::task::JoinSet;
 
 fn data() -> Vec<(PathBuf, &'static str)> {
     let cwd = env::current_dir().unwrap().join("fixtures/enhanced_resolve");
@@ -139,10 +140,10 @@ fn create_async_resolve_task(
     oxc_resolver: Arc<rspack_resolver::Resolver>,
     path: PathBuf,
     request: String,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
+) -> impl Future<Output=()> {
+    async move {
         let _ = oxc_resolver.resolve(path, &request);
-    })
+    }
 }
 
 fn bench_resolver(c: &mut Criterion) {
@@ -171,13 +172,17 @@ fn bench_resolver(c: &mut Criterion) {
         let oxc_resolver = Arc::new(oxc_resolver());
 
         b.to_async(runner).iter(|| async {
-            let handles = data.iter().map(|(path, request)| {
-                create_async_resolve_task(oxc_resolver.clone(), path.clone(), request.to_string())
+            let mut join_set = JoinSet::new();
+
+            data.iter().for_each(|(path, request)| {
+                join_set.spawn(create_async_resolve_task(
+                    oxc_resolver.clone(),
+                    path.clone(),
+                    request.to_string(),
+                ));
             });
 
-            for handle in handles {
-                let _ = handle.await;
-            }
+            join_set.join_all().await;
         });
     });
 
@@ -209,21 +214,22 @@ fn bench_resolver(c: &mut Criterion) {
             let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
             let oxc_resolver = Arc::new(oxc_resolver());
 
+            let symlink_test_dir = symlink_test_dir.clone();
+
             b.to_async(runner).iter(|| async {
-                let handles = data.clone().map(|i| {
-                    create_async_resolve_task(
+                let mut join_set = JoinSet::new();
+
+                data.clone().for_each(|i| {
+                    join_set.spawn(create_async_resolve_task(
                         oxc_resolver.clone(),
                         symlink_test_dir.clone(),
                         format!("./file{i}").to_string(),
-                    )
+                    ));
                 });
-                for handle in handles {
-                    let _ = handle.await;
-                }
+                join_set.join_all().await;
             });
         },
     );
 }
 
-criterion_group!(resolver, bench_resolver);
-criterion_main!(resolver);
+criterion_group!(resolver, bench_resolver);criterion_main!(resolver);
