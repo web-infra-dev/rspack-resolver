@@ -119,8 +119,8 @@ fn bench_resolver(c: &mut Criterion) {
     rayon::ThreadPoolBuilder::new().build_global().expect("Failed to build global thread pool");
 
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
-        let oxc_resolver = oxc_resolver();
         b.iter(|| {
+            let oxc_resolver = oxc_resolver();
             for (path, request) in data {
                 _ = oxc_resolver.resolve(path, request);
             }
@@ -128,9 +128,8 @@ fn bench_resolver(c: &mut Criterion) {
     });
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
-        let oxc_resolver = oxc_resolver();
-
         b.iter(|| {
+            let oxc_resolver = oxc_resolver();
             data.par_iter().for_each(|(path, request)| {
                 _ = oxc_resolver.resolve(path, request);
             });
