@@ -1,4 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use serde_json::Value;
+use std::fs::read_to_string;
 use std::future::Future;
 use std::{
     env, fs,
@@ -8,56 +10,6 @@ use std::{
 };
 use tokio::runtime;
 use tokio::task::JoinSet;
-
-fn data() -> Vec<(PathBuf, &'static str)> {
-    let cwd = env::current_dir().unwrap().join("fixtures/enhanced_resolve");
-    let f = cwd.join("test/fixtures");
-    vec![
-        (cwd.clone(), "./"),
-        (cwd.clone(), "./lib/index"),
-        (cwd.clone(), "/absolute/path"),
-        // query fragment
-        (f.clone(), "./main1.js#fragment?query"),
-        (f.clone(), "m1/a.js?query#fragment"),
-        // browserField
-        (f.join("browser-module"), "./lib/replaced"),
-        (f.join("browser-module/lib"), "./replaced"),
-        // exportsField
-        (f.join("exports-field"), "exports-field"),
-        (f.join("exports-field"), "exports-field/dist/main.js"),
-        (f.join("exports-field"), "exports-field/dist/main.js?foo"),
-        (f.join("exports-field"), "exports-field/dist/main.js#foo"),
-        (f.join("exports-field"), "@exports-field/core"),
-        (f.join("imports-exports-wildcard"), "m/features/f.js"),
-        // extensionAlias
-        (f.join("extension-alias"), "./index.js"),
-        (f.join("extension-alias"), "./dir2/index.mjs"),
-        // extensions
-        (f.join("extensions"), "./foo"),
-        (f.join("extensions"), "."),
-        (f.join("extensions"), "./dir"),
-        (f.join("extensions"), "module/"),
-        // importsField
-        (f.join("imports-field"), "#imports-field"),
-        (f.join("imports-exports-wildcard/node_modules/m/"), "#internal/i.js"),
-        // scoped
-        (f.join("scoped"), "@scope/pack1"),
-        (f.join("scoped"), "@scope/pack2/lib"),
-        // dashed name
-        (f.clone(), "dash"),
-        (f.clone(), "dash-name"),
-        (f.join("node_modules/dash"), "dash"),
-        (f.join("node_modules/dash"), "dash-name"),
-        (f.join("node_modules/dash-name"), "dash"),
-        (f.join("node_modules/dash-name"), "dash-name"),
-        // alias
-        (cwd.clone(), "aaa"),
-        (cwd.clone(), "ggg"),
-        (cwd.clone(), "rrr"),
-        (cwd.clone(), "@"),
-        (cwd, "@@@"),
-    ]
-}
 
 fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
     #[cfg(target_family = "unix")]
@@ -98,13 +50,10 @@ fn oxc_resolver() -> rspack_resolver::Resolver {
     use rspack_resolver::{AliasValue, ResolveOptions, Resolver};
     let alias_value = AliasValue::from("./");
     Resolver::new(ResolveOptions {
-        extensions: vec![".ts".into(), ".js".into()],
-        condition_names: vec!["webpack".into(), "require".into()],
+        extensions: vec![".ts".into(), ".js".into(), ".mjs".into()],
+        condition_names: vec!["import".into(), "webpack".into(), "require".into()],
         alias_fields: vec![vec!["browser".into()]],
-        extension_alias: vec![
-            (".js".into(), vec![".ts".into(), ".js".into()]),
-            (".mjs".into(), vec![".mts".into()]),
-        ],
+        extension_alias: vec![(".js".into(), vec![".ts".into(), ".js".into()])],
         // Real projects LOVE setting these many aliases.
         // I saw them with my own eyes.
         alias: vec![
@@ -142,12 +91,32 @@ fn create_async_resolve_task(
     request: String,
 ) -> impl Future<Output = ()> {
     async move {
-        let _ = oxc_resolver.resolve(path, &request);
+        let _ = oxc_resolver.resolve(path, &request).await;
     }
 }
 
 fn bench_resolver(c: &mut Criterion) {
-    let data = data();
+    let cwd = env::current_dir().unwrap().join("benches");
+
+    let pkg_content = read_to_string("./benches/package.json").unwrap();
+    let pkg_json: Value = serde_json::from_str(&pkg_content).unwrap();
+    // about 1000 npm packages
+    let data = pkg_json["dependencies"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(|name| (&cwd, name))
+        .collect::<Vec<_>>();
+
+    // check validity
+    runtime::Builder::new_multi_thread().enable_all().build().unwrap().block_on(async {
+        for (path, request) in &data {
+            let r = oxc_resolver().resolve(path, request).await;
+            if !r.is_ok() {
+                panic!("resolve failed {path:?} {request},\n\nplease run `pnpm install --ignore-workspace` in `/benches` before running the benchmarks");
+            }
+        }
+    });
 
     let symlink_test_dir = create_symlinks().expect("Create symlink fixtures failed");
 
@@ -158,9 +127,9 @@ fn bench_resolver(c: &mut Criterion) {
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
         let runner =
             runtime::Builder::new_current_thread().build().expect("failed to create tokio runtime");
-        let oxc_resolver = oxc_resolver();
 
         b.to_async(runner).iter(|| async {
+            let oxc_resolver = oxc_resolver();
             for (path, request) in data {
                 _ = oxc_resolver.resolve(path, request).await;
             }
@@ -169,15 +138,15 @@ fn bench_resolver(c: &mut Criterion) {
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
         let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
-        let oxc_resolver = Arc::new(oxc_resolver());
-
+        
         b.to_async(runner).iter(|| async {
             let mut join_set = JoinSet::new();
+            let oxc_resolver = Arc::new(oxc_resolver());
 
             data.iter().for_each(|(path, request)| {
                 join_set.spawn(create_async_resolve_task(
                     oxc_resolver.clone(),
-                    path.clone(),
+                    path.to_path_buf(),
                     request.to_string(),
                 ));
             });
