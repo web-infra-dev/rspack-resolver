@@ -138,7 +138,7 @@ fn bench_resolver(c: &mut Criterion) {
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
         let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
-        
+
         b.to_async(runner).iter(|| async {
             let mut join_set = JoinSet::new();
             let oxc_resolver = Arc::new(oxc_resolver());
