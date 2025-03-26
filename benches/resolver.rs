@@ -119,7 +119,10 @@ fn bench_resolver(c: &mut Criterion) {
     let count = std::thread::available_parallelism().expect("failed to get parallelism").get();
     eprintln!("the cups: {count}");
     // force to use four threads
-    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().expect("Failed to build global thread pool");
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build_global()
+        .expect("Failed to build global thread pool");
 
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
         let oxc_resolver = oxc_resolver();
