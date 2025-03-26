@@ -42,6 +42,8 @@ jobs:
 
       - uses: ./.github/actions/pnpm
       - name: Build Benchmark
+        env:
+          RUSTFLAGS: "-C debuginfo=1 -C strip=none -g --cfg codspeed"
         run: cargo codspeed build --features codspeed
 
       - name: Run benchmark
