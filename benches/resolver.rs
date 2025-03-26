@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion2::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rayon::prelude::*;
 use serde_json::Value;
 use std::fs::read_to_string;
