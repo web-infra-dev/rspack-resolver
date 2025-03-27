@@ -34,6 +34,9 @@ jobs:
       - name: Setup benchmark data
         run: cd benches && pnpm install --ignore-workspace
 
+      - name: Cargo Bench
+        run:  cargo bench
+
       - uses: Boshen/setup-rust@main
         with:
           cache-key: benchmark
