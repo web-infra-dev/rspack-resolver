@@ -24,14 +24,27 @@ jobs:
       - name: Checkout Branch
         uses: taiki-e/checkout-action@v1
 
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Setup benchmark data
+        run: cd benches && pnpm install --ignore-workspace
+
       - uses: Boshen/setup-rust@main
         with:
           cache-key: benchmark
           save-cache: ${{ github.ref_name == 'main' }}
           tools: cargo-codspeed
+
       - uses: ./.github/actions/pnpm
       - name: Build Benchmark
-        run: cargo codspeed build --features codspeed
+        env:
+          RUSTFLAGS: "-C debuginfo=1 -C strip=none -g"
+        run: cargo codspeed build
 
       - name: Run benchmark
         uses: CodSpeedHQ/action@v3

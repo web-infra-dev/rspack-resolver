@@ -3,7 +3,7 @@ members  = ["napi"]
 resolver = "2"
 
 [package]
-version      = "0.5.2"
+version      = "0.5.3"
 name         = "rspack_resolver"
 authors      = ["Rspack"]
 categories   = ["development-tools"]
@@ -97,7 +97,7 @@ document-features = { version = "0.2.8", optional = true }
 [dev-dependencies]
 vfs            = "0.12.0"                                        # for testing with in memory file system
 rayon          = { version = "1.10.0" }
-criterion2     = { version = "1.0.0", default-features = false }
+criterion2     = { version = "2.0.0", default-features = false, package = "codspeed-criterion-compat" }
 normalize-path = { version = "0.2.1" }
 
 [features]
@@ -107,8 +107,6 @@ default = ["yarn_pnp"]
 package_json_raw_json_api = []
 ## [Yarn Plug'n'Play](https://yarnpkg.com/features/pnp)
 yarn_pnp = ["pnp"]
-# For codspeed benchmark
-codspeed = ["criterion2/codspeed"]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -75,6 +75,12 @@ pub struct ProjectReference {
 impl TsConfig {
     pub fn parse(root: bool, path: &Path, json: &mut str) -> Result<Self, serde_json::Error> {
         _ = json_strip_comments::strip(json);
+        if json.trim().is_empty() {
+            let mut tsconfig: Self = serde_json::from_str("{}")?;
+            tsconfig.root = root;
+            tsconfig.path = path.to_path_buf();
+            return Ok(tsconfig);
+        }
         let mut tsconfig: Self = serde_json::from_str(json)?;
         tsconfig.root = root;
         tsconfig.path = path.to_path_buf();
