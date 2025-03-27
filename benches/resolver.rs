@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion2::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use serde_json::Value;
 use std::fs::read_to_string;
 use std::future::Future;
@@ -109,7 +109,7 @@ fn bench_resolver(c: &mut Criterion) {
         .collect::<Vec<_>>();
 
     // check validity
-    runtime::Builder::new_multi_thread().enable_all().build().unwrap().block_on(async {
+    runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
         for (path, request) in &data {
             let r = oxc_resolver().resolve(path, request).await;
             if !r.is_ok() {
@@ -124,35 +124,49 @@ fn bench_resolver(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("resolver");
 
+    // force to use four threads
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build_global()
+        .expect("Failed to build global thread pool");
+
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
         let runner =
             runtime::Builder::new_current_thread().build().expect("failed to create tokio runtime");
+        let oxc_resolver = oxc_resolver();
 
-        b.to_async(runner).iter(|| async {
-            let oxc_resolver = oxc_resolver();
-            for (path, request) in data {
-                _ = oxc_resolver.resolve(path, request).await;
-            }
-        });
+        b.to_async(runner).iter_with_setup(
+            || {
+                oxc_resolver.clear_cache();
+            },
+            |_| async {
+                for (path, request) in data {
+                    _ = oxc_resolver.resolve(path, request).await;
+                }
+            },
+        );
     });
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
         let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+        let oxc_resolver = Arc::new(oxc_resolver());
 
-        b.to_async(runner).iter(|| async {
-            let mut join_set = JoinSet::new();
-            let oxc_resolver = Arc::new(oxc_resolver());
-
-            data.iter().for_each(|(path, request)| {
-                join_set.spawn(create_async_resolve_task(
-                    oxc_resolver.clone(),
-                    path.to_path_buf(),
-                    request.to_string(),
-                ));
-            });
-
-            join_set.join_all().await;
-        });
+        b.to_async(runner).iter_with_setup(
+            || {
+                oxc_resolver.clear_cache();
+            },
+            |_| async {
+                let mut join_set = JoinSet::new();
+                data.iter().for_each(|(path, request)| {
+                    join_set.spawn(create_async_resolve_task(
+                        oxc_resolver.clone(),
+                        path.to_path_buf(),
+                        request.to_string(),
+                    ));
+                });
+                join_set.join_all().await;
+            },
+        );
     });
 
     group.bench_with_input(
@@ -162,17 +176,22 @@ fn bench_resolver(c: &mut Criterion) {
             let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
             let oxc_resolver = oxc_resolver();
 
-            b.to_async(runner).iter(|| async {
-                for i in data.clone() {
-                    assert!(
-                        oxc_resolver
-                            .resolve(&symlink_test_dir, &format!("./file{i}"))
-                            .await
-                            .is_ok(),
-                        "file{i}.js"
-                    );
-                }
-            });
+            b.to_async(runner).iter_with_setup(
+                || {
+                    oxc_resolver.clear_cache();
+                },
+                |_| async {
+                    for i in data.clone() {
+                        assert!(
+                            oxc_resolver
+                                .resolve(&symlink_test_dir, &format!("./file{i}"))
+                                .await
+                                .is_ok(),
+                            "file{i}.js"
+                        );
+                    }
+                },
+            );
         },
     );
 
