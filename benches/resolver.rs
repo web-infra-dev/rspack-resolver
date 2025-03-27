@@ -161,20 +161,22 @@ fn bench_resolver(c: &mut Criterion) {
         let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
         let oxc_resolver = Arc::new(oxc_resolver());
 
-        b.to_async(runner).iter_with_setup(
+        b.iter_with_setup(
             || {
                 oxc_resolver.clear_cache();
             },
-            |_| async {
-                let mut join_set = JoinSet::new();
-                data.iter().for_each(|(path, request)| {
-                    join_set.spawn(create_async_resolve_task(
-                        oxc_resolver.clone(),
-                        path.to_path_buf(),
-                        request.to_string(),
-                    ));
+            |_| {
+                runner.block_on(async {
+                    let mut join_set = JoinSet::new();
+                    data.iter().for_each(|(path, request)| {
+                        join_set.spawn(create_async_resolve_task(
+                            oxc_resolver.clone(),
+                            path.to_path_buf(),
+                            request.to_string(),
+                        ));
+                    });
+                    let _ = join_set.join_all().await;
                 });
-                join_set.join_all().await;
             },
         );
     });
