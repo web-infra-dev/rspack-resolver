@@ -977,12 +977,10 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         //    but also `?` is a valid character in a path, so we should try from right to left.
         while let Some(s) = path_str {
             if let Some((before, _)) = s.rsplit_once('?') {
-                if (self.load_as_file_or_directory(
-                    &self.cache.value(Path::new(before)),
-                    "",
-                    ctx,
-                )?)
-                .is_some()
+                if (self
+                    .load_as_file_or_directory(&self.cache.value(Path::new(before)), "", ctx)
+                    .await?)
+                    .is_some()
                 {
                     return Ok(Some(cached_path.clone()));
                 }
