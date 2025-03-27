@@ -123,6 +123,16 @@ fn bench_resolver(c: &mut Criterion) {
 
     let symlinks_range = 0u32..10000;
 
+    // check validity
+    runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
+        for i in symlinks_range.clone() {
+            assert!(
+                oxc_resolver().resolve(&symlink_test_dir, &format!("./file{i}")).await.is_ok(),
+                "file{i}.js"
+            );
+        }
+    });
+
     let mut group = c.benchmark_group("resolver");
 
     // force to use four threads
