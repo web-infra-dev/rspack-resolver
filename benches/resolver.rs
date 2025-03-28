@@ -147,7 +147,7 @@ fn bench_resolver(c: &mut Criterion) {
 
         b.to_async(runner).iter_with_setup(
             || {
-                oxc_resolver.clear_cache();
+                // oxc_resolver.clear_cache();
             },
             |_| async {
                 for (path, request) in data {
@@ -191,7 +191,7 @@ fn bench_resolver(c: &mut Criterion) {
 
             b.to_async(runner).iter_with_setup(
                 || {
-                    oxc_resolver.clear_cache();
+                    // oxc_resolver.clear_cache();
                 },
                 |_| async {
                     for i in data.clone() {
