@@ -34,6 +34,9 @@ jobs:
       - name: Setup benchmark data
         run: cd benches && pnpm install --ignore-workspace
 
+      - name: Cargo Bench
+        run:  cargo bench
+
       - uses: Boshen/setup-rust@main
         with:
           cache-key: benchmark
@@ -43,8 +46,8 @@ jobs:
       - uses: ./.github/actions/pnpm
       - name: Build Benchmark
         env:
-          RUSTFLAGS: "-C debuginfo=1 -C strip=none -g"
-        run: cargo codspeed build
+          RUSTFLAGS: "-C debuginfo=1 -C strip=none -g --cfg codspeed"
+        run: cargo codspeed build --features codspeed 
 
       - name: Run benchmark
         uses: CodSpeedHQ/action@v3

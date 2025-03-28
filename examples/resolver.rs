@@ -3,7 +3,8 @@ use std::{env, path::PathBuf};
 
 use rspack_resolver::{AliasValue, ResolveOptions, Resolver};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let path = PathBuf::from(env::args().nth(1).expect("path"));
 
     assert!(path.is_dir(), "{path:?} must be a directory that will be resolved against.");
@@ -26,7 +27,7 @@ fn main() {
         ..ResolveOptions::default()
     };
 
-    match Resolver::new(options).resolve(path, &specifier) {
+    match Resolver::new(options).resolve(path, &specifier).await {
         Err(error) => println!("Error: {error}"),
         Ok(resolution) => println!("Resolved: {:?}", resolution.full_path()),
     }

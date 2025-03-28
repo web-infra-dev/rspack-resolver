@@ -4,8 +4,8 @@ use normalize_path::NormalizePath;
 
 use crate::{AliasValue, ResolveContext, ResolveOptions, Resolver};
 
-#[test]
-fn test() {
+#[tokio::test]
+async fn test() {
     let f = super::fixture();
 
     let data = [
@@ -52,7 +52,7 @@ fn test() {
 
     for (specifier, missing_dependencies) in data {
         let mut ctx = ResolveContext::default();
-        let _ = resolver.resolve_with_context(&f, specifier, &mut ctx);
+        let _ = resolver.resolve_with_context(&f, specifier, &mut ctx).await;
 
         for path in ctx.file_dependencies {
             assert_eq!(path, path.normalize(), "{path:?}");
@@ -69,8 +69,8 @@ fn test() {
     }
 }
 
-#[test]
-fn alias_and_extensions() {
+#[tokio::test]
+async fn alias_and_extensions() {
     let f = super::fixture();
 
     let resolver = Resolver::new(ResolveOptions {
