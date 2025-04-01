@@ -65,10 +65,6 @@ pub enum ResolveError {
     #[error("{0:?}")]
     JSON(JSONError),
 
-    /// Restricted by `ResolveOptions::restrictions`
-    #[error(r#"Path "{0}" restricted by {0}"#)]
-    Restriction(PathBuf, PathBuf),
-
     #[error(r#"Invalid module "{0}" specifier is not a valid subpath for the "exports" resolution of {1}"#)]
     InvalidModuleSpecifier(String, PathBuf),
 

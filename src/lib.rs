@@ -246,8 +246,7 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         let cached_path = self.cache.value(path);
         let cached_path = self.require(&cached_path, specifier, ctx)?;
         let path = self.load_realpath(&cached_path)?;
-        // enhanced-resolve: restrictions
-        self.check_restrictions(&path)?;
+
         let package_json = cached_path.find_package_json(&self.cache.fs, &self.options, ctx)?;
         if let Some(package_json) = &package_json {
             // path must be inside the package.
@@ -623,7 +622,7 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         }
     }
 
-    fn check_restrictions(&self, path: &Path) -> Result<(), ResolveError> {
+    fn check_restrictions(&self, path: &Path) -> bool {
         // https://github.com/webpack/enhanced-resolve/blob/a998c7d218b7a9ec2461fc4fddd1ad5dd7687485/lib/RestrictionsPlugin.js#L19-L24
         fn is_inside(path: &Path, parent: &Path) -> bool {
             if !path.starts_with(parent) {
@@ -638,18 +637,17 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             match restriction {
                 Restriction::Path(restricted_path) => {
                     if !is_inside(path, restricted_path) {
-                        return Err(ResolveError::Restriction(
-                            path.to_path_buf(),
-                            restricted_path.clone(),
-                        ));
+                        return false;
                     }
                 }
-                Restriction::RegExp(_) => {
-                    return Err(ResolveError::Unimplemented("Restriction with regex"))
+                Restriction::Fn(f) => {
+                    if !f(path) {
+                        return false;
+                    }
                 }
             }
         }
-        Ok(())
+        true
     }
 
     fn load_index(&self, cached_path: &CachedPath, ctx: &mut Ctx) -> ResolveResult {
@@ -658,7 +656,9 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             let cached_path = self.cache.value(&main_path);
             if self.options.enforce_extension.is_disabled() {
                 if let Some(path) = self.load_alias_or_file(&cached_path, ctx)? {
-                    return Ok(Some(path));
+                    if self.check_restrictions(path.path()) {
+                        return Ok(Some(path));
+                    }
                 }
             }
             // 1. If X/index.js is a file, load X/index.js as JavaScript text. STOP
@@ -690,7 +690,7 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         {
             return Ok(Some(path));
         }
-        if cached_path.is_file(&self.cache.fs, ctx) {
+        if cached_path.is_file(&self.cache.fs, ctx) && self.check_restrictions(cached_path.path()) {
             return Ok(Some(cached_path.clone()));
         }
         Ok(None)
@@ -988,7 +988,11 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
             // Complete when resolving to self `{"./a.js": "./a.js"}`
             if new_specifier.strip_prefix("./").filter(|s| path.ends_with(Path::new(s))).is_some() {
                 return if cached_path.is_file(&self.cache.fs, ctx) {
-                    Ok(Some(cached_path.clone()))
+                    if self.check_restrictions(cached_path.path()) {
+                        Ok(Some(cached_path.clone()))
+                    } else {
+                        Ok(None)
+                    }
                 } else {
                     Err(ResolveError::NotFound(new_specifier.to_string()))
                 };
@@ -1144,6 +1148,8 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
         // Bail if path is module directory such as `ipaddr.js`
         if !cached_path.is_file(&self.cache.fs, ctx) {
             ctx.with_fully_specified(false);
+            return Ok(None);
+        } else if !self.check_restrictions(cached_path.path()) {
             return Ok(None);
         }
         // Create a meaningful error message.
@@ -1348,8 +1354,10 @@ impl<Fs: FileSystem> ResolverGeneric<Fs> {
                                 // 1. Return the URL resolution of main in packageURL.
                                 let path = cached_path.path().normalize_with(main_field);
                                 let cached_path = self.cache.value(&path);
-                                if cached_path.is_file(&self.cache.fs, ctx) {
-                                    return Ok(Some(cached_path));
+                                if cached_path.is_file(&self.cache.fs, ctx)
+                                    && self.check_restrictions(cached_path.path())
+                                {
+                                    return Ok(Some(cached_path.clone()));
                                 }
                             }
                         }

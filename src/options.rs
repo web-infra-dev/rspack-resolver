@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 use std::{fmt, path::PathBuf};
 
 /// Module Resolution Options
@@ -418,10 +419,19 @@ where
 }
 
 /// Value for [ResolveOptions::restrictions]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Restriction {
     Path(PathBuf),
-    RegExp(String),
+    Fn(Arc<dyn Fn(&Path) -> bool + Sync + Send>),
+}
+
+impl std::fmt::Debug for Restriction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Path(path) => write!(f, "Path({path:?})"),
+            Self::Fn(_) => write!(f, "Fn(<function>)"),
+        }
+    }
 }
 
 /// Tsconfig Options for [ResolveOptions::tsconfig]
