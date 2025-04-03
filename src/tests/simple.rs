@@ -4,19 +4,19 @@ use std::env;
 
 use crate::Resolver;
 
-#[test]
-fn resolve_abs_main() {
+#[tokio::test]
+async fn resolve_abs_main() {
     let resolver = Resolver::default();
     let dirname = env::current_dir().unwrap().join("fixtures");
     let f = dirname.join("invalid/main.js");
     // a's main field id `/dist/index.js`
-    let resolution = resolver.resolve(&f, "a").unwrap();
+    let resolution = resolver.resolve(&f, "a").await.unwrap();
 
     assert_eq!(resolution.path(), dirname.join("invalid/node_modules/a/dist/index.js"));
 }
 
-#[test]
-fn simple() {
+#[tokio::test]
+async fn simple() {
     // mimic `enhanced-resolve/test/simple.test.js`
     let dirname = env::current_dir().unwrap().join("fixtures");
     let f = dirname.join("enhanced_resolve/test");
@@ -30,14 +30,14 @@ fn simple() {
     ];
 
     for (comment, path, request) in data {
-        let resolved_path = resolver.resolve(&path, request).map(|f| f.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|f| f.full_path());
         let expected = dirname.join("enhanced_resolve/lib/index.js");
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn dashed_name() {
+#[tokio::test]
+async fn dashed_name() {
     let f = super::fixture();
 
     let resolver = Resolver::default();
@@ -52,7 +52,7 @@ fn dashed_name() {
     ];
 
     for (path, request, expected) in data {
-        let resolved_path = resolver.resolve(&path, request).map(|f| f.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|f| f.full_path());
         assert_eq!(resolved_path, Ok(expected), "{path:?} {request}");
     }
 }
@@ -63,8 +63,8 @@ mod windows {
 
     use crate::ResolveOptions;
 
-    #[test]
-    fn no_package() {
+    #[tokio::test]
+    async fn no_package() {
         use crate::ResolverGeneric;
         use std::path::Path;
         let f = Path::new("/");
@@ -73,7 +73,7 @@ mod windows {
             file_system,
             ResolveOptions::default(),
         );
-        let resolved_path = resolver.resolve(f, "package");
+        let resolved_path = resolver.resolve(f, "package").await;
         assert!(resolved_path.is_err());
     }
 }

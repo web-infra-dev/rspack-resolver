@@ -5,9 +5,9 @@ use std::path::Path;
 
 use crate::{AliasValue, Resolution, ResolveContext, ResolveError, ResolveOptions, Resolver};
 
-#[test]
+#[tokio::test]
 #[cfg(not(target_os = "windows"))] // MemoryFS's path separator is always `/` so the test will not pass in windows.
-fn alias() {
+async fn alias() {
     use super::memory_fs::MemoryFS;
     use crate::ResolverGeneric;
     use std::path::{Path, PathBuf};
@@ -106,7 +106,7 @@ fn alias() {
     ];
 
     for (comment, request, expected) in pass {
-        let resolved_path = resolver.resolve(f, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(f, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(PathBuf::from(expected)), "{comment} {request}");
     }
 
@@ -116,14 +116,14 @@ fn alias() {
     ];
 
     for (comment, request, expected) in ignore {
-        let resolution = resolver.resolve(f, request);
+        let resolution = resolver.resolve(f, request).await;
         assert_eq!(resolution, Err(expected), "{comment} {request}");
     }
 }
 
 // Not part of enhanced-resolve
-#[test]
-fn infinite_recursion() {
+#[tokio::test]
+async fn infinite_recursion() {
     let f = super::fixture();
     let resolver = Resolver::new(ResolveOptions {
         alias: vec![
@@ -132,7 +132,7 @@ fn infinite_recursion() {
         ],
         ..ResolveOptions::default()
     });
-    let resolution = resolver.resolve(f, "./a");
+    let resolution = resolver.resolve(f, "./a").await;
     assert_eq!(resolution, Err(ResolveError::Recursion));
 }
 
@@ -150,20 +150,20 @@ fn check_slash(path: &Path) {
     }
 }
 
-#[test]
-fn absolute_path() {
+#[tokio::test]
+async fn absolute_path() {
     let f = super::fixture();
     let resolver = Resolver::new(ResolveOptions {
         alias: vec![(f.join("foo").to_str().unwrap().to_string(), vec![AliasValue::Ignore])],
         modules: vec![f.clone().to_str().unwrap().to_string()],
         ..ResolveOptions::default()
     });
-    let resolution = resolver.resolve(&f, "foo/index");
+    let resolution = resolver.resolve(&f, "foo/index").await;
     assert_eq!(resolution, Err(ResolveError::Ignored(f.join("foo"))));
 }
 
-#[test]
-fn system_path() {
+#[tokio::test]
+async fn system_path() {
     let f = super::fixture();
     let resolver = Resolver::new(ResolveOptions {
         alias: vec![("@app".into(), vec![AliasValue::from(f.join("alias").to_string_lossy())])],
@@ -173,14 +173,14 @@ fn system_path() {
     let specifiers = ["@app/files/a", "@app/files/a.js"];
 
     for specifier in specifiers {
-        let path = resolver.resolve(&f, specifier).map(Resolution::into_path_buf).unwrap();
+        let path = resolver.resolve(&f, specifier).await.map(Resolution::into_path_buf).unwrap();
         assert_eq!(path, f.join("alias/files/a.js"));
         check_slash(&path);
     }
 }
 
-#[test]
-fn alias_is_full_path() {
+#[tokio::test]
+async fn alias_is_full_path() {
     let f = super::fixture();
     let dir = f.join("foo");
     let dir_str = dir.to_string_lossy().to_string();
@@ -203,7 +203,7 @@ fn alias_is_full_path() {
 
     for specifier in specifiers {
         let resolution = resolver.resolve_with_context(&f, &specifier, &mut ctx);
-        assert_eq!(resolution.map(|r| r.full_path()), Ok(dir.join("index.js")));
+        assert_eq!(resolution.await.map(|r| r.full_path()), Ok(dir.join("index.js")));
     }
 
     for path in ctx.file_dependencies {
@@ -221,8 +221,8 @@ fn alias_is_full_path() {
 }
 
 // For the `should_stop` variable in `load_alias`
-#[test]
-fn all_alias_values_are_not_found() {
+#[tokio::test]
+async fn all_alias_values_are_not_found() {
     let f = super::fixture();
     let resolver = Resolver::new(ResolveOptions {
         alias: vec![(
@@ -231,15 +231,15 @@ fn all_alias_values_are_not_found() {
         )],
         ..ResolveOptions::default()
     });
-    let resolution = resolver.resolve(&f, "m1/a.js");
+    let resolution = resolver.resolve(&f, "m1/a.js").await;
     assert_eq!(
         resolution,
         Err(ResolveError::MatchedAliasNotFound("m1/a.js".to_string(), "m1".to_string(),))
     );
 }
 
-#[test]
-fn alias_fragment() {
+#[tokio::test]
+async fn alias_fragment() {
     let f = super::fixture();
 
     let data = [
@@ -264,13 +264,13 @@ fn alias_fragment() {
             alias: vec![("foo".to_string(), vec![AliasValue::Path(request.to_string())])],
             ..ResolveOptions::default()
         });
-        let resolved_path = resolver.resolve(&f, "foo").map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&f, "foo").await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {request}");
     }
 }
 
-#[test]
-fn alias_try_fragment_as_path() {
+#[tokio::test]
+async fn alias_try_fragment_as_path() {
     let f = super::fixture();
     let resolver = Resolver::new(ResolveOptions {
         alias: vec![(
@@ -279,6 +279,6 @@ fn alias_try_fragment_as_path() {
         )],
         ..ResolveOptions::default()
     });
-    let resolution = resolver.resolve(&f, "#/a").map(|r| r.full_path());
+    let resolution = resolver.resolve(&f, "#/a").await.map(|r| r.full_path());
     assert_eq!(resolution, Ok(f.join("#").join("a.js")));
 }

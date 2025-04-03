@@ -6,8 +6,8 @@ use regex::Regex;
 
 use crate::{ResolveError, ResolveOptions, Resolver, Restriction};
 
-#[test]
-fn should_respect_regexp_restriction() {
+#[tokio::test]
+async fn should_respect_regexp_restriction() {
     let f = super::fixture().join("restrictions");
 
     let re = Regex::new(r"\.(sass|scss|css)$").unwrap();
@@ -19,12 +19,12 @@ fn should_respect_regexp_restriction() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver1.resolve(&f, "pck1").map(|r| r.full_path());
+    let resolution = resolver1.resolve(&f, "pck1").await.map(|r| r.full_path());
     assert_eq!(resolution, Err(ResolveError::NotFound("pck1".to_string())));
 }
 
-#[test]
-fn should_try_to_find_alternative_1() {
+#[tokio::test]
+async fn should_try_to_find_alternative_1() {
     let f = super::fixture().join("restrictions");
 
     let re = Regex::new(r"\.(sass|scss|css)$").unwrap();
@@ -37,12 +37,12 @@ fn should_try_to_find_alternative_1() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver1.resolve(&f, "pck1").map(|r| r.full_path());
+    let resolution = resolver1.resolve(&f, "pck1").await.map(|r| r.full_path());
     assert_eq!(resolution, Ok(f.join("node_modules/pck1/index.css")));
 }
 
-#[test]
-fn should_respect_string_restriction() {
+#[tokio::test]
+async fn should_respect_string_restriction() {
     let fixture = super::fixture();
     let f = fixture.join("restrictions");
 
@@ -52,12 +52,12 @@ fn should_respect_string_restriction() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver.resolve(&f, "pck2");
+    let resolution = resolver.resolve(&f, "pck2").await;
     assert_eq!(resolution, Err(ResolveError::NotFound("pck2".to_string())));
 }
 
-#[test]
-fn should_try_to_find_alternative_2() {
+#[tokio::test]
+async fn should_try_to_find_alternative_2() {
     let f = super::fixture().join("restrictions");
 
     let re = Regex::new(r"\.(sass|scss|css)$").unwrap();
@@ -70,12 +70,12 @@ fn should_try_to_find_alternative_2() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver1.resolve(&f, "pck2").map(|r| r.full_path());
+    let resolution = resolver1.resolve(&f, "pck2").await.map(|r| r.full_path());
     assert_eq!(resolution, Ok(f.join("node_modules/pck2/index.css")));
 }
 
-#[test]
-fn should_try_to_find_alternative_3() {
+#[tokio::test]
+async fn should_try_to_find_alternative_3() {
     let f = super::fixture().join("restrictions");
 
     let re = Regex::new(r"\.(sass|scss|css)$").unwrap();
@@ -88,6 +88,6 @@ fn should_try_to_find_alternative_3() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver1.resolve(&f, "pck2").map(|r| r.full_path());
+    let resolution = resolver1.resolve(&f, "pck2").await.map(|r| r.full_path());
     assert_eq!(resolution, Ok(f.join("node_modules/pck2/index.css")));
 }

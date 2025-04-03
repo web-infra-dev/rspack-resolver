@@ -83,22 +83,27 @@ serde_json = { version = "1.0.117", features = [
 ] } # preserve_order: package_json.exports requires order such as `["require", "import", "default"]`
 rustc-hash = { version = "2.0.0", default-features = false, features = ["std"] }
 dunce = "1.0.4" # Normalize Windows paths to the most compatible format, avoiding UNC where possible
-once_cell = "1.19.0" # Use `std::sync::OnceLock::get_or_try_init` when it is stable.
 thiserror = "1.0.61"
 json-strip-comments = "1.0.2"
 indexmap = { version = "2.2.6", features = ["serde"] }
 cfg-if = "1.0"
-simdutf8 = { version = "0.1.4", features = ["aarch64_neon"] }
 
 pnp = { version = "0.9.1", optional = true }
 
 document-features = { version = "0.2.8", optional = true }
+futures = "0.3.31"
+async-trait = "0.1.84"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1.42.0", default-features = false, features = ["sync", "rt-multi-thread", "macros", "fs"] }
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.42.0", default-features = false, features = ["sync", "rt", "macros" ]}
 
 [dev-dependencies]
 vfs            = "0.12.0"                                        # for testing with in memory file system
 regex          = "1.11.1"
 rayon          = { version = "1.10.0" }
-criterion2     = { version = "2.0.0", default-features = false, package = "codspeed-criterion-compat" }
+criterion2     = { version = "2.0.0", default-features = false, features = ["async_tokio"]}
 normalize-path = { version = "0.2.1" }
 
 [features]
@@ -108,6 +113,8 @@ default = ["yarn_pnp"]
 package_json_raw_json_api = []
 ## [Yarn Plug'n'Play](https://yarnpkg.com/features/pnp)
 yarn_pnp = ["pnp"]
+# For codspeed benchmark
+codspeed = ["criterion2/codspeed"]
 
 [package.metadata.docs.rs]
 all-features = true

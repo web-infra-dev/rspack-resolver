@@ -1,12 +1,15 @@
-use criterion2::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use rayon::prelude::*;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use serde_json::Value;
 use std::fs::read_to_string;
+use std::future::Future;
 use std::{
     env, fs,
     io::{self, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
+use tokio::runtime;
+use tokio::task::JoinSet;
 
 fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
     #[cfg(target_family = "unix")]
@@ -82,6 +85,16 @@ fn oxc_resolver() -> rspack_resolver::Resolver {
     })
 }
 
+fn create_async_resolve_task(
+    oxc_resolver: Arc<rspack_resolver::Resolver>,
+    path: PathBuf,
+    request: String,
+) -> impl Future<Output = ()> {
+    async move {
+        let _ = oxc_resolver.resolve(path, &request).await;
+    }
+}
+
 fn bench_resolver(c: &mut Criterion) {
     let cwd = env::current_dir().unwrap().join("benches");
 
@@ -96,23 +109,28 @@ fn bench_resolver(c: &mut Criterion) {
         .collect::<Vec<_>>();
 
     // check validity
-    for (path, request) in &data {
-        let r = oxc_resolver().resolve(path, request);
-        if !r.is_ok() {
-            panic!("resolve failed {path:?} {request},\n\nplease run npm install in `/benches` before running the benchmarks");
+    runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
+        for (path, request) in &data {
+            let r = oxc_resolver().resolve(path, request).await;
+            if !r.is_ok() {
+                panic!("resolve failed {path:?} {request},\n\nplease run `pnpm install --ignore-workspace` in `/benches` before running the benchmarks");
+            }
         }
-    }
+    });
 
     let symlink_test_dir = create_symlinks().expect("Create symlink fixtures failed");
 
     let symlinks_range = 0u32..10000;
 
-    for i in symlinks_range.clone() {
-        assert!(
-            oxc_resolver().resolve(&symlink_test_dir, &format!("./file{i}")).is_ok(),
-            "file{i}.js"
-        );
-    }
+    // check validity
+    runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
+        for i in symlinks_range.clone() {
+            assert!(
+                oxc_resolver().resolve(&symlink_test_dir, &format!("./file{i}")).await.is_ok(),
+                "file{i}.js"
+            );
+        }
+    });
 
     let mut group = c.benchmark_group("resolver");
 
@@ -123,28 +141,42 @@ fn bench_resolver(c: &mut Criterion) {
         .expect("Failed to build global thread pool");
 
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
+        let runner =
+            runtime::Builder::new_current_thread().build().expect("failed to create tokio runtime");
         let oxc_resolver = oxc_resolver();
-        b.iter_with_setup(
+
+        b.to_async(runner).iter_with_setup(
             || {
                 oxc_resolver.clear_cache();
             },
-            |_| {
+            |_| async {
                 for (path, request) in data {
-                    _ = oxc_resolver.resolve(path, request);
+                    _ = oxc_resolver.resolve(path, request).await;
                 }
             },
         );
     });
 
+    #[cfg(not(feature = "codspeed"))]
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
-        let oxc_resolver = oxc_resolver();
+        let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+        let oxc_resolver = Arc::new(oxc_resolver());
+
         b.iter_with_setup(
             || {
                 oxc_resolver.clear_cache();
             },
             |_| {
-                data.par_iter().for_each(|(path, request)| {
-                    _ = oxc_resolver.resolve(path, request);
+                runner.block_on(async {
+                    let mut join_set = JoinSet::new();
+                    data.iter().for_each(|(path, request)| {
+                        join_set.spawn(create_async_resolve_task(
+                            oxc_resolver.clone(),
+                            path.to_path_buf(),
+                            request.to_string(),
+                        ));
+                    });
+                    let _ = join_set.join_all().await;
                 });
             },
         );
@@ -154,14 +186,49 @@ fn bench_resolver(c: &mut Criterion) {
         BenchmarkId::from_parameter("resolve from symlinks"),
         &symlinks_range,
         |b, data| {
+            let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
             let oxc_resolver = oxc_resolver();
-            b.iter(|| {
-                for i in data.clone() {
-                    assert!(
-                        oxc_resolver.resolve(&symlink_test_dir, &format!("./file{i}")).is_ok(),
-                        "file{i}.js"
-                    );
-                }
+
+            b.to_async(runner).iter_with_setup(
+                || {
+                    oxc_resolver.clear_cache();
+                },
+                |_| async {
+                    for i in data.clone() {
+                        assert!(
+                            oxc_resolver
+                                .resolve(&symlink_test_dir, &format!("./file{i}"))
+                                .await
+                                .is_ok(),
+                            "file{i}.js"
+                        );
+                    }
+                },
+            );
+        },
+    );
+
+    #[cfg(not(feature = "codspeed"))]
+    group.bench_with_input(
+        BenchmarkId::from_parameter("resolve from symlinks multi thread"),
+        &symlinks_range,
+        |b, data| {
+            let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+            let oxc_resolver = Arc::new(oxc_resolver());
+
+            let symlink_test_dir = symlink_test_dir.clone();
+
+            b.to_async(runner).iter(|| async {
+                let mut join_set = JoinSet::new();
+
+                data.clone().for_each(|i| {
+                    join_set.spawn(create_async_resolve_task(
+                        oxc_resolver.clone(),
+                        symlink_test_dir.clone(),
+                        format!("./file{i}").to_string(),
+                    ));
+                });
+                join_set.join_all().await;
             });
         },
     );

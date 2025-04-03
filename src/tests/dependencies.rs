@@ -18,8 +18,8 @@ mod windows {
         ])
     }
 
-    #[test]
-    fn test() {
+    #[tokio::test]
+    async fn test() {
         let file_system = file_system();
 
         let resolver = ResolverGeneric::<MemoryFS>::new_with_file_system(
@@ -97,7 +97,7 @@ mod windows {
             let mut ctx = ResolveContext::default();
             let path = PathBuf::from(context);
             let resolved =
-                resolver.resolve_with_context(path, request, &mut ctx).map(|r| r.full_path());
+                resolver.resolve_with_context(path, request, &mut ctx).await.map(|r| r.full_path());
             assert_eq!(resolved, Ok(PathBuf::from(result)));
             let file_dependencies =
                 FxHashSet::from_iter(file_dependencies.iter().map(PathBuf::from));

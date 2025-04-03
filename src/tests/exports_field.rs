@@ -6,8 +6,8 @@ use crate::{Ctx, PathUtil, ResolveError, ResolveOptions, Resolver};
 use serde_json::json;
 use std::path::Path;
 
-#[test]
-fn test_simple() {
+#[tokio::test]
+async fn test_simple() {
     let f = super::fixture().join("exports-field");
     let f2 = super::fixture().join("exports-field2");
     let f4 = super::fixture().join("exports-field-error");
@@ -54,7 +54,7 @@ fn test_simple() {
     //   * should log the correct info
 
     for (comment, path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 
@@ -81,14 +81,14 @@ fn test_simple() {
     ];
 
     for (comment, path, request, error) in fail {
-        let resolution = resolver.resolve(&path, request);
+        let resolution = resolver.resolve(&path, request).await;
         assert_eq!(resolution, Err(error), "{comment} {path:?} {request}");
     }
 }
 
 // resolve using exports field, not a browser field #1
-#[test]
-fn exports_not_browser_field1() {
+#[tokio::test]
+async fn exports_not_browser_field1() {
     let f = super::fixture().join("exports-field");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -98,13 +98,14 @@ fn exports_not_browser_field1() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f, "exports-field/dist/main.js").map(|r| r.full_path());
+    let resolved_path =
+        resolver.resolve(&f, "exports-field/dist/main.js").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f.join("node_modules/exports-field/lib/lib2/main.js")));
 }
 
 // resolve using exports field and a browser alias field #2
-#[test]
-fn exports_not_browser_field2() {
+#[tokio::test]
+async fn exports_not_browser_field2() {
     let f2 = super::fixture().join("exports-field2");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -114,13 +115,14 @@ fn exports_not_browser_field2() {
         ..ResolveOptions::default()
     });
 
-    let resolved_path = resolver.resolve(&f2, "exports-field/dist/main.js").map(|r| r.full_path());
+    let resolved_path =
+        resolver.resolve(&f2, "exports-field/dist/main.js").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f2.join("node_modules/exports-field/lib/browser.js")));
 }
 
 // should resolve extension without fullySpecified
-#[test]
-fn extension_without_fully_specified() {
+#[tokio::test]
+async fn extension_without_fully_specified() {
     let f2 = super::fixture().join("exports-field2");
 
     let commonjs_resolver = Resolver::new(ResolveOptions {
@@ -130,12 +132,12 @@ fn extension_without_fully_specified() {
     });
 
     let resolved_path =
-        commonjs_resolver.resolve(&f2, "exports-field/dist/main").map(|r| r.full_path());
+        commonjs_resolver.resolve(&f2, "exports-field/dist/main").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f2.join("node_modules/exports-field/lib/lib2/main.js")));
 }
 
-#[test]
-fn field_name_path() {
+#[tokio::test]
+async fn field_name_path() {
     let f2 = super::fixture().join("exports-field2");
     let f3 = super::fixture().join("exports-field3");
 
@@ -153,7 +155,7 @@ fn field_name_path() {
             extensions: vec![".js".into()],
             ..ResolveOptions::default()
         });
-        let resolved_path = resolver.resolve(&f3, "exports-field").map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&f3, "exports-field").await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(f3.join("node_modules/exports-field/main.js")));
     }
 
@@ -164,7 +166,7 @@ fn field_name_path() {
         extensions: vec![".js".into()],
         ..ResolveOptions::default()
     });
-    let resolved_path = resolver.resolve(&f2, "exports-field").map(|r| r.full_path());
+    let resolved_path = resolver.resolve(&f2, "exports-field").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f2.join("node_modules/exports-field/index.js")));
 
     // field name path #5
@@ -174,7 +176,7 @@ fn field_name_path() {
         extensions: vec![".js".into()],
         ..ResolveOptions::default()
     });
-    let resolved_path = resolver.resolve(&f3, "exports-field").map(|r| r.full_path());
+    let resolved_path = resolver.resolve(&f3, "exports-field").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f3.join("node_modules/exports-field/index")));
 
     // non-compliant export targeting a directory
@@ -183,12 +185,12 @@ fn field_name_path() {
         extensions: vec![".js".into()],
         ..ResolveOptions::default()
     });
-    let resolved_path = resolver.resolve(&f3, "exports-field").map(|r| r.full_path());
+    let resolved_path = resolver.resolve(&f3, "exports-field").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f3.join("node_modules/exports-field/src/index.js")));
 }
 
-#[test]
-fn shared_resolvers() {
+#[tokio::test]
+async fn shared_resolvers() {
     let f3 = super::fixture().join("exports-field3");
 
     let resolver1 = Resolver::new(ResolveOptions {
@@ -196,7 +198,7 @@ fn shared_resolvers() {
         extensions: vec![".js".into()],
         ..ResolveOptions::default()
     });
-    let resolved_path = resolver1.resolve(&f3, "exports-field").map(|r| r.full_path());
+    let resolved_path = resolver1.resolve(&f3, "exports-field").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f3.join("node_modules/exports-field/main.js")));
 
     let resolver2 = resolver1.clone_with_options(ResolveOptions {
@@ -204,12 +206,12 @@ fn shared_resolvers() {
         extensions: vec![".js".into()],
         ..ResolveOptions::default()
     });
-    let resolved_path = resolver2.resolve(&f3, "exports-field").map(|r| r.full_path());
+    let resolved_path = resolver2.resolve(&f3, "exports-field").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f3.join("node_modules/exports-field/index")));
 }
 
-#[test]
-fn extension_alias_1_2() {
+#[tokio::test]
+async fn extension_alias_1_2() {
     let f = super::fixture().join("exports-field-and-extension-alias");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -227,13 +229,13 @@ fn extension_alias_1_2() {
     ];
 
     for (comment, path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn extension_alias_3() {
+#[tokio::test]
+async fn extension_alias_3() {
     let f = super::fixture().join("exports-field-and-extension-alias");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -253,13 +255,13 @@ fn extension_alias_3() {
     ];
 
     for (comment, path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn extension_alias_throw_error() {
+#[tokio::test]
+async fn extension_alias_throw_error() {
     let f = super::fixture().join("exports-field-and-extension-alias");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -280,7 +282,7 @@ fn extension_alias_throw_error() {
     ];
 
     for (comment, path, request, error) in fail {
-        let resolution = resolver.resolve(&path, request);
+        let resolution = resolver.resolve(&path, request).await;
         assert_eq!(resolution, Err(error), "{comment} {path:?} {request}");
     }
 }
@@ -312,8 +314,8 @@ fn exports_field(value: serde_json::Value) -> serde_json::Value {
     value
 }
 
-#[test]
-fn test_cases() {
+#[tokio::test]
+async fn test_cases() {
     let test_cases = [
         TestCase {
             name: "sample #1",
@@ -2530,6 +2532,7 @@ fn test_cases() {
             &case.exports_field,
             &mut Ctx::default(),
         )
+        .await
         .map(|p| p.map(|p| p.to_path_buf()));
         if let Some(expect) = case.expect {
             if expect.is_empty() {
