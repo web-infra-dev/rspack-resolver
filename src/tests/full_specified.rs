@@ -25,8 +25,8 @@ mod windows {
         ])
     }
 
-    #[test]
-    fn test() {
+    #[tokio::test]
+    async fn test() {
         let file_system = file_system();
 
         let resolver = ResolverGeneric::<MemoryFS>::new_with_file_system(
@@ -53,7 +53,7 @@ mod windows {
         ];
 
         for (comment, request) in failing_resolves {
-            let resolution = resolver.resolve("/a", request);
+            let resolution = resolver.resolve("/a", request).await;
             assert!(resolution.is_err(), "{comment} {request}");
         }
 
@@ -70,14 +70,14 @@ mod windows {
         ];
 
         for (comment, request, expected) in successful_resolves {
-            let resolution = resolver.resolve("/a", request).map(|r| r.full_path());
+            let resolution = resolver.resolve("/a", request).await.map(|r| r.full_path());
             assert_eq!(resolution, Ok(PathBuf::from(expected)), "{comment} {request}");
         }
     }
 
-    #[test]
+    #[tokio::test]
     #[cfg(not(target_os = "windows"))] // MemoryFS's path separator is always `/` so the test will not pass in windows.
-    fn resolve_to_context() {
+    async fn resolve_to_context() {
         let file_system = file_system();
 
         let resolver = ResolverGeneric::<MemoryFS>::new_with_file_system(
@@ -106,7 +106,7 @@ mod windows {
         ];
 
         for (comment, request, expected) in successful_resolves {
-            let resolution = resolver.resolve("/a", request).map(|r| r.full_path());
+            let resolution = resolver.resolve("/a", request).await.map(|r| r.full_path());
             assert_eq!(resolution, Ok(PathBuf::from(expected)), "{comment} {request}");
         }
     }

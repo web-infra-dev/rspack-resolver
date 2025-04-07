@@ -101,8 +101,8 @@ impl PathUtil for Path {
 }
 
 // https://github.com/webpack/enhanced-resolve/blob/main/test/path.test.js
-#[test]
-fn is_invalid_exports_target() {
+#[tokio::test]
+async fn is_invalid_exports_target() {
     let test_cases = [
         "../a.js",
         "../",
@@ -123,8 +123,8 @@ fn is_invalid_exports_target() {
     assert!(!Path::new("/").is_invalid_exports_target());
 }
 
-#[test]
-fn normalize() {
+#[tokio::test]
+async fn normalize() {
     assert_eq!(Path::new("/foo/.././foo/").normalize(), Path::new("/foo"));
     assert_eq!(Path::new("C://").normalize(), Path::new("C://"));
     assert_eq!(Path::new("C:").normalize(), Path::new("C:"));

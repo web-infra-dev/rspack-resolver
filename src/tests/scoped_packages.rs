@@ -2,8 +2,8 @@
 
 use crate::{ResolveOptions, Resolver};
 
-#[test]
-fn scoped_packages() {
+#[tokio::test]
+async fn scoped_packages() {
     let f = super::fixture().join("scoped");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -19,7 +19,7 @@ fn scoped_packages() {
     ];
 
     for (comment, path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&f, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&f, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 }

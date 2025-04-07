@@ -2,8 +2,8 @@
 
 use crate::{ResolveOptions, Resolver};
 
-#[test]
-fn test() {
+#[tokio::test]
+async fn test() {
     let f = super::fixture().join("restrictions");
 
     let resolver1 = Resolver::new(ResolveOptions {
@@ -11,7 +11,7 @@ fn test() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver1.resolve(&f, "pck2").map(|r| r.full_path());
+    let resolution = resolver1.resolve(&f, "pck2").await.map(|r| r.full_path());
     assert_eq!(resolution, Ok(f.join("node_modules/pck2/index.css")));
 
     let resolver2 = resolver1.clone_with_options(ResolveOptions {
@@ -19,12 +19,12 @@ fn test() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver2.resolve(&f, "pck2").map(|r| r.full_path());
+    let resolution = resolver2.resolve(&f, "pck2").await.map(|r| r.full_path());
     assert_eq!(resolution, Ok(f.join("node_modules/pck2/module.js")));
 }
 
-#[test]
-fn test_fallback() {
+#[tokio::test]
+async fn test_fallback() {
     let f = super::fixture_root().join("invalid");
 
     let resolver1 = Resolver::new(ResolveOptions {
@@ -33,6 +33,6 @@ fn test_fallback() {
         ..ResolveOptions::default()
     });
 
-    let resolution = resolver1.resolve(&f, "main_field_fallback").map(|r| r.full_path());
+    let resolution = resolver1.resolve(&f, "main_field_fallback").await.map(|r| r.full_path());
     assert_eq!(resolution, Ok(f.join("node_modules/main_field_fallback/exist.js")));
 }

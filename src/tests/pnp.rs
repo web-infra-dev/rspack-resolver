@@ -6,8 +6,8 @@
 use crate::ResolveError::NotFound;
 use crate::{ResolveOptions, Resolver};
 
-#[test]
-fn pnp1() {
+#[tokio::test]
+async fn pnp1() {
     let fixture = super::fixture_root().join("pnp");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -17,14 +17,14 @@ fn pnp1() {
     });
 
     assert_eq!(
-        resolver.resolve(&fixture, "is-even").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "is-even").await.map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/is-even-npm-1.0.0-9f726520dc-2728cc2f39.zip/node_modules/is-even/index.js"
         ))
     );
 
     assert_eq!(
-        resolver.resolve(&fixture, "lodash.zip").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "lodash.zip").await.map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/lodash.zip-npm-4.2.0-5299417ec8-e596da80a6.zip/node_modules/lodash.zip/index.js"
         ))
@@ -38,6 +38,7 @@ fn pnp1() {
                 ),
                 "is-odd"
             )
+            .await
             .map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/is-odd-npm-0.1.2-9d980a9da8-7dc6c6fd00.zip/node_modules/is-odd/index.js"
@@ -45,29 +46,28 @@ fn pnp1() {
     );
 
     assert_eq!(
-        resolver.resolve(&fixture, "is-odd").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "is-odd").await.map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/is-odd-npm-3.0.1-93c3c3f41b-89ee2e353c.zip/node_modules/is-odd/index.js"
         )),
     );
 
     assert_eq!(
-        resolver.resolve(&fixture, "preact").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "preact").await.map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact/dist/preact.mjs"
         )),
     );
 
     assert_eq!(
-        resolver.resolve(&fixture, "preact/devtools").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "preact/devtools").await.map(|r| r.full_path()),
         Ok(fixture.join(
             ".yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact/devtools/dist/devtools.mjs"
         )),
     );
 }
-
-#[test]
-fn resolve_in_pnp_linked_folder() {
+#[tokio::test]
+async fn resolve_in_pnp_linked_folder() {
     let fixture = super::fixture_root().join("pnp");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -77,19 +77,19 @@ fn resolve_in_pnp_linked_folder() {
     });
 
     assert_eq!(
-        resolver.resolve(&fixture, "lib/lib.js").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "lib/lib.js").await.map(|r| r.full_path()),
         Ok(fixture.join("shared/lib.js"))
     );
 }
 
-#[test]
-fn resolve_pnp_pkg_should_failed_while_disable_pnp_mode() {
+#[tokio::test]
+async fn resolve_pnp_pkg_should_failed_while_disable_pnp_mode() {
     let fixture = super::fixture_root().join("pnp");
 
     let resolver = Resolver::new(ResolveOptions { enable_pnp: false, ..ResolveOptions::default() });
 
     assert_eq!(
-        resolver.resolve(&fixture, "is-even").map(|r| r.full_path()),
+        resolver.resolve(&fixture, "is-even").await.map(|r| r.full_path()),
         Err(NotFound("is-even".to_string()))
     );
 }
