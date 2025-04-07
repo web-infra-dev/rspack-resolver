@@ -114,11 +114,11 @@ impl TsConfig {
             Self::substitute_template_variable(&dir, &mut p);
             self.compiler_options.paths_base = p.into();
 
-            self.compiler_options.base_url.as_mut().map(|base_url| {
+            if let Some(base_url) = self.compiler_options.base_url.as_mut() {
                 let mut p = base_url.to_string_lossy().to_string();
                 Self::substitute_template_variable(&dir, &mut p);
                 *base_url = p.into();
-            });
+            }
         }
         self
     }
