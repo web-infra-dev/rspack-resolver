@@ -1,12 +1,11 @@
+use indexmap::IndexMap;
+use rustc_hash::FxHasher;
+use serde::Deserialize;
 use std::{
     hash::BuildHasherDefault,
     path::{Path, PathBuf},
     sync::Arc,
 };
-
-use indexmap::IndexMap;
-use rustc_hash::FxHasher;
-use serde::Deserialize;
 
 use crate::PathUtil;
 
@@ -18,6 +17,8 @@ pub enum ExtendsField {
     Single(String),
     Multiple(Vec<String>),
 }
+
+const TEMPLATE_VARIABLE: &str = "${configDir}";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,8 +86,10 @@ impl TsConfig {
         tsconfig.root = root;
         tsconfig.path = path.to_path_buf();
         let directory = tsconfig.directory().to_path_buf();
-        if let Some(base_url) = tsconfig.compiler_options.base_url {
-            tsconfig.compiler_options.base_url = Some(directory.normalize_with(base_url));
+        if let Some(base_url) = &tsconfig.compiler_options.base_url {
+            if !base_url.starts_with("${configDir}") {
+                tsconfig.compiler_options.base_url = Some(directory.normalize_with(base_url));
+            }
         }
         if tsconfig.compiler_options.paths.is_some() {
             tsconfig.compiler_options.paths_base =
@@ -106,6 +109,16 @@ impl TsConfig {
                     }
                 }
             }
+
+            let mut p = self.compiler_options.paths_base.to_string_lossy().to_string();
+            Self::substitute_template_variable(&dir, &mut p);
+            self.compiler_options.paths_base = p.into();
+
+            self.compiler_options.base_url.as_mut().map(|base_url| {
+                let mut p = base_url.to_string_lossy().to_string();
+                Self::substitute_template_variable(&dir, &mut p);
+                *base_url = p.into();
+            });
         }
         self
     }
@@ -221,9 +234,12 @@ impl TsConfig {
     ///
     /// See <https://github.com/microsoft/TypeScript/pull/58042>
     fn substitute_template_variable(directory: &Path, path: &mut String) {
-        const TEMPLATE_VARIABLE: &str = "${configDir}/";
         if let Some(stripped_path) = path.strip_prefix(TEMPLATE_VARIABLE) {
-            *path = directory.join(stripped_path).to_string_lossy().to_string();
+            if let Some(unleashed_path) = stripped_path.strip_prefix("/") {
+                *path = directory.join(unleashed_path).to_string_lossy().to_string();
+            } else {
+                *path = directory.join(stripped_path).to_string_lossy().to_string();
+            }
         }
     }
 }
