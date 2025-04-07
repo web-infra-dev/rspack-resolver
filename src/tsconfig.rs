@@ -87,7 +87,8 @@ impl TsConfig {
         tsconfig.path = path.to_path_buf();
         let directory = tsconfig.directory().to_path_buf();
         if let Some(base_url) = &tsconfig.compiler_options.base_url {
-            if !base_url.starts_with("${configDir}") {
+            // keep the `${configDir}` template variable in the baseUrl
+            if !base_url.starts_with(TEMPLATE_VARIABLE) {
                 tsconfig.compiler_options.base_url = Some(directory.normalize_with(base_url));
             }
         }
