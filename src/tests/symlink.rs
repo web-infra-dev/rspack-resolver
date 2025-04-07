@@ -61,8 +61,8 @@ fn cleanup_symlinks(temp_path: &Path) {
     _ = fs::remove_dir_all(temp_path);
 }
 
-#[test]
-fn test() -> io::Result<()> {
+#[tokio::test]
+async fn test() -> io::Result<()> {
     let root = super::fixture_root().join("enhanced_resolve");
     let dirname = root.join("test");
     let temp_path = dirname.join("temp");
@@ -109,11 +109,11 @@ fn test() -> io::Result<()> {
     ];
 
     for (comment, path, request) in pass {
-        let filename = resolver_with_symlinks.resolve(&path, request).map(|r| r.full_path());
+        let filename = resolver_with_symlinks.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(filename, Ok(root.join("lib/index.js")), "{comment:?}");
 
         let resolved_path =
-            resolver_without_symlinks.resolve(&path, request).map(|r| r.full_path());
+            resolver_without_symlinks.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(path.join(request)));
     }
 

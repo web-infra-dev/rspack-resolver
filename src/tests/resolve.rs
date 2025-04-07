@@ -2,8 +2,8 @@
 
 use crate::{ResolveError, ResolveOptions, Resolver};
 
-#[test]
-fn resolve() {
+#[tokio::test]
+async fn resolve() {
     let f = super::fixture();
 
     let resolver = Resolver::default();
@@ -53,13 +53,13 @@ fn resolve() {
     ];
 
     for (comment, path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn issue238_resolve() {
+#[tokio::test]
+async fn issue238_resolve() {
     let f = super::fixture().join("issue-238");
     let resolver = Resolver::new(ResolveOptions {
         extensions: vec![".js".into(), ".jsx".into(), ".ts".into(), ".tsx".into()],
@@ -67,12 +67,12 @@ fn issue238_resolve() {
         ..ResolveOptions::default()
     });
     let resolved_path =
-        resolver.resolve(f.join("src/common"), "config/myObjectFile").map(|r| r.full_path());
+        resolver.resolve(f.join("src/common"), "config/myObjectFile").await.map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(f.join("src/common/config/myObjectFile.js")),);
 }
 
-#[test]
-fn prefer_relative() {
+#[tokio::test]
+async fn prefer_relative() {
     let f = super::fixture();
 
     let resolver =
@@ -85,13 +85,13 @@ fn prefer_relative() {
     ];
 
     for (comment, request, expected) in pass {
-        let resolved_path = resolver.resolve(&f, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&f, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {request}");
     }
 }
 
-#[test]
-fn resolve_to_context() {
+#[tokio::test]
+async fn resolve_to_context() {
     let f = super::fixture();
     let resolver =
         Resolver::new(ResolveOptions { resolve_to_context: true, ..ResolveOptions::default() });
@@ -105,15 +105,15 @@ fn resolve_to_context() {
     ];
 
     for (comment, path, request, expected) in data {
-        let resolved_path = resolver.resolve(&path, request).map(|r| r.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
         assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
     }
 }
 
-#[test]
-fn resolve_hash_as_module() {
+#[tokio::test]
+async fn resolve_hash_as_module() {
     let f = super::fixture();
     let resolver = Resolver::new(ResolveOptions::default());
-    let resolution = resolver.resolve(f, "#a");
+    let resolution = resolver.resolve(f, "#a").await;
     assert_eq!(resolution, Err(ResolveError::NotFound("#a".into())));
 }

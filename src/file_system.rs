@@ -8,13 +8,14 @@ use std::{
 use pnp::fs::{LruZipCache, VPath, VPathInfo, ZipCache};
 
 /// File System abstraction used for `ResolverGeneric`
+#[async_trait::async_trait]
 pub trait FileSystem {
     /// See [std::fs::read]
     ///
     /// # Errors
     ///
     /// See [std::fs::read]
-    fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
+    async fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
     /// See [std::fs::read_to_string]
     ///
     /// # Errors
@@ -25,7 +26,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn read_to_string(&self, path: &Path) -> io::Result<String>;
+    async fn read_to_string(&self, path: &Path) -> io::Result<String>;
 
     /// See [std::fs::metadata]
     ///
@@ -36,7 +37,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata>;
+    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata>;
 
     /// See [std::fs::symlink_metadata]
     ///
@@ -48,7 +49,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata>;
+    async fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata>;
 
     /// See [std::fs::canonicalize]
     ///
@@ -60,7 +61,7 @@ pub trait FileSystem {
     /// because object safety requirements, it is especially useful, when
     /// you want to store multiple `dyn FileSystem` in a `Vec` or use a `ResolverGeneric<Fs>` in
     /// napi env.
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
+    async fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
 }
 
 /// Metadata information about a file
@@ -121,40 +122,40 @@ impl Default for FileSystemOs {
     }
 }
 
-fn buffer_to_string(bytes: Vec<u8>) -> io::Result<String> {
-    // `simdutf8` is faster than `std::str::from_utf8` which `fs::read_to_string` uses internally
-    if simdutf8::basic::from_utf8(&bytes).is_err() {
-        // Same error as `fs::read_to_string` produces (`io::Error::INVALID_UTF8`)
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "stream did not contain valid UTF-8",
-        ));
-    }
-    // SAFETY: `simdutf8` has ensured it's a valid UTF-8 string
-    Ok(unsafe { String::from_utf8_unchecked(bytes) })
-}
-
+#[cfg(not(target_arch = "wasm32"))]
+#[async_trait::async_trait]
 impl FileSystem for FileSystemOs {
-    fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
+    async fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         cfg_if! {
           if #[cfg(feature = "yarn_pnp")] {
             if self.options.enable_pnp {
                 return match VPath::from(path)? {
                     VPath::Zip(info) => self.pnp_lru.read(info.physical_base_path(), info.zip_path),
-                    VPath::Virtual(info) => std::fs::read(info.physical_base_path()),
-                    VPath::Native(path) => std::fs::read(&path),
+                    VPath::Virtual(info) => tokio::fs::read(info.physical_base_path()).await,
+                    VPath::Native(path) => tokio::fs::read(&path).await,
                 }
             }
         }}
 
-        std::fs::read(path)
-    }
-    fn read_to_string(&self, path: &Path) -> io::Result<String> {
-        let buffer = self.read(path)?;
-        buffer_to_string(buffer)
+        tokio::fs::read(path).await
     }
 
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+    async fn read_to_string(&self, path: &Path) -> io::Result<String> {
+        cfg_if! {
+        if #[cfg(feature = "yarn_pnp")] {
+            if self.options.enable_pnp {
+                return match VPath::from(path)? {
+                    VPath::Zip(info) => self.pnp_lru.read_to_string(info.physical_base_path(), info.zip_path),
+                    VPath::Virtual(info) => tokio::fs::read_to_string(info.physical_base_path()).await,
+                    VPath::Native(path) => tokio::fs::read_to_string(&path).await,
+                    }
+                }
+            }
+        }
+        tokio::fs::read_to_string(path).await
+    }
+
+    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
         cfg_if! {
             if #[cfg(feature = "yarn_pnp")] {
                 if self.options.enable_pnp {
@@ -164,22 +165,24 @@ impl FileSystem for FileSystemOs {
                             .file_type(info.physical_base_path(), info.zip_path)
                             .map(FileMetadata::from),
                         VPath::Virtual(info) => {
-                            fs::metadata(info.physical_base_path()).map(FileMetadata::from)
+                            tokio::fs::metadata(info.physical_base_path())
+                                .await
+                                .map(FileMetadata::from)
                         }
-                        VPath::Native(path) => fs::metadata(path).map(FileMetadata::from),
+                        VPath::Native(path) => tokio::fs::metadata(path).await.map(FileMetadata::from),
                     }
                 }
             }
         }
 
-        fs::metadata(path).map(FileMetadata::from)
+        tokio::fs::metadata(path).await.map(FileMetadata::from)
     }
 
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        fs::symlink_metadata(path).map(FileMetadata::from)
+    async fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        tokio::fs::symlink_metadata(path).await.map(FileMetadata::from)
     }
 
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+    async fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
         cfg_if! {
             if #[cfg(feature = "yarn_pnp")] {
                 if self.options.enable_pnp {
@@ -195,48 +198,47 @@ impl FileSystem for FileSystemOs {
         }
 
         cfg_if! {
-            if #[cfg(not(target_os = "wasi"))]{
-                dunce::canonicalize(path)
-            } else {
-                use std::path::Component;
-                let mut path_buf = path.to_path_buf();
-                loop {
-                    let link = fs::read_link(&path_buf)?;
-                    path_buf.pop();
-                    for component in link.components() {
-                        match component {
-                            Component::ParentDir => {
-                                path_buf.pop();
-                            }
-                            Component::Normal(seg) => {
-                                #[cfg(target_family = "wasm")]
-                                // Need to trim the extra \0 introduces by https://github.com/nodejs/uvwasi/issues/262
-                                {
-                                    path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
-                                }
-                                #[cfg(not(target_family = "wasm"))]
-                                {
-                                    path_buf.push(seg);
-                                }
-                            }
-                            Component::RootDir => {
-                                path_buf = PathBuf::from("/");
-                            }
-                            Component::CurDir | Component::Prefix(_) => {}
+        if #[cfg(not(target_os = "wasi"))]{
+            dunce::canonicalize(path)
+        } else {
+            use std::path::Component;
+            let mut path_buf = path.to_path_buf();
+            loop {
+                let link = fs::read_link(&path_buf)?;
+                path_buf.pop();
+                for component in link.components() {
+                    match component {
+                        Component::ParentDir => {
+                            path_buf.pop();
                         }
-                    }
-                    if !fs::symlink_metadata(&path_buf)?.is_symlink() {
-                        break;
+                        Component::Normal(seg) => {
+                            #[cfg(target_family = "wasm")]
+                            // Need to trim the extra \0 introduces by https://github.com/nodejs/uvwasi/issues/262
+                            {
+                                path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
+                            }
+                            #[cfg(not(target_family = "wasm"))]
+                            {
+                                path_buf.push(seg);
+                            }
+                        }
+                        Component::RootDir => {
+                            path_buf = PathBuf::from("/");
+                        }
+                        Component::CurDir | Component::Prefix(_) => {}
                     }
                 }
-                Ok(path_buf)
+                if !fs::symlink_metadata(&path_buf)?.is_symlink() {
+                    break;
+                }
+            }
+            Ok(path_buf)
             }
         }
     }
 }
-
-#[test]
-fn metadata() {
+#[tokio::test]
+async fn metadata() {
     let meta = FileMetadata { is_file: true, is_dir: true, is_symlink: true };
     assert_eq!(
         format!("{meta:?}"),

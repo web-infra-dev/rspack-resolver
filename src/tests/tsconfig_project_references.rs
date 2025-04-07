@@ -2,8 +2,8 @@
 
 use crate::{ResolveError, ResolveOptions, Resolver, TsconfigOptions, TsconfigReferences};
 
-#[test]
-fn auto() {
+#[tokio::test]
+async fn auto() {
     let f = super::fixture_root().join("tsconfig/cases/project_references");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -33,13 +33,13 @@ fn auto() {
     ];
 
     for (path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).map(|f| f.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|f| f.full_path());
         assert_eq!(resolved_path, Ok(expected), "{request} {path:?}");
     }
 }
 
-#[test]
-fn disabled() {
+#[tokio::test]
+async fn disabled() {
     let f = super::fixture_root().join("tsconfig/cases/project_references");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -64,13 +64,13 @@ fn disabled() {
     ];
 
     for (path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).map(|f| f.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|f| f.full_path());
         assert_eq!(resolved_path, expected, "{request} {path:?}");
     }
 }
 
-#[test]
-fn manual() {
+#[tokio::test]
+async fn manual() {
     let f = super::fixture_root().join("tsconfig/cases/project_references");
 
     let resolver = Resolver::new(ResolveOptions {
@@ -95,13 +95,13 @@ fn manual() {
     ];
 
     for (path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).map(|f| f.full_path());
+        let resolved_path = resolver.resolve(&path, request).await.map(|f| f.full_path());
         assert_eq!(resolved_path, expected, "{request} {path:?}");
     }
 }
 
-#[test]
-fn self_reference() {
+#[tokio::test]
+async fn self_reference() {
     let f = super::fixture_root().join("tsconfig/cases/project_references");
 
     #[rustfmt::skip]
@@ -122,7 +122,7 @@ fn self_reference() {
             ..ResolveOptions::default()
         });
         let path = f.join("app");
-        let resolved_path = resolver.resolve(&path, "@/index.ts").map(|f| f.full_path());
+        let resolved_path = resolver.resolve(&path, "@/index.ts").await.map(|f| f.full_path());
         assert_eq!(
             resolved_path,
             Err(ResolveError::TsconfigSelfReference(f.join("app/tsconfig.json"))),

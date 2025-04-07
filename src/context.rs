@@ -81,7 +81,7 @@ impl ResolveContext {
     pub fn test_for_infinite_recursion(&mut self) -> Result<(), ResolveError> {
         self.depth += 1;
         // 64 should be more than enough for detecting infinite recursion.
-        if self.depth > 64 {
+        if self.depth > 32 {
             return Err(ResolveError::Recursion);
         }
         Ok(())
