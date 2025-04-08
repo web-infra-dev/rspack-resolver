@@ -3,12 +3,12 @@ name: Reusable Release
 on:
   workflow_call:
     inputs:
-      skipable:
-        required: false
-        type: boolean
-        default: false
       target:
         required: true
+        type: string
+      runner:
+        default: "ubuntu-22.04"
+        required: false
         type: string
       full-install:
         default: true
@@ -41,7 +41,7 @@ permissions:
 jobs:
   build:
     name: Build
-    runs-on: ${{ fromJSON(inputs.runner) }}
+    runs-on: ${{ inputs.runner }}
     defaults:
       run:
         shell: bash
@@ -53,21 +53,18 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Clean
-        uses: ./.github/actions/clean
-        with:
-          target: ${{ inputs.target }}
-
       - name: Pnpm Setup
         uses: ./.github/actions/pnpm
 
       - uses: Boshen/setup-rust@main
         with:
+          save-cache: true
           cache-key: build-${{ inputs.target }}-${{ inputs.profile }}
 
       - name: Trim paths
         shell: bash
         run: |
+          mkdir -p .cargo
           echo $'\n' >> .cargo/config.toml
           echo '[unstable]' >> .cargo/config.toml
           echo 'trim-paths = true' >> .cargo/config.toml
@@ -129,21 +126,21 @@ jobs:
       # Windows
       - name: Build i686-pc-windows-msvc
         if: ${{ inputs.target == 'i686-pc-windows-msvc' }}
-        run: RUST_TARGET=${{ inputs.target }} DISABLE_PLUGIN=1 pnpm build:binding:${{ inputs.profile }}
+        run: RUST_TARGET=${{ inputs.target }} DISABLE_PLUGIN=1 pnpm build:binding:${{ inputs.profile }}  --target ${{ inputs.target }}
 
       - name: Build x86_64-pc-windows-msvc
         if: ${{ inputs.target == 'x86_64-pc-windows-msvc' }}
-        run: RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }}
+        run: RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }} --target ${{ inputs.target }}
 
       - name: Build aarch64-pc-windows-msvc
         if: ${{ inputs.target == 'aarch64-pc-windows-msvc' }}
-        run: RUST_TARGET=${{ inputs.target }} DISABLE_PLUGIN=1 pnpm build:binding:${{ inputs.profile }}
+        run: RUST_TARGET=${{ inputs.target }} DISABLE_PLUGIN=1 pnpm build:binding:${{ inputs.profile }}  --target ${{ inputs.target }}
 
       # Mac
       - name: Build x86_64-apple-darwin
         if: ${{ inputs.target == 'x86_64-apple-darwin' }}
         run: |
-          RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }}
+          RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }} --target ${{ inputs.target }}
 
       - name: Build aarch64-apple-darwin
         if: ${{ inputs.target == 'aarch64-apple-darwin' }}
@@ -153,7 +150,7 @@ jobs:
           export CXX=$(xcrun -f clang++);
           SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
           export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
-          RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }}
+          RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }} --target ${{ inputs.target }}
 
       - name: Upload artifact
         id: upload-artifact
@@ -161,9 +158,7 @@ jobs:
         if: ${{ inputs.target != 'wasm32-wasip1-threads' }}
         with:
           name: bindings-${{ inputs.target }}
-          path: crates/node_binding/*.node
-          try-local-cache: ${{ inputs.profile == 'ci' }}
-          mv-when-local: true
+          path: napi/resolver*.node
 
       # WASM
       - name: Build wasm32-wasip1-threads with linux in Docker
@@ -182,6 +177,4 @@ jobs:
         if: ${{ inputs.target == 'wasm32-wasip1-threads' }}
         with:
           name: bindings-wasm32-wasi
-          path: crates/node_binding/rspack.wasm32-wasi.wasm
-          try-local-cache: ${{ inputs.profile == 'ci' }}
-          mv-when-local: true
+          path: napi/resolver*.wasm

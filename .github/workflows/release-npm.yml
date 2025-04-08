@@ -1,12 +1,17 @@
 name: Release Full
 
 on:
+  pull_request:
+    types: [opened, synchronize]
+    paths-ignore:
+      - '**/*.md'
+
   workflow_dispatch:
     inputs:
       tag:
         type: choice
         description: "Release Npm Tag"
-        required: true
+        required: false
         default: "latest"
         options:
           - canary
@@ -17,17 +22,17 @@ on:
       test:
         type: boolean
         description: "Run tests before release"
-        required: true
-        default: true
+        required: false
+        default: false
       dry_run:
         type: boolean
         description: "DryRun release"
-        required: true
+        required: false
         default: false
       push_tags:
         type: boolean
         description: "push tags to github"
-        required: true
+        required: false
         default: true
 
 permissions:
@@ -43,18 +48,29 @@ jobs:
       matrix:
         array:
           - target: x86_64-unknown-linux-gnu
+            runner: "ubuntu-22.04"
           - target: aarch64-unknown-linux-gnu
+            runner: "ubuntu-22.04"
           - target: x86_64-unknown-linux-musl
+            runner: "ubuntu-22.04"
           - target: aarch64-unknown-linux-musl
+            runner: "ubuntu-22.04"
           - target: i686-pc-windows-msvc
+            runner: "windows-latest"
           - target: x86_64-pc-windows-msvc
+            runner: "windows-latest"
           - target: aarch64-pc-windows-msvc
+            runner: "windows-latest"
           - target: x86_64-apple-darwin
+            runner: "macos-latest"
           - target: aarch64-apple-darwin
+            runner: "macos-latest"
+
     uses: ./.github/workflows/reusable-build.yml
     with:
       target: ${{ matrix.array.target }}
-      test: ${{ inputs.test }}
+      runner: ${{ matrix.array.runner }}
+      test: false
       profile: "release"
 
   release:
@@ -65,7 +81,7 @@ jobs:
       id-token: write
     runs-on: ubuntu-latest
     needs: build
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+#    if: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -74,25 +90,30 @@ jobs:
           fetch-depth: 1
 
       - name: Pnpm Setup
-        uses: ./.github/actions/pnpm/setup
+        uses: ./.github/actions/pnpm
 
       - name: Download artifacts
         uses: actions/download-artifact@v4.1.7
         with:
           path: artifacts
 
-      - name: Build node packages
-        run: pnpm run build:js
+      - name: ls
+        run: ls -R artifacts
 
       - name: Move artifacts
-        run: node scripts/build-npm.cjs
+        run: |
+          pnpm napi create-npm-dirs --package-json-path npm/package.json --npm-dir bindings
+          pnpm napi artifacts       --package-json-path npm/package.json --npm-dir bindings --build-output-dir napi
 
       - name: Show binding packages
-        run: ls -R npm
+        run: ls -R bindings
 
-      - name: Link optional dependencies
-        run: pnpm install --no-frozen-lockfile
-
+      - name: Publish All
+        run: |
+          git status
+          cp napi/{index,browser}.js  npm
+          cp napi/index.d.ts          npm
+          pnpm publish -r --dry-run --no-git-checks
 #      - name: Release Full
 #        run: |
 #          ./x publish stable --tag ${{inputs.tag}} ${{inputs.dry_run && '--dry-run' || '--no-dry-run'}} ${{inputs.push_tags && '--push-tags' || '--no-push-tags'}}
