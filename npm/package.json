@@ -1,7 +1,7 @@
 {
-  "name": "oxc-resolver",
+  "name": "@rspack/resolver",
   "version": "1.12.0",
-  "description": "Oxc Resolver Node API",
+  "description": "Rspack Resolver Node API",
   "main": "index.js",
   "browser": "browser.js",
   "files": [
@@ -10,10 +10,10 @@
     "browser.js"
   ],
   "license": "MIT",
-  "homepage": "https://oxc.rs",
+  "homepage": "https://github.com/web-infra-dev/rspack-resolver",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oxc-project/oxc-resolver.git"
+    "url": "git+https://github.com/web-infra-dev/rspack-resolver.git"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
@@ -21,7 +21,7 @@
   },
   "napi": {
     "binaryName": "resolver",
-    "packageName": "@oxc-resolver/binding",
+    "packageName": "@rspack/resolver-binding",
     "wasm": {
       "browser": {
         "fs": true
@@ -40,8 +40,5 @@
       "aarch64-apple-darwin",
       "wasm32-wasip1-threads"
     ]
-  },
-  "funding": {
-    "url": "https://github.com/sponsors/Boshen"
   }
 }

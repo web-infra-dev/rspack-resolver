@@ -1,0 +1,187 @@
+name: Reusable Release
+
+on:
+  workflow_call:
+    inputs:
+      skipable:
+        required: false
+        type: boolean
+        default: false
+      target:
+        required: true
+        type: string
+      full-install:
+        default: true
+        required: false
+        type: boolean
+      profile: # Rust profile, "ci" or "production" or "profiling"
+        default: "release"
+        required: false
+        type: string
+      test: # Run tests?
+        type: boolean
+        required: false
+        default: false
+      bench: # Run benchmarks?
+        type: boolean
+        required: false
+        default: false
+      ref: # Git reference to checkout
+        required: false
+        type: string
+env:
+  # Since CI builds are more akin to from-scratch builds, incremental compilation adds unnecessary dependency-tracking and IO overhead, reducing caching effectiveness.
+  # https://github.com/rust-lang/rust-analyzer/blob/25368d24308d6a94ffe8b99f0122bcf5a2175322/.github/workflows/ci.yaml#L11
+  CARGO_INCREMENTAL: 0
+
+permissions:
+  # Allow commenting on issues
+  issues: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      runner-labels: ${{ steps.upload-artifact.outputs.runner-labels || inputs.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Clean
+        uses: ./.github/actions/clean
+        with:
+          target: ${{ inputs.target }}
+
+      - name: Pnpm Setup
+        uses: ./.github/actions/pnpm
+
+      - uses: Boshen/setup-rust@main
+        with:
+          cache-key: build-${{ inputs.target }}-${{ inputs.profile }}
+
+      - name: Trim paths
+        shell: bash
+        run: |
+          echo $'\n' >> .cargo/config.toml
+          echo '[unstable]' >> .cargo/config.toml
+          echo 'trim-paths = true' >> .cargo/config.toml
+
+      # Linux
+      - name: Build x86_64-unknown-linux-gnu in Docker
+        if: ${{ inputs.target == 'x86_64-unknown-linux-gnu' }}
+        uses: ./.github/actions/docker-build
+        with:
+          image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+          target: ${{ inputs.target }}
+          profile: ${{ inputs.profile }}
+          pre: unset CC_x86_64_unknown_linux_gnu && unset CC # for jemallocator to compile
+      # runner these build in docker since we don't have github runner machine for it
+      - name: Build aarch64-unknown-linux-gnu in Docker
+        if: ${{ inputs.target == 'aarch64-unknown-linux-gnu' }}
+        uses: ./.github/actions/docker-build
+        with:
+          target: ${{ inputs.target }}
+          image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+          profile: ${{ inputs.profile }}
+          pre: |
+            export CC_aarch64_unknown_linux_gnu=clang
+
+      - name: Build x86_64-unknown-linux-musl in Docker
+        if: ${{ inputs.target == 'x86_64-unknown-linux-musl' }}
+        uses: ./.github/actions/docker-build
+        with:
+          target: ${{ inputs.target }}
+          image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+          profile: ${{ inputs.profile }}
+          pre: |
+            # musl will enable clang-sys static linking
+            # https://github.com/KyleMayes/clang-sys?tab=readme-ov-file#static
+            # llvm19-dev is used to install llvm-config
+            # clang19-static is used to install libclang.a
+            apk add llvm19-dev clang19-static
+
+      - name: Build aarch64-unknown-linux-musl in Docker
+        if: ${{ inputs.target == 'aarch64-unknown-linux-musl' }}
+        uses: ./.github/actions/docker-build
+        with:
+          target: ${{ inputs.target }}
+          image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+          profile: ${{ inputs.profile }}
+          pre: |
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc
+            # musl will enable clang-sys static linking
+            # https://github.com/KyleMayes/clang-sys?tab=readme-ov-file#static
+            # llvm19-dev is used to install llvm-config
+            # clang19-static is used to install libclang.a
+            apk add llvm19-dev clang19-static
+
+      # setup rust target for native runner
+      - name: Setup Rust Target
+        if: ${{ !contains(inputs.target, 'linux') }}
+        run: rustup target add ${{ inputs.target }}
+      # runner the following in github runner directly without docker since we have related machine
+      # Windows
+      - name: Build i686-pc-windows-msvc
+        if: ${{ inputs.target == 'i686-pc-windows-msvc' }}
+        run: RUST_TARGET=${{ inputs.target }} DISABLE_PLUGIN=1 pnpm build:binding:${{ inputs.profile }}
+
+      - name: Build x86_64-pc-windows-msvc
+        if: ${{ inputs.target == 'x86_64-pc-windows-msvc' }}
+        run: RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }}
+
+      - name: Build aarch64-pc-windows-msvc
+        if: ${{ inputs.target == 'aarch64-pc-windows-msvc' }}
+        run: RUST_TARGET=${{ inputs.target }} DISABLE_PLUGIN=1 pnpm build:binding:${{ inputs.profile }}
+
+      # Mac
+      - name: Build x86_64-apple-darwin
+        if: ${{ inputs.target == 'x86_64-apple-darwin' }}
+        run: |
+          RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }}
+
+      - name: Build aarch64-apple-darwin
+        if: ${{ inputs.target == 'aarch64-apple-darwin' }}
+        run: |
+          sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
+          export CC=$(xcrun -f clang);
+          export CXX=$(xcrun -f clang++);
+          SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
+          export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+          RUST_TARGET=${{ inputs.target }} pnpm build:binding:${{ inputs.profile }}
+
+      - name: Upload artifact
+        id: upload-artifact
+        uses: ./.github/actions/artifact/upload
+        if: ${{ inputs.target != 'wasm32-wasip1-threads' }}
+        with:
+          name: bindings-${{ inputs.target }}
+          path: crates/node_binding/*.node
+          try-local-cache: ${{ inputs.profile == 'ci' }}
+          mv-when-local: true
+
+      # WASM
+      - name: Build wasm32-wasip1-threads with linux in Docker
+        if: ${{ inputs.target == 'wasm32-wasip1-threads' }}
+        uses: ./.github/actions/docker-build
+        with:
+          image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+          target: ${{ inputs.target }}
+          profile: ${{ inputs.profile }}
+          plugin: false
+          pre: unset CC_x86_64_unknown_linux_gnu && unset CC # for jemallocator to compile
+
+      - name: Upload wasm artifact
+        id: upload-wasm-artifact
+        uses: ./.github/actions/artifact/upload
+        if: ${{ inputs.target == 'wasm32-wasip1-threads' }}
+        with:
+          name: bindings-wasm32-wasi
+          path: crates/node_binding/rspack.wasm32-wasi.wasm
+          try-local-cache: ${{ inputs.profile == 'ci' }}
+          mv-when-local: true
