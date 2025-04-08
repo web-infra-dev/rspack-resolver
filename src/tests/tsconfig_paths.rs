@@ -237,7 +237,9 @@ async fn test_template_variable() {
     let pass = [
         (f2.clone(), "tsconfig1.json", "foo", f2.join("foo.js")),
         (f2.clone(), "tsconfig2.json", "foo", f2.join("foo.js")),
+        (f2.clone(), "tsconfig3.json", "foo", f2.join("foo.js")),
         (f.clone(), "tsconfig_template_variable.json", "foo", f.join("foo.js")),
+        (f.clone(), "tsconfig_template_variable_with_base_url.json", "foo", f.join("foo.js")),
     ];
 
     for (dir, tsconfig, request, expected) in pass {
