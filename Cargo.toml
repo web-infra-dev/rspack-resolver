@@ -3,7 +3,7 @@ members  = ["napi"]
 resolver = "2"
 
 [package]
-version      = "0.5.3"
+version      = "0.5.4"
 name         = "rspack_resolver"
 authors      = ["Rspack"]
 categories   = ["development-tools"]
@@ -95,9 +95,9 @@ futures = "0.3.31"
 async-trait = "0.1.84"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { version = "1.42.0", default-features = false, features = ["sync", "rt-multi-thread", "macros", "fs"] }
+tokio = { version = "1.44.2", default-features = false, features = ["sync", "rt-multi-thread", "macros", "fs"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-tokio = { version = "1.42.0", default-features = false, features = ["sync", "rt", "macros" ]}
+tokio = { version = "1.44.2", default-features = false, features = ["sync", "rt", "macros" ]}
 
 [dev-dependencies]
 vfs            = "0.12.0"                                        # for testing with in memory file system
