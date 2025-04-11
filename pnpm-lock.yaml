@@ -32,6 +32,9 @@ importers:
       emnapi:
         specifier: ^1.2.0
         version: 1.2.0
+      semver:
+        specifier: ^7.7.1
+        version: 7.7.1
       typescript:
         specifier: ^5.5.3
         version: 5.6.2
@@ -1329,8 +1332,8 @@ packages:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
     hasBin: true
 
-  semver@7.6.2:
-    resolution: {integrity: sha512-FNAIBWCx9qcRhoHcgcJ0gvU7SN1lYU2ZXuSfl04bSC5OpvDHFyJCjdNHomPXxjQlCBU67YW64PzY7/VIEH7F2w==}
+  semver@7.7.1:
+    resolution: {integrity: sha512-hlq8tAfn0m/61p4BVRcPzIGr6LKiMwo4VM6dGi6pt4qcRkmNzTcWq6eCEjEh+qXjkMDvPlOFFSGwQjoEa6gyMA==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -1659,7 +1662,7 @@ snapshots:
       nopt: 5.0.0
       npmlog: 5.0.1
       rimraf: 3.0.2
-      semver: 7.6.2
+      semver: 7.7.1
       tar: 6.2.1
     transitivePeerDependencies:
       - encoding
@@ -1676,7 +1679,7 @@ snapshots:
       inquirer: 10.0.1
       js-yaml: 4.1.0
       lodash-es: 4.17.21
-      semver: 7.6.2
+      semver: 7.7.1
       toml: 3.0.0
       typanion: 3.14.0
       wasm-sjlj: 1.0.5
@@ -2251,7 +2254,7 @@ snapshots:
       js-string-escape: 1.0.1
       lodash: 4.17.21
       md5-hex: 3.0.1
-      semver: 7.6.2
+      semver: 7.7.1
       well-known-symbols: 2.0.0
 
   console-control-strings@1.1.0: {}
@@ -2690,7 +2693,7 @@ snapshots:
 
   semver@6.3.1: {}
 
-  semver@7.6.2: {}
+  semver@7.7.1: {}
 
   serialize-error@7.0.1:
     dependencies:
