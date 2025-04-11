@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use napi::Either;
 use napi_derive::napi;
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
-use regex::Regex;
 
 /// Module Resolution Options
 ///
@@ -156,7 +156,7 @@ pub struct NapiResolveOptions {
     /// Whether to enable yarn Plug'n'Play
     ///
     /// Default `false`
-    pub enable_pnp: Option<bool>
+    pub enable_pnp: Option<bool>,
 }
 
 #[napi]
