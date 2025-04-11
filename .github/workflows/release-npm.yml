@@ -132,7 +132,7 @@ jobs:
           cp napi/index.d.ts          npm
           pnpm node scripts/x.mjs publish --otp --tag ${{inputs.tag}} ${{inputs.dry_run && '--dry-run' || '--no-dry-run'}} ${{inputs.push_tags && '--push-tags' || '--no-push-tags'}}
         env:
-          NPM_TOKEN: ${{ secrets.OTP_NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           REF: ${{ github.ref }}
           ONLY_RELEASE_TAG: true
