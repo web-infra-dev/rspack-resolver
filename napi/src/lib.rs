@@ -1,10 +1,10 @@
 extern crate napi;
 extern crate napi_derive;
-extern crate oxc_resolver;
+extern crate rspack_resolver;
 
 use napi::tokio::runtime;
 use napi_derive::napi;
-use oxc_resolver::{ResolveOptions, Resolver};
+use rspack_resolver::{ResolveOptions, Resolver};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -114,8 +114,8 @@ impl ResolverFactory {
                             let v = v
                                 .into_iter()
                                 .map(|item| match item {
-                                    Some(path) => oxc_resolver::AliasValue::from(path),
-                                    None => oxc_resolver::AliasValue::Ignore,
+                                    Some(path) => rspack_resolver::AliasValue::from(path),
+                                    None => rspack_resolver::AliasValue::Ignore,
                                 })
                                 .collect();
                             (k, v)
@@ -155,8 +155,8 @@ impl ResolverFactory {
                             let v = v
                                 .into_iter()
                                 .map(|item| match item {
-                                    Some(path) => oxc_resolver::AliasValue::from(path),
-                                    None => oxc_resolver::AliasValue::Ignore,
+                                    Some(path) => rspack_resolver::AliasValue::from(path),
+                                    None => rspack_resolver::AliasValue::Ignore,
                                 })
                                 .collect();
                             (k, v)
@@ -189,6 +189,7 @@ impl ResolverFactory {
                 .unwrap_or(default.roots),
             symlinks: op.symlinks.unwrap_or(default.symlinks),
             builtin_modules: op.builtin_modules.unwrap_or(default.builtin_modules),
+            enable_pnp: op.enable_pnp.unwrap_or_default(),
         }
     }
 }

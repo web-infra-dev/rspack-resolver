@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use napi::Either;
 use napi_derive::napi;
+use regex::Regex;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Module Resolution Options
 ///
@@ -150,6 +152,11 @@ pub struct NapiResolveOptions {
     ///
     /// Default `false`
     pub builtin_modules: Option<bool>,
+
+    /// Whether to enable yarn Plug'n'Play
+    ///
+    /// Default `false`
+    pub enable_pnp: Option<bool>,
 }
 
 #[napi]
@@ -203,14 +210,20 @@ pub struct TsconfigOptions {
     pub references: Option<Either<String, Vec<String>>>,
 }
 
-impl Into<oxc_resolver::Restriction> for Restriction {
-    fn into(self) -> oxc_resolver::Restriction {
+impl Into<rspack_resolver::Restriction> for Restriction {
+    fn into(self) -> rspack_resolver::Restriction {
         match (self.path, self.regex) {
             (None, None) => {
                 panic!("Should specify path or regex")
             }
-            (None, Some(regex)) => oxc_resolver::Restriction::RegExp(regex),
-            (Some(path), None) => oxc_resolver::Restriction::Path(PathBuf::from(path)),
+            (None, Some(regex)) => {
+                let re = Regex::new(&regex).unwrap();
+
+                rspack_resolver::Restriction::Fn(Arc::new(move |path| {
+                    re.is_match(path.to_str().unwrap_or_default())
+                }))
+            }
+            (Some(path), None) => rspack_resolver::Restriction::Path(PathBuf::from(path)),
             (Some(_), Some(_)) => {
                 panic!("Restriction can't be path and regex at the same time")
             }
@@ -218,31 +231,31 @@ impl Into<oxc_resolver::Restriction> for Restriction {
     }
 }
 
-impl Into<oxc_resolver::EnforceExtension> for EnforceExtension {
-    fn into(self) -> oxc_resolver::EnforceExtension {
+impl Into<rspack_resolver::EnforceExtension> for EnforceExtension {
+    fn into(self) -> rspack_resolver::EnforceExtension {
         match self {
-            EnforceExtension::Auto => oxc_resolver::EnforceExtension::Auto,
-            EnforceExtension::Enabled => oxc_resolver::EnforceExtension::Enabled,
-            EnforceExtension::Disabled => oxc_resolver::EnforceExtension::Disabled,
+            EnforceExtension::Auto => rspack_resolver::EnforceExtension::Auto,
+            EnforceExtension::Enabled => rspack_resolver::EnforceExtension::Enabled,
+            EnforceExtension::Disabled => rspack_resolver::EnforceExtension::Disabled,
         }
     }
 }
 
-impl Into<oxc_resolver::TsconfigOptions> for TsconfigOptions {
-    fn into(self) -> oxc_resolver::TsconfigOptions {
-        oxc_resolver::TsconfigOptions {
+impl Into<rspack_resolver::TsconfigOptions> for TsconfigOptions {
+    fn into(self) -> rspack_resolver::TsconfigOptions {
+        rspack_resolver::TsconfigOptions {
             config_file: PathBuf::from(self.config_file),
             references: match self.references {
                 Some(Either::A(string)) if string.as_str() == "auto" => {
-                    oxc_resolver::TsconfigReferences::Auto
+                    rspack_resolver::TsconfigReferences::Auto
                 }
                 Some(Either::A(opt)) => {
                     panic!("`{}` is not a valid option for  tsconfig references", opt)
                 }
-                Some(Either::B(paths)) => oxc_resolver::TsconfigReferences::Paths(
+                Some(Either::B(paths)) => rspack_resolver::TsconfigReferences::Paths(
                     paths.into_iter().map(PathBuf::from).collect::<Vec<_>>(),
                 ),
-                None => oxc_resolver::TsconfigReferences::Disabled,
+                None => rspack_resolver::TsconfigReferences::Disabled,
             },
         }
     }
