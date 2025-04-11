@@ -7,7 +7,7 @@ import { getLastVersion } from "./version.mjs";
 
 const __filename = path.resolve(fileURLToPath(import.meta.url));
 
-export async function publish_handler(mode, options) {
+export async function publish_handler(options) {
     console.log("options:", options);
     const npmrcPath = `${process.env.HOME}/.npmrc`;
     const root = process.cwd();
