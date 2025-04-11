@@ -1,6 +1,6 @@
 packages:
-  - "npm"
-  - "napi"
+  - 'npm'
+  - 'napi'
   - 'fixtures/pnpm'
-  - "fixtures/pnpm-workspace/**"
-  - "bindings/**"
+  - 'fixtures/pnpm-workspace/**'
+  - 'bindings/**'
