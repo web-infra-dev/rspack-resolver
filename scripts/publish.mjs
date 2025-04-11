@@ -6,7 +6,6 @@ import { getOtp } from "@continuous-auth/client";
 import { getLastVersion } from "./version.mjs";
 
 const __filename = path.resolve(fileURLToPath(import.meta.url));
-const __dirname = path.dirname(__filename);
 
 export async function publish_handler(mode, options) {
     console.log("options:", options);
@@ -32,8 +31,7 @@ export async function publish_handler(mode, options) {
     const version = await getLastVersion(root);
     core.setOutput("version", version);
     core.notice(`Version: ${version}`);
-    // write version to workspace directory
-    fs.writeFileSync(path.resolve(__dirname, "../..", "version_output"), version);
+
     /**
      * @Todo test stable release later
      */
@@ -44,7 +42,7 @@ export async function publish_handler(mode, options) {
         await $`git config --global user.email "github-actions[bot]@users.noreply.github.com"`;
         console.info("git commit all...");
         await $`git status`;
-        await $`git tag v${version} -m v${version} `;
+        await $`git tag v${version}_npm -m v${version}_npm`;
         await $`git push origin --follow-tags`;
     }
 }
