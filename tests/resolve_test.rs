@@ -21,12 +21,15 @@ async fn chinese() {
 async fn styled_components() {
     let dir = dir();
     let path = dir.join("fixtures/pnpm");
-    let module_path = dir.join("node_modules/.pnpm/styled-components@6.1.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/styled-components");
+    let module_path = dir.join("fixtures/pnpm/node_modules/styled-components");
     let specifier = "styled-components";
 
     // cjs
-    let options =
-        ResolveOptions { alias_fields: vec![vec!["browser".into()]], ..ResolveOptions::default() };
+    let options = ResolveOptions {
+        alias_fields: vec![vec!["browser".into()]],
+        symlinks: false,
+        ..ResolveOptions::default()
+    };
     let resolution = Resolver::new(options).resolve(&path, specifier).await;
     assert_eq!(
         resolution.map(rspack_resolver::Resolution::into_path_buf),
@@ -37,6 +40,7 @@ async fn styled_components() {
     let options = ResolveOptions {
         alias_fields: vec![vec!["browser".into()]],
         main_fields: vec!["module".into()],
+        symlinks: false,
         ..ResolveOptions::default()
     };
     let resolution = Resolver::new(options).resolve(&path, specifier).await;
