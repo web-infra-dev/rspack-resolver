@@ -15,7 +15,7 @@ license      = "MIT"
 readme       = "README.md"
 repository   = "https://github.com/web-infra-dev/rspack-resolver"
 rust-version = "1.70"
-include      = ["/src", "/examples", "/benches"]
+include      = ["/src", "/examples", "/benches", "!/benches/pnpm-lock.yaml"]
 
 [lib]
 doctest = false
