@@ -183,6 +183,12 @@ export interface NapiResolveOptions {
    * Default `false`
    */
   builtinModules?: boolean
+  /**
+   * Whether to enable yarn Plug'n'Play
+   *
+   * Default `false`
+   */
+  enablePnp?: boolean
 }
 
 export interface ResolveResult {

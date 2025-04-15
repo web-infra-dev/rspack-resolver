@@ -3,3 +3,4 @@ packages:
   - 'napi'
   - 'fixtures/pnpm'
   - 'fixtures/pnpm-workspace/**'
+  - 'bindings/**'

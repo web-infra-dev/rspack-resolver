@@ -39,9 +39,9 @@ if (__nodeFs.existsSync(__wasmDebugFilePath)) {
   __wasmFilePath = __wasmDebugFilePath
 } else if (!__nodeFs.existsSync(__wasmFilePath)) {
   try {
-    __wasmFilePath = __nodePath.resolve('@oxc-resolver/binding-wasm32-wasi')
+    __wasmFilePath = __nodePath.resolve('@rspack/resolver-binding-wasm32-wasi')
   } catch {
-    throw new Error('Cannot find resolver.wasm32-wasi.wasm file, and @oxc-resolver/binding-wasm32-wasi package is not installed.')
+    throw new Error('Cannot find resolver.wasm32-wasi.wasm file, and @rspack/resolver-binding-wasm32-wasi package is not installed.')
   }
 }
 
@@ -88,9 +88,8 @@ function __napi_rs_initialize_modules(__napiInstance) {
   __napiInstance.exports['__napi_register__TsconfigOptions_struct_3']?.()
   __napiInstance.exports['__napi_register__ResolveResult_struct_4']?.()
   __napiInstance.exports['__napi_register__sync_5']?.()
-  __napiInstance.exports['__napi_register__ResolveTask_impl_6']?.()
-  __napiInstance.exports['__napi_register__ResolverFactory_struct_7']?.()
-  __napiInstance.exports['__napi_register__ResolverFactory_impl_14']?.()
+  __napiInstance.exports['__napi_register__ResolverFactory_struct_6']?.()
+  __napiInstance.exports['__napi_register__ResolverFactory_impl_13']?.()
 }
 module.exports.ResolverFactory = __napiModule.exports.ResolverFactory
 module.exports.EnforceExtension = __napiModule.exports.EnforceExtension

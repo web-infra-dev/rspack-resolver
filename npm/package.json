@@ -1,7 +1,7 @@
 {
-  "name": "oxc-resolver",
+  "name": "@rspack/resolver",
   "version": "1.12.0",
-  "description": "Oxc Resolver Node API",
+  "description": "Rspack Resolver Node API",
   "main": "index.js",
   "browser": "browser.js",
   "files": [
@@ -10,10 +10,10 @@
     "browser.js"
   ],
   "license": "MIT",
-  "homepage": "https://oxc.rs",
+  "homepage": "https://github.com/web-infra-dev/rspack-resolver",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oxc-project/oxc-resolver.git"
+    "url": "git+https://github.com/web-infra-dev/rspack-resolver.git"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
@@ -21,27 +21,24 @@
   },
   "napi": {
     "binaryName": "resolver",
-    "packageName": "@oxc-resolver/binding",
+    "packageName": "@rspack/resolver-binding",
     "wasm": {
       "browser": {
         "fs": true
       }
     },
     "targets": [
-      "x86_64-pc-windows-msvc",
-      "aarch64-pc-windows-msvc",
       "x86_64-unknown-linux-gnu",
       "x86_64-unknown-linux-musl",
-      "x86_64-unknown-freebsd",
       "aarch64-unknown-linux-gnu",
       "aarch64-unknown-linux-musl",
-      "armv7-unknown-linux-gnueabihf",
+      "aarch64-pc-windows-msvc",
+      "x86_64-pc-windows-msvc",
+      "i686-pc-windows-msvc",
       "x86_64-apple-darwin",
-      "aarch64-apple-darwin",
-      "wasm32-wasip1-threads"
+      "aarch64-apple-darwin"
     ]
   },
-  "funding": {
-    "url": "https://github.com/sponsors/Boshen"
+  "optionalDependencies": {
   }
 }
