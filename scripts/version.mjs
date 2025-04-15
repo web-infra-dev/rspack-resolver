@@ -7,6 +7,11 @@ async function getCommitId() {
 }
 
 export async function getLastVersion(root) {
+    let pkg = await getPackageJson(root);
+    return pkg.version
+}
+
+export async function getPackageJson(root) {
     const pkgPath = path.resolve(root, "./npm/package.json");
 
     try {
@@ -16,7 +21,7 @@ export async function getLastVersion(root) {
                 type: "json"
             }
         });
-        return result.default.version;
+        return result.default;
     } catch (e) {
         // Node < 20
         const result = await import(pkgPath, {
@@ -24,7 +29,7 @@ export async function getLastVersion(root) {
                 type: "json"
             }
         });
-        return result.default.version;
+        return result.default;
     }
 }
 

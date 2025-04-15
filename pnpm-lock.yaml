@@ -42,24 +42,6 @@ importers:
         specifier: ^8.5.2
         version: 8.5.2
 
-  bindings/darwin-arm64: {}
-
-  bindings/darwin-x64: {}
-
-  bindings/linux-arm64-gnu: {}
-
-  bindings/linux-arm64-musl: {}
-
-  bindings/linux-x64-gnu: {}
-
-  bindings/linux-x64-musl: {}
-
-  bindings/win32-arm64-msvc: {}
-
-  bindings/win32-ia32-msvc: {}
-
-  bindings/win32-x64-msvc: {}
-
   fixtures/pnpm:
     devDependencies:
       axios:
@@ -102,35 +84,7 @@ importers:
         specifier: ^18.3.1
         version: 18.3.1
 
-  npm:
-    optionalDependencies:
-      '@rspack/resolver-binding-darwin-arm64':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@rspack/resolver-binding-darwin-x64':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@rspack/resolver-binding-linux-arm64-gnu':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@rspack/resolver-binding-linux-arm64-musl':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@rspack/resolver-binding-linux-x64-gnu':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@rspack/resolver-binding-linux-x64-musl':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@rspack/resolver-binding-win32-arm64-msvc':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@rspack/resolver-binding-win32-ia32-msvc':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@rspack/resolver-binding-win32-x64-msvc':
-        specifier: 0.1.0
-        version: 0.1.0
+  npm: {}
 
 packages:
 
@@ -666,51 +620,6 @@ packages:
   '@rollup/pluginutils@4.2.1':
     resolution: {integrity: sha512-iKnFXr7NkdZAIHiIWE+BX5ULi/ucVFYWD6TbAV+rZctiRTY2PL6tsIKhoIOaoskiWAkgu+VsbXgUVDNLHf+InQ==}
     engines: {node: '>= 8.0.0'}
-
-  '@rspack/resolver-binding-darwin-arm64@0.1.0':
-    resolution: {integrity: sha512-n52OEdgyJDztKYPtY2LAq12BsfFQoNiR4sFV3WjFeJukToTLMpO1RKiacqKcGAVq6R2BKSaFfwoY0q1BT6+Qqg==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@rspack/resolver-binding-darwin-x64@0.1.0':
-    resolution: {integrity: sha512-zoSO+kghQ9dQWTBSJYiGg6wYzdX7KySttRVHA6j68tnShToAa7qZ2KrKwtjSOEHXbYYyJZ5WLczaB5Ul3mFNqg==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@rspack/resolver-binding-linux-arm64-gnu@0.1.0':
-    resolution: {integrity: sha512-p30mPrn2boy7j4Ti+xd0J+vS7TP4ACnAoM7iIRYGPxATNZjoCKvJWXYEdMy9PKI40e+ybp24UYz2HtBbxlHagg==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@rspack/resolver-binding-linux-arm64-musl@0.1.0':
-    resolution: {integrity: sha512-ZeMUcuVV1yFTKAS+TuhVh+T74VbGuNy7XWoQuQ6gKhTmJaU5AYTTQti0sYEXALq7k7/aDjrd6KkHmJoJAM2YAA==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@rspack/resolver-binding-linux-x64-gnu@0.1.0':
-    resolution: {integrity: sha512-9j3eL8cgPnNj17MQ3tccLEoKkBhq2gVA/hApKf8XTYtn+YRFa0GrtEZ2KIJT43tQiZlbeI24x+EgQV6FRn/zMA==}
-    cpu: [x64]
-    os: [linux]
-
-  '@rspack/resolver-binding-linux-x64-musl@0.1.0':
-    resolution: {integrity: sha512-A7Hynk/dH8QMcAoQIGl3JcBBFmVKhPwUJmCJt3XWQp6yHhPNbms5gqKVJ8ou4k4tQzBWAwX5wpOc0bpJszKE2w==}
-    cpu: [x64]
-    os: [linux]
-
-  '@rspack/resolver-binding-win32-arm64-msvc@0.1.0':
-    resolution: {integrity: sha512-+PBTBkujmCP4wI95s/ufxe9gxuafomwpn1hqVGrLKDLk8LcrV32nW0h3J8uXwfjsTsv3EO+TPVzfn8IBxXTmVA==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@rspack/resolver-binding-win32-ia32-msvc@0.1.0':
-    resolution: {integrity: sha512-0Lu1GpQnHS3qDRSNwzF05LpLrjGM6psbUsvJ5KlgD5Ob3MvTgIrJkOhZLfQXfgTJ5F2U9FPjzH/jkAWM3wCzTA==}
-    cpu: [ia32]
-    os: [win32]
-
-  '@rspack/resolver-binding-win32-x64-msvc@0.1.0':
-    resolution: {integrity: sha512-WoPFjyz5UUortAI2N6wmGdQ8gEpG/VjsC+lG9O23ZilBWzPpwdCMiJDTQ+ywDWarawYHJildHbw607307u/Xmg==}
-    cpu: [x64]
-    os: [win32]
 
   '@sindresorhus/merge-streams@2.3.0':
     resolution: {integrity: sha512-LtoMMhxAlorcGhmFYI+LhPgbPZCkgP6ra1YL604EeF6U98pLlQ3iWIGMdWSC+vWmPBWBNgmDBAhnAobLROJmwg==}
@@ -2228,33 +2137,6 @@ snapshots:
     dependencies:
       estree-walker: 2.0.2
       picomatch: 2.3.1
-
-  '@rspack/resolver-binding-darwin-arm64@0.1.0':
-    optional: true
-
-  '@rspack/resolver-binding-darwin-x64@0.1.0':
-    optional: true
-
-  '@rspack/resolver-binding-linux-arm64-gnu@0.1.0':
-    optional: true
-
-  '@rspack/resolver-binding-linux-arm64-musl@0.1.0':
-    optional: true
-
-  '@rspack/resolver-binding-linux-x64-gnu@0.1.0':
-    optional: true
-
-  '@rspack/resolver-binding-linux-x64-musl@0.1.0':
-    optional: true
-
-  '@rspack/resolver-binding-win32-arm64-msvc@0.1.0':
-    optional: true
-
-  '@rspack/resolver-binding-win32-ia32-msvc@0.1.0':
-    optional: true
-
-  '@rspack/resolver-binding-win32-x64-msvc@0.1.0':
-    optional: true
 
   '@sindresorhus/merge-streams@2.3.0': {}
 
