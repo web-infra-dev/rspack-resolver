@@ -130,7 +130,8 @@ jobs:
           git status
           cp napi/{index,browser}.js  npm
           cp napi/index.d.ts          npm
-          pnpm node scripts/x.mjs publish --otp --tag ${{inputs.tag}} ${{inputs.dry_run && '--dry-run' || '--no-dry-run'}} ${{inputs.push_tags && '--push-tags' || '--no-push-tags'}}
+          pnpm node scripts/x.mjs prepublish
+          pnpm node scripts/x.mjs    publish --otp --tag ${{inputs.tag}} ${{inputs.dry_run && '--dry-run' || '--no-dry-run'}} ${{inputs.push_tags && '--push-tags' || '--no-push-tags'}}
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           REPOSITORY: ${{ github.repository }}

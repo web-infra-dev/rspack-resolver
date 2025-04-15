@@ -6,6 +6,7 @@ import { Command } from "commander";
 
 import { publish_handler } from "./publish.mjs";
 import { version_handler } from "./version.mjs";
+import {prepublish_handler} from "./prepublish.mjs";
 
 process.env.CARGO_TERM_COLOR = "always"; // Assume every terminal that using zx supports color
 process.env.FORCE_COLOR = 3; // Fix zx losing color output in subprocesses
@@ -38,6 +39,11 @@ program
     .option("--pre <string>", "pre-release tag")
     .description("bump version")
     .action(version_handler);
+
+program
+    .command("prepublish")
+    .description("prepublishOnly")
+    .action(prepublish_handler);
 
 let argv = process.argv.slice(2); // remove the `node` and script call
 if (argv[0] && /x.mjs/.test(argv[0])) {

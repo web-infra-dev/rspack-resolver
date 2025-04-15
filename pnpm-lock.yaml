@@ -42,24 +42,6 @@ importers:
         specifier: ^8.5.2
         version: 8.5.2
 
-  bindings/darwin-arm64: {}
-
-  bindings/darwin-x64: {}
-
-  bindings/linux-arm64-gnu: {}
-
-  bindings/linux-arm64-musl: {}
-
-  bindings/linux-x64-gnu: {}
-
-  bindings/linux-x64-musl: {}
-
-  bindings/win32-arm64-msvc: {}
-
-  bindings/win32-ia32-msvc: {}
-
-  bindings/win32-x64-msvc: {}
-
   fixtures/pnpm:
     devDependencies:
       axios:
