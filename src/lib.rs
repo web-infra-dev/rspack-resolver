@@ -1173,7 +1173,9 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
             }
         }
         // Bail if path is module directory such as `ipaddr.js`
-        if !cached_path.is_file(&self.cache.fs, ctx).await || !self.check_restrictions(cached_path.path()) {
+        if !cached_path.is_file(&self.cache.fs, ctx).await
+            || !self.check_restrictions(cached_path.path())
+        {
             ctx.with_fully_specified(false);
             return Ok(None);
         }

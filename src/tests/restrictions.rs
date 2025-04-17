@@ -110,4 +110,3 @@ async fn should_try_to_find_alternative_4() {
     let resolution = resolver1.resolve(&f, "pck2").await.map(|r| r.full_path());
     assert_eq!(resolution, Ok(f.join("node_modules/pck2/index.css")));
 }
-
