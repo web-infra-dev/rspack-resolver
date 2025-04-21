@@ -66,6 +66,31 @@ async fn pnp1() {
         )),
     );
 }
+
+#[tokio::test]
+async fn pnp_resolve_description_file() {
+    let fixture = super::fixture_root().join("pnp");
+
+    let resolver = Resolver::new(ResolveOptions {
+        extensions: vec![".js".into()],
+        condition_names: vec!["import".into()],
+        ..ResolveOptions::default()
+    });
+
+    let full_path = fixture.join(
+        ".yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact/dist/preact.js",
+    ).to_string_lossy().to_string();
+
+    let r = resolver.resolve(&fixture, &full_path).await.unwrap();
+
+    assert_eq!(
+        r.package_json.unwrap().path.to_string_lossy().to_string(),
+        fixture.join(
+            ".yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact/package.json"
+        ).to_string_lossy().to_string()
+    );
+}
+
 #[tokio::test]
 async fn resolve_in_pnp_linked_folder() {
     let fixture = super::fixture_root().join("pnp");
