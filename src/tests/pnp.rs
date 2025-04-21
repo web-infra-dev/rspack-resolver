@@ -85,9 +85,11 @@ async fn pnp_resolve_description_file() {
 
     assert_eq!(
         r.package_json.unwrap().path.to_string_lossy().to_string(),
-        fixture.join(
-            ".yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact/package.json"
-        ).to_string_lossy().to_string()
+        fixture
+            .join(".yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact")
+            .join("package.json")
+            .to_string_lossy()
+            .to_string()
     );
 }
 
