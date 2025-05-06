@@ -180,7 +180,10 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     pub fn clear_cache(&self) {
         self.cache.clear();
         #[cfg(feature = "yarn_pnp")]
-        self.pnp_cache.clear();
+        {
+            self.pnp_manifest_content_cache.clear();
+            self.pnp_manifest_path_cache.clear();
+        }
     }
 
     /// Resolve `specifier` at an absolute path to a `directory`.
