@@ -179,6 +179,8 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     /// Clear the underlying cache.
     pub fn clear_cache(&self) {
         self.cache.clear();
+        #[cfg(feature = "yarn_pnp")]
+        self.pnp_cache.clear();
     }
 
     /// Resolve `specifier` at an absolute path to a `directory`.
