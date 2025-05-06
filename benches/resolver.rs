@@ -232,6 +232,32 @@ fn bench_resolver(c: &mut Criterion) {
             });
         },
     );
+
+    let pnp_workspace = env::current_dir().unwrap().join("fixtures/pnp");
+    let root_range = 1..11;
+
+    group.bench_with_input(BenchmarkId::from_parameter("pnp resolve"), &root_range, |b, data| {
+        let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+        let oxc_resolver = Arc::new(oxc_resolver());
+
+        b.to_async(runner).iter_with_setup(
+            || {
+                oxc_resolver.clear_cache();
+            },
+            |_| async {
+                let mut join_set = JoinSet::new();
+
+                data.clone().for_each(|i| {
+                    join_set.spawn(create_async_resolve_task(
+                        oxc_resolver.clone(),
+                        pnp_workspace.join(format!("{i}")),
+                        "preact".to_string(),
+                    ));
+                });
+                join_set.join_all().await;
+            },
+        );
+    });
 }
 
 criterion_group!(resolver, bench_resolver);
