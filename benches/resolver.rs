@@ -245,16 +245,10 @@ fn bench_resolver(c: &mut Criterion) {
                 oxc_resolver.clear_cache();
             },
             |_| async {
-                let mut join_set = JoinSet::new();
-
-                data.clone().for_each(|i| {
-                    join_set.spawn(create_async_resolve_task(
-                        oxc_resolver.clone(),
-                        pnp_workspace.join(format!("{i}")),
-                        "preact".to_string(),
-                    ));
-                });
-                join_set.join_all().await;
+                for i in data.clone() {
+                    let _ =
+                        oxc_resolver.resolve(pnp_workspace.join(format!("{i}")), "preact").await;
+                }
             },
         );
     });
