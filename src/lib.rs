@@ -116,7 +116,9 @@ pub struct ResolverGeneric<Fs> {
     options: ResolveOptions,
     cache: Arc<Cache<Fs>>,
     #[cfg(feature = "yarn_pnp")]
-    pnp_cache: Arc<DashMap<CachedPath, Option<pnp::Manifest>>>,
+    pnp_manifest_content_cache: Arc<DashMap<CachedPath, Option<pnp::Manifest>>>,
+    #[cfg(feature = "yarn_pnp")]
+    pnp_manifest_path_cache: Arc<DashMap<PathBuf, Option<CachedPath>>>,
 }
 
 impl<Fs> fmt::Debug for ResolverGeneric<Fs> {
@@ -137,7 +139,9 @@ impl<Fs: Send + Sync + FileSystem + Default> ResolverGeneric<Fs> {
             options: options.sanitize(),
             cache: Arc::new(Cache::new(Fs::default())),
             #[cfg(feature = "yarn_pnp")]
-            pnp_cache: Arc::new(DashMap::default()),
+            pnp_manifest_content_cache: Arc::new(DashMap::default()),
+            #[cfg(feature = "yarn_pnp")]
+            pnp_manifest_path_cache: Arc::new(DashMap::default()),
         }
     }
 }
@@ -148,7 +152,9 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
             options: options.sanitize(),
             cache: Arc::new(Cache::new(file_system)),
             #[cfg(feature = "yarn_pnp")]
-            pnp_cache: Arc::new(DashMap::default()),
+            pnp_manifest_content_cache: Arc::new(DashMap::default()),
+            #[cfg(feature = "yarn_pnp")]
+            pnp_manifest_path_cache: Arc::new(DashMap::default()),
         }
     }
 
@@ -159,7 +165,9 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
             options: options.sanitize(),
             cache: Arc::clone(&self.cache),
             #[cfg(feature = "yarn_pnp")]
-            pnp_cache: Arc::clone(&self.pnp_cache),
+            pnp_manifest_content_cache: Arc::clone(&self.pnp_manifest_content_cache),
+            #[cfg(feature = "yarn_pnp")]
+            pnp_manifest_path_cache: Arc::clone(&self.pnp_manifest_path_cache),
         }
     }
 
@@ -172,7 +180,10 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     pub fn clear_cache(&self) {
         self.cache.clear();
         #[cfg(feature = "yarn_pnp")]
-        self.pnp_cache.clear();
+        {
+            self.pnp_manifest_content_cache.clear();
+            self.pnp_manifest_path_cache.clear();
+        }
     }
 
     /// Resolve `specifier` at an absolute path to a `directory`.
@@ -801,10 +812,19 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         &self,
         cached_path: &CachedPath,
     ) -> Ref<'_, CachedPath, Option<pnp::Manifest>> {
+        let base_path = cached_path.to_path_buf();
+
+        let cached_manifest_path =
+            self.pnp_manifest_path_cache.entry(base_path.clone()).or_insert_with(|| {
+                pnp::find_closest_pnp_manifest_path(base_path).map(|p| self.cache.value(&p))
+            });
+
+        let cache_key = cached_manifest_path.as_ref().unwrap_or(cached_path);
+
         let entry = self
-            .pnp_cache
-            .entry(cached_path.clone())
-            .or_insert_with(|| pnp::find_pnp_manifest(cached_path.path()).unwrap());
+            .pnp_manifest_content_cache
+            .entry(cache_key.clone())
+            .or_insert_with(|| pnp::load_pnp_manifest(cache_key.path()).ok());
 
         entry.downgrade()
     }
