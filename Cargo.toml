@@ -3,7 +3,7 @@ members  = ["napi"]
 resolver = "2"
 
 [package]
-version      = "0.5.5"
+version      = "0.5.6"
 name         = "rspack_resolver"
 authors      = ["Rspack"]
 categories   = ["development-tools"]
@@ -15,7 +15,7 @@ license      = "MIT"
 readme       = "README.md"
 repository   = "https://github.com/web-infra-dev/rspack-resolver"
 rust-version = "1.70"
-include      = ["/src", "/examples", "/benches", "!/benches/pnpm-lock.yaml"]
+include      = ["/src", "/examples", "/benches", "!/benches/pnpm-lock.yaml", "!/benches/node_modules"]
 
 [lib]
 doctest = false
