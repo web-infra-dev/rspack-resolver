@@ -56,8 +56,8 @@ async fn disabled() {
         (f.join("app"), "@/index.ts", Ok(f.join("app/aliased/index.ts"))),
         (f.join("app"), "@/../index.ts", Ok(f.join("app/index.ts"))),
         // Test project reference
-        (f.join("project_a"), "@/index.ts", Err(ResolveError::NotFound("@/index.ts".into()))),
-        (f.join("project_b/src"), "@/index.ts", Err(ResolveError::NotFound("@/index.ts".into()))),
+        (f.join("project_a"), "@/index.ts", Ok(f.join("app/aliased/index.ts"))),
+        (f.join("project_b/src"), "@/index.ts", Ok(f.join("app/aliased/index.ts"))),
         // Does not have paths alias
         (f.join("project_a"), "./index.ts", Ok(f.join("project_a/index.ts"))),
         (f.join("project_c"), "./index.ts", Ok(f.join("project_c/index.ts"))),
@@ -88,7 +88,7 @@ async fn manual() {
         (f.join("app"), "@/../index.ts", Ok(f.join("app/index.ts"))),
         // Test project reference
         (f.join("project_a"), "@/index.ts", Ok(f.join("project_a/aliased/index.ts"))),
-        (f.join("project_b/src"), "@/index.ts", Err(ResolveError::NotFound("@/index.ts".into()))),
+        (f.join("project_b/src"), "@/index.ts", Ok(f.join("app/aliased/index.ts"))),
         // Does not have paths alias
         (f.join("project_a"), "./index.ts", Ok(f.join("project_a/index.ts"))),
         (f.join("project_c"), "./index.ts", Ok(f.join("project_c/index.ts"))),
