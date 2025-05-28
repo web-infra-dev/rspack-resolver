@@ -134,33 +134,28 @@ impl TsConfig {
         self.path.parent().unwrap()
     }
 
-    pub fn extend_tsconfig(&mut self, tsconfig: &Self) {
+    pub fn extend_tsconfig(&mut self, other_config: &Self) {
         let compiler_options = &mut self.compiler_options;
         if compiler_options.paths.is_none() {
             compiler_options.paths_base = compiler_options
                 .base_url
                 .as_ref()
-                .map_or_else(|| tsconfig.compiler_options.paths_base.clone(), Clone::clone);
-            compiler_options.paths.clone_from(&tsconfig.compiler_options.paths);
+                .map_or_else(|| other_config.compiler_options.paths_base.clone(), Clone::clone);
+            compiler_options.paths.clone_from(&other_config.compiler_options.paths);
         }
         if compiler_options.base_url.is_none() {
-            compiler_options.base_url.clone_from(&tsconfig.compiler_options.base_url);
+            compiler_options.base_url.clone_from(&other_config.compiler_options.base_url);
         }
     }
 
     pub fn resolve(&self, path: &Path, specifier: &str) -> Vec<PathBuf> {
-        if path.starts_with(self.base_path()) {
-            let paths = self.resolve_path_alias(specifier);
-            if !paths.is_empty() {
-                return paths;
-            }
-        }
         for tsconfig in self.references.iter().filter_map(|reference| reference.tsconfig.as_ref()) {
             if path.starts_with(tsconfig.base_path()) {
                 return tsconfig.resolve_path_alias(specifier);
             }
         }
-        vec![]
+
+        self.resolve_path_alias(specifier)
     }
 
     // Copied from parcel
