@@ -157,7 +157,6 @@ fn bench_resolver(c: &mut Criterion) {
         );
     });
 
-    #[cfg(not(feature = "codspeed"))]
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
         let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
         let oxc_resolver = Arc::new(oxc_resolver());
