@@ -134,6 +134,7 @@ fn bench_resolver(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("resolver");
 
+    // codspeed can only handle to up to 500 threads
     let multi_rt = || {
         Builder::new_multi_thread()
             .max_blocking_threads(256)
