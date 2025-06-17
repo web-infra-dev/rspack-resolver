@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tokio::runtime;
+use tokio::runtime::{self, Builder};
 use tokio::task::JoinSet;
 
 fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
@@ -134,6 +134,13 @@ fn bench_resolver(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("resolver");
 
+    let multi_rt = || {
+        Builder::new_multi_thread()
+            .max_blocking_threads(256)
+            .build()
+            .expect("failed to create tokio runtime")
+    };
+
     // force to use four threads
     rayon::ThreadPoolBuilder::new()
         .num_threads(4)
@@ -158,7 +165,7 @@ fn bench_resolver(c: &mut Criterion) {
     });
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
-        let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+        let runner = multi_rt();
         let oxc_resolver = Arc::new(oxc_resolver());
 
         b.iter_with_setup(
@@ -207,12 +214,11 @@ fn bench_resolver(c: &mut Criterion) {
         },
     );
 
-    #[cfg(not(feature = "codspeed"))]
     group.bench_with_input(
         BenchmarkId::from_parameter("resolve from symlinks multi thread"),
         &symlinks_range,
         |b, data| {
-            let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
+            let runner = multi_rt();
             let oxc_resolver = Arc::new(oxc_resolver());
 
             let symlink_test_dir = symlink_test_dir.clone();
