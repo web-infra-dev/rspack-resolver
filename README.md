@@ -124,6 +124,14 @@ The options are aligned with [enhanced-resolve].
 | roots            | []                          | A list of root paths                                                                                                                                      |
 | symlinks         | true                        | Whether to resolve symlinks to their symlinked location                                                                                                   |
 
+### Other Options
+
+| Field               | Default | Description                                                                                                                                                                       |
+|---------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| tsconfig            | None    | Typescript related config for resolver                                                                                                                                            |
+| tsconfig.tsconfig   |         | Relative path to tsconfig file based on cwd or absolute path of tsconfig                                                                                                          |
+| tsconfig.references | []      | - 'auto': inherits from Typescript config <br/> - `string []`: relative path(based on directory of the referencing tsconfig file) or absolute path of referenced project tsconfig |
+
 ### Unimplemented Options
 
 | Field            | Default                     | Description                                                                                                                                               |
