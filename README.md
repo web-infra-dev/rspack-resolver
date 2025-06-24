@@ -16,6 +16,41 @@ Rust port of [enhanced-resolve].
 
 ## Usage
 
+### Basic NPM Usage
+
+Use the opinionated **synchronous** resolver with default options:
+
+```js
+const resolver = require("@rspack/resolver");
+
+// Use the opinionated sync resolver with default options
+const { path: resolvedPath } = resolver.sync(contextPath, './index.js');
+
+// When resolution fails
+const result = resolver.sync(contextPath, './noExist.js');
+// result => { error: "Cannot find module './noExist.js'" }
+```
+
+### Custom Resolver with Options
+
+You can customize the resolver using `ResolverFactory`:
+
+```javascript
+const { ResolverFactory } = require("@rspack/resolver");
+
+const resolver = new ResolverFactory(resolveOptions);
+
+// Sync API
+const result = resolver.sync(contextPath, './request.js');
+// result => { path: "/the/resolved/path/index.js" } 
+//        or { error: "Cannot find module './request.js'" }
+
+// Async API
+const result = await resolver.async(contextPath, './request.js');
+// result => { path: "/the/resolved/path/index.js" } 
+//        or { error: "Cannot find module './request.js'" }
+```
+
 The following usages apply to both Rust and Node.js; the code snippets are written in JavaScript.
 
 To handle the `exports` field in `package.json`, ESM and CJS need to be differentiated.
@@ -131,6 +166,8 @@ The options are aligned with [enhanced-resolve].
 | tsconfig            | None    | TypeScript related config for resolver                                                                                                                                            |
 | tsconfig.tsconfig   |         | A relative path to the tsconfig file based on `cwd`, or an absolute path of tsconfig file.                                                                                                          |
 | tsconfig.references | `[]`      | - 'auto': inherits from TypeScript config <br/> - `string []`: relative path (based on directory of the referencing tsconfig file) or absolute path of referenced project's tsconfig |
+
+The `tsconfig.referenceds` 
 
 ### Unimplemented Options
 
