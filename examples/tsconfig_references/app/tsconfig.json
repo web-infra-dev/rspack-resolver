@@ -2,12 +2,12 @@
   "compilerOptions": {
     "paths": {
       "foo": ["./mock_foo"],
-      "a": ["../project-a"]
+      "a": ["../component/src"]
     },
   },
   "references": [
     {
-      "name": "ts-project-a",
+      "name": "component",
       "path": "../component"
     }
   ]
