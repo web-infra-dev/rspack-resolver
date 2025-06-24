@@ -16,7 +16,7 @@ Rust port of [enhanced-resolve].
 
 ## Usage
 
-### Basic NPM Usage
+### Basic npm Usage
 
 Use the opinionated **synchronous** resolver with default options:
 
@@ -172,6 +172,7 @@ In the context of `@rspack/resolver`, the `tsconfig.references` option helps iso
 This ensures that path aliases defined in one TypeScript project do not unintentionally affect the resolving behavior of another.
 
 Given the following [project](https://github.com/web-infra-dev/rspack-resolver/blob/main/examples/tsconfig_references) structure:
+
 ```txt
 ├── app
 │   ├── mock_foo
