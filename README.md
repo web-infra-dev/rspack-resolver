@@ -164,10 +164,46 @@ The options are aligned with [enhanced-resolve].
 | Field               | Default | Description                                                                                                                                                                       |
 |---------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | tsconfig            | None    | TypeScript related config for resolver                                                                                                                                            |
-| tsconfig.tsconfig   |         | A relative path to the tsconfig file based on `cwd`, or an absolute path of tsconfig file.                                                                                                          |
-| tsconfig.references | `[]`      | - 'auto': inherits from TypeScript config <br/> - `string []`: relative path (based on directory of the referencing tsconfig file) or absolute path of referenced project's tsconfig |
+| tsconfig.configFile |         | A relative path to the tsconfig file based on `cwd`, or an absolute path of tsconfig file.                                                                                                          |
+| tsconfig.references | `[]`    | - 'auto': inherits from TypeScript config <br/> - `string []`: relative path (based on directory of the referencing tsconfig file) or absolute path of referenced project's tsconfig |
 
-The `tsconfig.referenceds` 
+
+In the context of `@rspack/resolver`, the `tsconfig.references` option helps isolate the `paths` configurations of different TypeScript projects. 
+This ensures that path aliases defined in one TypeScript project do not unintentionally affect the resolving behavior of another.
+
+Given the following project structure:
+```txt
+├── app
+│   ├── mock_foo
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── package.json
+│   ├── src
+│   │   └── index.ts
+│   ├── tsconfig.json
+│   └── webpack.config.js
+└── component
+    ├── index.js
+    ├── mock_foo
+    │   ├── index.js
+    │   └── package.json
+    ├── package.json
+    ├── src
+    │   └── index.ts
+    └── tsconfig.json
+```
+
+- Both `app` and `component` have their own tsconfig.json.
+- Each defines a path alias `foo` pointing to their respective `mock_foo` directory.
+- `app/tsconfig.json` includes `component` as a referenced project.
+
+When configuring `@rspack/resolver` with `app/tsconfig.json`, 
+the resolving result for `import foo` in `component/src/index.ts` differs based on whether `tsconfig.references` is enabled:
+
+| `tsconfig.references` | Resolve Result                | Behavior                                                                                                                                                         |
+|-----------------------|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Disabled              | `app/mock_foo/index.js`       | Uses the root `tsconfig.json`’s path alias for all modules; <br/>Same as [tsconfig-paths-webpack-plugin](https://www.npmjs.com/package/tsconfig-paths-webpack-plugin) |
+| Enabled               | `component/mock_foo/index.js` | Using the referenced project's own `paths` config                                                                                                                |
 
 ### Unimplemented Options
 
