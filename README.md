@@ -21,7 +21,7 @@ Rust port of [enhanced-resolve].
 Use the opinionated **synchronous** resolver with default options:
 
 ```js
-const resolver = require("@rspack/resolver");
+import * as resolver from "@rspack/resolver";
 
 // Use the opinionated sync resolver with default options
 const { path: resolvedPath } = resolver.sync(contextPath, './index.js');
@@ -36,7 +36,7 @@ const result = resolver.sync(contextPath, './noExist.js');
 You can customize the resolver using `ResolverFactory`:
 
 ```javascript
-const { ResolverFactory } = require("@rspack/resolver");
+import { ResolverFactory } from "@rspack/resolver";
 
 const resolver = new ResolverFactory(resolveOptions);
 

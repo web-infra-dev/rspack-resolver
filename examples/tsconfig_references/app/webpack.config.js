@@ -26,7 +26,7 @@ module.exports = {
         logInfoToStdOut: true,
         configFile: "./tsconfig.json",
         // uncomment this see different generated files
-        // references: ["../project-a/tsconfig.json"],
+        // references: ["../component/tsconfig.json"],
       }),
     ],
   },
