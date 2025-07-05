@@ -48,17 +48,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "735d4f398ca57cfa2880225c2bf81c3b9af3be5bb22e44ae70118dad38713e84"
 
 [[package]]
-name = "arca"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f915ddd863ef73f11c10c75170e86db1d4f539689bc6bfb9ce25d6528d6fe83"
-dependencies = [
- "clean-path",
- "path-slash",
- "radix_trie",
-]
-
-[[package]]
 name = "async-trait"
 version = "0.1.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -859,11 +848,10 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pnp"
-version = "0.9.4"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6add7fe3063e1c9b9a2b9780fba7047187617a37823a6541a62160f4e972cc91"
+checksum = "8b6e01a952563595c6f3ed11035c092fdb1f88b3e48a86d6530cfb6c841c8898"
 dependencies = [
- "arca",
  "byteorder",
  "clean-path",
  "concurrent_lru",
@@ -874,7 +862,6 @@ dependencies = [
  "path-slash",
  "pathdiff",
  "radix_trie",
- "regex",
  "serde",
  "serde_json",
  "serde_with",
