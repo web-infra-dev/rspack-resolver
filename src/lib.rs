@@ -838,7 +838,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ) -> Result<Option<CachedPath>, ResolveError> {
         let pnp_manifest = self.find_pnp_manifest(cached_path);
 
-
+        println!("try load pnp_manifest");
 
         if let Some(pnp_manifest) = pnp_manifest.as_ref() {
             // `resolve_to_unqualified` requires a trailing slash
@@ -884,6 +884,8 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                 Err(_) => Err(ResolveError::NotFound(specifier.to_string())),
             }
         } else {
+        println!("try load pnp_manifest:failed");
+
             Ok(None)
         }
     }
