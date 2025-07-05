@@ -41,4 +41,4 @@ jobs:
       - uses: Boshen/setup-rust@main
         with:
           cache-key: warm
-      - run: cargo test --all-features pnp
+      - run: cargo test --all-features pnp -- --nocapture

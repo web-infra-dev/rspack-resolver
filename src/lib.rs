@@ -838,9 +838,14 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ) -> Result<Option<CachedPath>, ResolveError> {
         let pnp_manifest = self.find_pnp_manifest(cached_path);
 
+
+
         if let Some(pnp_manifest) = pnp_manifest.as_ref() {
             // `resolve_to_unqualified` requires a trailing slash
             let mut path = cached_path.to_path_buf();
+
+                dbg!(&path);
+
             path.push("");
 
             let resolution =
