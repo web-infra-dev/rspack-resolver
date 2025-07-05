@@ -25,13 +25,13 @@ runs:
         echo "Corepack version: $(corepack --version)"
         corepack enable
 
+    - name: pnpm
+      shell: bash
+      run: |
+        pnpm install
+
     - name: yarn
       shell: bash
       run: |
         cd fixtures/pnp
         yarn install
-
-    - name: pnpm
-      shell: bash
-      run: |
-        pnpm install
