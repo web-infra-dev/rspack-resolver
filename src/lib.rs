@@ -821,12 +821,22 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                 pnp::find_closest_pnp_manifest_path(base_path).map(|p| self.cache.value(&p))
             });
 
+        if cached_manifest_path.is_none() {
+            println!("find_pnp_manifest: failed");
+        }
+
+
         let cache_key = cached_manifest_path.as_ref().unwrap_or(cached_path);
+
+        println!("the cache key is {:?}", cache_key.path());
 
         let entry = self
             .pnp_manifest_content_cache
             .entry(cache_key.clone())
             .or_insert_with(|| pnp::load_pnp_manifest(cache_key.path()).ok());
+        if entry.is_none() {
+            println!("load pnpm manifest: failed");
+        }
 
         entry.downgrade()
     }
