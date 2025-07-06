@@ -3,7 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize]
+    types: [ opened, synchronize ]
     paths-ignore:
       - '**/*.md'
       - '!.github/workflows/ci.yml'
@@ -42,4 +42,12 @@ jobs:
         with:
           cache-key: warm
       - run: find fixtures/pnp
+      - uses: actions/upload-artifact@v4
+        name: pnp.cjs upload
+        with:
+          name: pnp-${{ matrix.os }}.cjs
+          path: |
+            ./fixtures/pnp/.pnp.cjs
+          if-no-files-found: error
+          include-hidden-files: true
       - run: cargo test --all-features pnp -- --nocapture

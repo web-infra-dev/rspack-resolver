@@ -95,6 +95,7 @@ use crate::{
     tsconfig::{ProjectReference, TsConfig},
 };
 use futures::future::{try_join_all, BoxFuture};
+use pnp::{Error, Manifest};
 
 type ResolveResult = Result<Option<CachedPath>, ResolveError>;
 
@@ -825,15 +826,21 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
             println!("find_pnp_manifest: failed");
         }
 
-
         let cache_key = cached_manifest_path.as_ref().unwrap_or(cached_path);
 
         println!("the cache key is {:?}", cache_key.path());
 
-        let entry = self
-            .pnp_manifest_content_cache
-            .entry(cache_key.clone())
-            .or_insert_with(|| pnp::load_pnp_manifest(cache_key.path()).ok());
+        let entry = self.pnp_manifest_content_cache.entry(cache_key.clone()).or_insert_with(|| {
+            let x = pnp::load_pnp_manifest(cache_key.path());
+
+            match x {
+                Ok(m) => Some(m),
+                Err(e) => {
+                    println!("load manfiest with error {:?}", e);
+                    None
+                }
+            }
+        });
         if entry.is_none() {
             println!("load pnpm manifest: failed");
         }
@@ -856,7 +863,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
             // `resolve_to_unqualified` requires a trailing slash
             let mut path = cached_path.to_path_buf();
 
-                dbg!(&path);
+            dbg!(&path);
 
             path.push("");
 
@@ -896,7 +903,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                 Err(_) => Err(ResolveError::NotFound(specifier.to_string())),
             }
         } else {
-        println!("try load pnp_manifest:failed");
+            println!("try load pnp_manifest:failed");
 
             Ok(None)
         }
