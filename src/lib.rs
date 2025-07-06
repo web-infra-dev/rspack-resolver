@@ -814,6 +814,8 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ) -> Ref<'_, CachedPath, Option<pnp::Manifest>> {
         let base_path = cached_path.to_path_buf();
 
+        println!("find_pnp_manifest: {:?}", base_path.as_path());
+
         let cached_manifest_path =
             self.pnp_manifest_path_cache.entry(base_path.clone()).or_insert_with(|| {
                 pnp::find_closest_pnp_manifest_path(base_path).map(|p| self.cache.value(&p))
