@@ -816,7 +816,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
         let cached_manifest_path =
             self.pnp_manifest_path_cache.entry(base_path.clone()).or_insert_with(|| {
-                pnp::find_closest_pnp_manifest_path(base_path).map(|p| self.cache.value(&p))
+                pnp::find_closest_pnp_manifest_path(&base_path).map(|p| self.cache.value(&p))
             });
 
         let cache_key = cached_manifest_path.as_ref().unwrap_or(cached_path);
@@ -844,7 +844,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
             path.push("");
 
             let resolution =
-                pnp::resolve_to_unqualified_via_manifest(pnp_manifest, specifier, path);
+                pnp::resolve_to_unqualified_via_manifest(pnp_manifest, specifier, &path);
 
             match resolution {
                 Ok(pnp::Resolution::Resolved(path, subpath)) => {
