@@ -2,18 +2,28 @@ name: Release Plz
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+    inputs:
+      commit:
+        required: true
+        type: string
+        description: "Full Commit SHA to release"
+      dry_run:
+        type: boolean
+        description: "DryRun release"
+        required: false
+        default: false
 
 permissions:
-  pull-requests: write
+  # trust publish needs
+  id-token: write
+  # push tag
   contents: write
 
 jobs:
   release-plz:
     name: Release-plz
     runs-on: ubuntu-latest
+    environment: crate
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,32 +34,28 @@ jobs:
           save-cache: ${{ github.ref_name == 'main' }}
           cache-key: warm
 
-      - name: Run release-plz
-        id: release-plz
-        uses: MarcoIeni/release-plz-action@v0.5
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
+      - name: Publish
+        run: cargo publish
+        if: ${{ !inputs.dry_run }}
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
-      # - name: Bump package.json
-      #   if: ${{ steps.release-plz.outputs.prs_created }}
-      #   env:
-      #     GH_TOKEN: ${{ github.token }}
-      #     RELEASES: ${{ steps.release-plz.outputs.releases }}
-      #     PR: ${{ steps.release-plz.outputs.pr }}
-      #   run: |
-      #     set -e
+      - name: Dry Run Publish
+        run: cargo publish --dry-run
+        if: inputs.dry_run
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
-      #     pr_number=${{ fromJSON(steps.release-plz.outputs.pr).number }}
-      #     if [[ -n "$pr_number" ]]; then
-      #       version=$(echo "$RELEASES" | jq -r '.[0].version')
-      #       echo "version: $version"
-
-      #       jq --arg version "${version}" '.version = ($version)' npm/package.json > tmp
-      #       mv tmp npm/package.json
-
-      #       gh pr checkout $pr_number
-      #       git add .
-      #       git commit -m "Update package.json"
-      #       git push
-      #     fi
+      - name: Push tag
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "rspack_resolver") | .version')
+          echo tagging v$version
+          git config --global --add safe.directory /github/workspace
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git status
+          git tag v$version -m v$version
+          git push origin --follow-tags

@@ -36,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: taiki-e/checkout-action@v1
-
+      - uses: ./.github/actions/pnpm
       - uses: Boshen/setup-rust@main
         with:
           save-cache: ${{ github.ref_name == 'main' }}
@@ -52,6 +52,9 @@ jobs:
         if: ${{ github.ref_name == 'main' }}
         run: cargo test --all-features --no-run
 
+      - name: Build Node Bindings
+        run: |
+          npm run build:binding:release
   wasm:
     name: Check Wasm
     runs-on: ubuntu-latest
