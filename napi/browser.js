@@ -1,1 +1,1 @@
-export * from '@rspack/resolver-binding-wasm32-wasi'
+export * from "@rspack/resolver-binding-wasm32-wasi";

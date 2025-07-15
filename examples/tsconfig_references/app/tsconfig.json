@@ -3,7 +3,7 @@
     "paths": {
       "foo": ["./mock_foo"],
       "a": ["../component/src"]
-    },
+    }
   },
   "references": [
     {

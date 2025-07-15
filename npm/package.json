@@ -4,11 +4,7 @@
   "description": "Rspack Resolver Node API",
   "main": "index.js",
   "browser": "browser.js",
-  "files": [
-    "index.d.ts",
-    "index.js",
-    "browser.js"
-  ],
+  "files": ["index.d.ts", "index.js", "browser.js"],
   "license": "MIT",
   "homepage": "https://github.com/web-infra-dev/rspack-resolver",
   "repository": {

@@ -5,15 +5,15 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths-ignore:
-      - '**/*.md'
-      - '!.github/workflows/ci.yml'
+      - "**/*.md"
+      - "!.github/workflows/ci.yml"
   push:
     branches:
       - main
       - "renovate/**"
     paths-ignore:
-      - '**/*.md'
-      - '!.github/workflows/ci.yml'
+      - "**/*.md"
+      - "!.github/workflows/ci.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -43,7 +43,7 @@ jobs:
           cache-key: warm
 
       - run: cargo check --all-features --locked
-        
+
       - name: Publish Dry-run Check
         run: cargo publish --dry-run
 
@@ -53,7 +53,7 @@ jobs:
         run: cargo test --all-features --no-run
       - name: Prettier Check
         run: |
-          npm run prettier
+          npm run prettier:ci
 
   wasm:
     name: Check Wasm

@@ -10,6 +10,7 @@
     "prepublishOnly": "napi pre-publish -t npm --package-json-path npm/package.json --npm-dir bindings",
     "test": "ava",
     "prettier": "prettier --check .",
+    "prettier:ci": "prettier --list-different .",
     "format": "prettier --write ."
   },
   "devDependencies": {
@@ -27,9 +28,7 @@
     "zx": "^8.5.2"
   },
   "ava": {
-    "files": [
-      "napi/__test__/*.spec.mjs"
-    ],
+    "files": ["napi/__test__/*.spec.mjs"],
     "cache": false
   },
   "packageManager": "pnpm@9.11.0",

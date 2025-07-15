@@ -2,19 +2,19 @@ const TsconfigPathsPlugin = require("tsconfig-paths-webpack-plugin");
 
 module.exports = {
   entry: {
-    main: "./src/index.ts",
+    main: "./src/index.ts"
   },
   module: {
     rules: [
       {
         test: /\.tsx?$/,
-        type: "javascript/auto",
-      },
-    ],
+        type: "javascript/auto"
+      }
+    ]
   },
   optimization: {
     minimize: false,
-    moduleIds: "named",
+    moduleIds: "named"
   },
   resolve: {
     extensions: [".tsx", ".ts", "..."],
@@ -24,10 +24,10 @@ module.exports = {
         extensions: [".tsx", ".ts", ".js"],
         baseUrl: "./",
         logInfoToStdOut: true,
-        configFile: "./tsconfig.json",
+        configFile: "./tsconfig.json"
         // uncomment this see different generated files
         // references: ["../component/tsconfig.json"],
-      }),
-    ],
-  },
+      })
+    ]
+  }
 };
