@@ -52,6 +52,7 @@ jobs:
         if: ${{ github.ref_name == 'main' }}
         run: cargo test --all-features --no-run
       - name: Prettier Check
+        if: ${{ matrix.os != 'windows-latest' }}
         run: |
           npm run prettier:ci
 
