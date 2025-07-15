@@ -46,7 +46,7 @@ fn create_symlinks() -> io::Result<PathBuf> {
     Ok(temp_path)
 }
 
-fn oxc_resolver() -> rspack_resolver::Resolver {
+fn rspack_resolver() -> rspack_resolver::Resolver {
     use rspack_resolver::{AliasValue, ResolveOptions, Resolver};
     let alias_value = AliasValue::from("./");
     Resolver::new(ResolveOptions {
@@ -86,12 +86,12 @@ fn oxc_resolver() -> rspack_resolver::Resolver {
 }
 
 fn create_async_resolve_task(
-    oxc_resolver: Arc<rspack_resolver::Resolver>,
+    rspack_resolver: Arc<rspack_resolver::Resolver>,
     path: PathBuf,
     request: String,
 ) -> impl Future<Output = ()> {
     async move {
-        let _ = oxc_resolver.resolve(path, &request).await;
+        let _ = rspack_resolver.resolve(path, &request).await;
     }
 }
 
@@ -111,7 +111,7 @@ fn bench_resolver(c: &mut Criterion) {
     // check validity
     runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
         for (path, request) in &data {
-            let r = oxc_resolver().resolve(path, request).await;
+            let r = rspack_resolver().resolve(path, request).await;
             if !r.is_ok() {
                 panic!("resolve failed {path:?} {request},\n\nplease run `pnpm install --ignore-workspace` in `/benches` before running the benchmarks");
             }
@@ -126,7 +126,7 @@ fn bench_resolver(c: &mut Criterion) {
     runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
         for i in symlinks_range.clone() {
             assert!(
-                oxc_resolver().resolve(&symlink_test_dir, &format!("./file{i}")).await.is_ok(),
+                rspack_resolver().resolve(&symlink_test_dir, &format!("./file{i}")).await.is_ok(),
                 "file{i}.js"
             );
         }
@@ -151,15 +151,15 @@ fn bench_resolver(c: &mut Criterion) {
     group.bench_with_input(BenchmarkId::from_parameter("single-thread"), &data, |b, data| {
         let runner =
             runtime::Builder::new_current_thread().build().expect("failed to create tokio runtime");
-        let oxc_resolver = oxc_resolver();
+        let rspack_resolver = rspack_resolver();
 
         b.to_async(runner).iter_with_setup(
             || {
-                oxc_resolver.clear_cache();
+                rspack_resolver.clear_cache();
             },
             |_| async {
                 for (path, request) in data {
-                    _ = oxc_resolver.resolve(path, request).await;
+                    _ = rspack_resolver.resolve(path, request).await;
                 }
             },
         );
@@ -167,18 +167,18 @@ fn bench_resolver(c: &mut Criterion) {
 
     group.bench_with_input(BenchmarkId::from_parameter("multi-thread"), &data, |b, data| {
         let runner = multi_rt();
-        let oxc_resolver = Arc::new(oxc_resolver());
+        let rspack_resolver = Arc::new(rspack_resolver());
 
         b.iter_with_setup(
             || {
-                oxc_resolver.clear_cache();
+                rspack_resolver.clear_cache();
             },
             |_| {
                 runner.block_on(async {
                     let mut join_set = JoinSet::new();
                     data.iter().for_each(|(path, request)| {
                         join_set.spawn(create_async_resolve_task(
-                            oxc_resolver.clone(),
+                            rspack_resolver.clone(),
                             path.to_path_buf(),
                             request.to_string(),
                         ));
@@ -194,16 +194,16 @@ fn bench_resolver(c: &mut Criterion) {
         &symlinks_range,
         |b, data| {
             let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
-            let oxc_resolver = oxc_resolver();
+            let rspack_resolver = rspack_resolver();
 
             b.to_async(runner).iter_with_setup(
                 || {
-                    oxc_resolver.clear_cache();
+                    rspack_resolver.clear_cache();
                 },
                 |_| async {
                     for i in data.clone() {
                         assert!(
-                            oxc_resolver
+                            rspack_resolver
                                 .resolve(&symlink_test_dir, &format!("./file{i}"))
                                 .await
                                 .is_ok(),
@@ -220,7 +220,7 @@ fn bench_resolver(c: &mut Criterion) {
         &symlinks_range,
         |b, data| {
             let runner = multi_rt();
-            let oxc_resolver = Arc::new(oxc_resolver());
+            let rspack_resolver = Arc::new(rspack_resolver());
 
             let symlink_test_dir = symlink_test_dir.clone();
 
@@ -229,7 +229,7 @@ fn bench_resolver(c: &mut Criterion) {
 
                 data.clone().for_each(|i| {
                     join_set.spawn(create_async_resolve_task(
-                        oxc_resolver.clone(),
+                        rspack_resolver.clone(),
                         symlink_test_dir.clone(),
                         format!("./file{i}").to_string(),
                     ));
@@ -244,16 +244,16 @@ fn bench_resolver(c: &mut Criterion) {
 
     group.bench_with_input(BenchmarkId::from_parameter("pnp resolve"), &root_range, |b, data| {
         let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
-        let oxc_resolver = Arc::new(oxc_resolver());
+        let rspack_resolver = Arc::new(rspack_resolver());
 
         b.to_async(runner).iter_with_setup(
             || {
-                oxc_resolver.clear_cache();
+                rspack_resolver.clear_cache();
             },
             |_| async {
                 for i in data.clone() {
                     let _ =
-                        oxc_resolver.resolve(pnp_workspace.join(format!("{i}")), "preact").await;
+                        rspack_resolver.resolve(pnp_workspace.join(format!("{i}")), "preact").await;
                 }
             },
         );

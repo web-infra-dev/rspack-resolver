@@ -19,7 +19,7 @@ describe("option", () => {
     });
     it("should allow json path array", () => {
       const resolver = new ResolverFactory({
-        aliasFields: [["innerBrowser1", "field", "browser"]],
+        aliasFields: [["innerBrowser1", "field", "browser"]]
       });
 
       assert.match(
@@ -30,7 +30,7 @@ describe("option", () => {
   });
 
   describe("exportsFields", () => {
-    const createTest = (exportsFields) => {
+    const createTest = exportsFields => {
       const resolver = new ResolverFactory({ exportsFields });
       assert.match(
         resolver.sync(
@@ -45,7 +45,7 @@ describe("option", () => {
   });
 
   describe("mainFields", () => {
-    const createTest = (mainFields) => {
+    const createTest = mainFields => {
       const resolver = new ResolverFactory({ mainFields });
       assert.match(
         resolver.sync(fixtureDir, "../..").path,

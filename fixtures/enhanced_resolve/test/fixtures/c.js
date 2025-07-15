@@ -1,4 +1,4 @@
 module.exports = function b() {
-	require("./a");
-	return "This is c";
+  require("./a");
+  return "This is c";
 };

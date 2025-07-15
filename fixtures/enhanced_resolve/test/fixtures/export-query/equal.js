@@ -1,1 +1,1 @@
-export const equal = (a, b) => a === b
+export const equal = (a, b) => a === b;
