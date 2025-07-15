@@ -17,6 +17,7 @@ napi-derive = { version = "3.0.0-alpha" }
 tracing-subscriber = { version = "0.3.18", default-features = false, features = [
   "std",
   "fmt",
+  "ansi"
 ] }
 regex = "1.11.1"
 

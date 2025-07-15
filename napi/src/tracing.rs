@@ -19,7 +19,13 @@ pub fn init_tracing() {
                     Targets::from_str(&env_var).unwrap()
                 },
             ))
-            .with(tracing_subscriber::fmt::layer())
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_target(true)
+                    .with_file(true)
+                    .with_line_number(true)
+                    .with_ansi(true),
+            )
             .init();
     });
 }

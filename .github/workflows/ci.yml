@@ -51,10 +51,6 @@ jobs:
       - name: Build cache by Cargo Check and Cargo Test
         if: ${{ github.ref_name == 'main' }}
         run: cargo test --all-features --no-run
-
-      - name: Build Node Bindings
-        run: |
-          npm run build:binding:release
   wasm:
     name: Check Wasm
     runs-on: ubuntu-latest
@@ -200,3 +196,7 @@ jobs:
           cache-key: warm
       - run: cargo test --doc
       - run: cargo test --all-features
+      - name: Test Node Bindings
+        run: |
+          npm run build:debug
+          npm test
