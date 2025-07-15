@@ -239,7 +239,7 @@ test('resolve pnpm package', (t) => {
   t.deepEqual(resolver.sync(pnpmProjectPath, 'styled-components'), {
     path: join(
       rootDir,
-      'node_modules/.pnpm/styled-components@6.1.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/styled-components/dist/styled-components.browser.cjs.js'
+      'node_modules/.pnpm/styled-components@6.1.1_react-dom@19.1.0_react@18.3.1__react@18.3.1/node_modules/styled-components/dist/styled-components.browser.cjs.js'
     ),
   })
   t.deepEqual(
@@ -284,6 +284,6 @@ test("resolve in pnp project", (t) => {
   const resolver = new ResolverFactory({enablePnp: true});
 
   t.deepEqual(resolver.sync(pnpProjectRoot, "is-even"), {
-    path: join(rootDir, 'node_modules/.pnpm/styled-components@6.1.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/styled-components/dist/styled-components.browser.cjs.js'),
+    path: join(pnpProjectRoot, '.yarn/cache/is-even-npm-1.0.0-9f726520dc-2728cc2f39.zip/node_modules/is-even/index.js'),
   })
 });
