@@ -241,10 +241,10 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         let r = self.resolve_impl(directory, specifier, ctx).await;
         match &r {
             Ok(r) => {
-                tracing::debug!(options = ?self.options, path = ?directory, specifier = specifier, ret = ?r.path);
+                tracing::debug!(options = ?self.options, ret = ?r.path);
             }
             Err(err) => {
-                tracing::debug!(options = ?self.options, path = ?directory, specifier = specifier, err = ?err);
+                tracing::debug!(options = ?self.options, err = ?err);
             }
         };
         r
@@ -821,6 +821,8 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
         let cache_key = cached_manifest_path.as_ref().unwrap_or(cached_path);
 
+        tracing::debug!("use manifest path: {:?}", cache_key.path());
+
         let entry = self
             .pnp_manifest_content_cache
             .entry(cache_key.clone())
@@ -845,6 +847,8 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
             let resolution =
                 pnp::resolve_to_unqualified_via_manifest(pnp_manifest, specifier, &path);
+
+            tracing::debug!("pnp resolve unqualified as: {:?}", resolution);
 
             match resolution {
                 Ok(pnp::Resolution::Resolved(path, subpath)) => {

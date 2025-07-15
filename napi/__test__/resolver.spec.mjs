@@ -277,3 +277,13 @@ test('resolve recursive symbol link', (t) => {
     }
   )
 })
+
+test("resolve in pnp project", (t) => {
+  const rootDir = join(currentDir, '..', '..')
+  const pnpProjectRoot = join(rootDir, 'fixtures', 'pnp')
+  const resolver = new ResolverFactory({enablePnp: true});
+
+  t.deepEqual(resolver.sync(pnpProjectRoot, "is-even"), {
+    path: join(rootDir, 'node_modules/.pnpm/styled-components@6.1.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/styled-components/dist/styled-components.browser.cjs.js'),
+  })
+});
