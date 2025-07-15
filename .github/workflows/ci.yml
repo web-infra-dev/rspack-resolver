@@ -51,6 +51,10 @@ jobs:
       - name: Build cache by Cargo Check and Cargo Test
         if: ${{ github.ref_name == 'main' }}
         run: cargo test --all-features --no-run
+      - name: Prettier Check
+        run: |
+          npm run prettier
+
   wasm:
     name: Check Wasm
     runs-on: ubuntu-latest

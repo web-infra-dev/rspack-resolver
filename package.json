@@ -8,7 +8,9 @@
     "build:binding:profiling": "napi build --platform --profile profiling --package-json-path npm/package.json --manifest-path napi/Cargo.toml",
     "build:debug": "napi build --platform --package-json-path npm/package.json --manifest-path napi/Cargo.toml",
     "prepublishOnly": "napi pre-publish -t npm --package-json-path npm/package.json --npm-dir bindings",
-    "test": "ava"
+    "test": "ava",
+    "prettier": "prettier --check .",
+    "format": "prettier --write ."
   },
   "devDependencies": {
     "@actions/core": "^1.11.1",
@@ -19,6 +21,7 @@
     "ava": "^6.1.3",
     "commander": "^13.1.0",
     "emnapi": "^1.2.0",
+    "prettier": "^3.6.2",
     "semver": "^7.7.1",
     "typescript": "^5.5.3",
     "zx": "^8.5.2"
