@@ -465,7 +465,7 @@
     "http-cache-semantics": "^4.1.1",
     "http-errors": "^2.0.0",
     "http-proxy-agent": "^7.0.2",
-    "http-proxy-middleware": "^3.0.3",
+    "http-proxy-middleware": "^3.0.5",
     "http-signature": "^1.4.0",
     "https-proxy-agent": "^7.0.6",
     "husky": "^9.1.7",

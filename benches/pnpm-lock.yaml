@@ -1371,8 +1371,8 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2(supports-color@10.0.0)
       http-proxy-middleware:
-        specifier: ^3.0.3
-        version: 3.0.3(supports-color@10.0.0)
+        specifier: ^3.0.5
+        version: 3.0.5(supports-color@10.0.0)
       http-signature:
         specifier: ^1.4.0
         version: 1.4.0
@@ -8349,8 +8349,8 @@ packages:
       '@types/express':
         optional: true
 
-  http-proxy-middleware@3.0.3:
-    resolution: {integrity: sha512-usY0HG5nyDUwtqpiZdETNbmKtw3QQ1jwYFZ9wi5iHzX2BcILwQKtYDJPo7XHTsu5Z0B2Hj3W9NNnbd+AjFWjqg==}
+  http-proxy-middleware@3.0.5:
+    resolution: {integrity: sha512-GLZZm1X38BPY4lkXA01jhwxvDoOkkXqjgVyUzVxiEK4iuRu03PZoYHhHRwxnfhQMDuaxi3vVri0YgSro/1oWqg==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
   http-proxy@1.18.1:
@@ -18617,6 +18617,10 @@ snapshots:
     optionalDependencies:
       debug: 4.4.0(supports-color@10.0.0)
 
+  follow-redirects@1.15.9(debug@4.4.1(supports-color@10.0.0)):
+    optionalDependencies:
+      debug: 4.4.1(supports-color@10.0.0)
+
   for-each@0.3.5:
     dependencies:
       is-callable: 1.2.7
@@ -19087,11 +19091,11 @@ snapshots:
     transitivePeerDependencies:
       - debug
 
-  http-proxy-middleware@3.0.3(supports-color@10.0.0):
+  http-proxy-middleware@3.0.5(supports-color@10.0.0):
     dependencies:
       '@types/http-proxy': 1.17.16
-      debug: 4.4.0(supports-color@10.0.0)
-      http-proxy: 1.18.1(debug@4.4.0(supports-color@10.0.0))
+      debug: 4.4.1(supports-color@10.0.0)
+      http-proxy: 1.18.1(debug@4.4.1(supports-color@10.0.0))
       is-glob: 4.0.3
       is-plain-object: 5.0.0
       micromatch: 4.0.8
@@ -19102,6 +19106,14 @@ snapshots:
     dependencies:
       eventemitter3: 4.0.7
       follow-redirects: 1.15.9(debug@4.4.0(supports-color@10.0.0))
+      requires-port: 1.0.0
+    transitivePeerDependencies:
+      - debug
+
+  http-proxy@1.18.1(debug@4.4.1(supports-color@10.0.0)):
+    dependencies:
+      eventemitter3: 4.0.7
+      follow-redirects: 1.15.9(debug@4.4.1(supports-color@10.0.0))
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
