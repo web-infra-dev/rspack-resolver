@@ -186,7 +186,7 @@
     "available-typed-arrays": "^1.0.7",
     "aws-sdk": "^2.1692.0",
     "axe-core": "^4.10.3",
-    "axios": "1.6.2",
+    "axios": "^1.8.2",
     "axobject-query": "^4.1.0",
     "babel-jest": "^29.7.0",
     "babel-loader": "^10.0.0",
