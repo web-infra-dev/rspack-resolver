@@ -3,6 +3,10 @@ name: Release Full
 on:
   workflow_dispatch:
     inputs:
+      commit:
+        required: true
+        type: string
+        description: "Full Commit SHA to release"
       tag:
         type: choice
         description: "Release Npm Tag"
@@ -67,6 +71,7 @@ jobs:
       runner: ${{ matrix.array.runner }}
       test: false
       profile: "release"
+      ref: ${{ inputs.commit }}
 
   release:
     name: Release
@@ -84,6 +89,7 @@ jobs:
         with:
           # This makes Actions fetch only one branch to release
           fetch-depth: 1
+          ref: ${{ inputs.commit }}
 
       - name: Pnpm Setup
         uses: ./.github/actions/pnpm
