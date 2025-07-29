@@ -59,11 +59,12 @@ impl ResolverFactory {
     #[napi(constructor)]
     pub fn new(options: Option<NapiResolveOptions>) -> Self {
         init_tracing();
-        let options = options.map_or_else(|| ResolveOptions::default(), Self::normalize_options);
+        let options = options.map_or_else(ResolveOptions::default, Self::normalize_options);
         Self { resolver: Arc::new(Resolver::new(options)) }
     }
 
     #[napi]
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Self {
         let default_options = ResolveOptions::default();
         Self { resolver: Arc::new(Resolver::new(default_options)) }
