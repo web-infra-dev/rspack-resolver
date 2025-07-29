@@ -278,12 +278,13 @@ test("resolve recursive symbol link", t => {
   );
 });
 
+// WASM doesn't support pnp
 if (!process.env.WASI_TEST) {
   test("resolve in pnp project", t => {
     const rootDir = join(currentDir, "..", "..");
     const pnpProjectRoot = join(rootDir, "fixtures", "pnp");
     const resolver = new ResolverFactory({ enablePnp: true });
-  
+
     t.deepEqual(resolver.sync(pnpProjectRoot, "is-even"), {
       path: join(
         pnpProjectRoot,
