@@ -237,6 +237,62 @@ impl FileSystem for FileSystemOs {
         }
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+#[async_trait::async_trait]
+impl FileSystem for FileSystemOs {
+    async fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
+        std::fs::read(path)
+    }
+
+    async fn read_to_string(&self, path: &Path) -> io::Result<String> {
+        std::fs::read_to_string(path)
+    }
+
+    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        std::fs::metadata(path).map(FileMetadata::from)
+    }
+
+    async fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        std::fs::symlink_metadata(path).map(FileMetadata::from)
+    }
+
+    async fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+        use std::path::Component;
+        let mut path_buf = path.to_path_buf();
+        loop {
+            let link = fs::read_link(&path_buf)?;
+            path_buf.pop();
+            for component in link.components() {
+                match component {
+                    Component::ParentDir => {
+                        path_buf.pop();
+                    }
+                    Component::Normal(seg) => {
+                        #[cfg(target_family = "wasm")]
+                        // Need to trim the extra \0 introduces by https://github.com/nodejs/uvwasi/issues/262
+                        {
+                            path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
+                        }
+                        #[cfg(not(target_family = "wasm"))]
+                        {
+                            path_buf.push(seg);
+                        }
+                    }
+                    Component::RootDir => {
+                        path_buf = PathBuf::from("/");
+                    }
+                    Component::CurDir | Component::Prefix(_) => {}
+                }
+            }
+            if !fs::symlink_metadata(&path_buf)?.is_symlink() {
+                break;
+            }
+        }
+        Ok(path_buf)
+    }
+}
+
 #[tokio::test]
 async fn metadata() {
     let meta = FileMetadata { is_file: true, is_dir: true, is_symlink: true };
