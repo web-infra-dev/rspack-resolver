@@ -362,5 +362,6 @@ if (!nativeBinding) {
 }
 
 module.exports.ResolverFactory = nativeBinding.ResolverFactory;
+module.exports.async = nativeBinding.async;
 module.exports.EnforceExtension = nativeBinding.EnforceExtension;
 module.exports.sync = nativeBinding.sync;
