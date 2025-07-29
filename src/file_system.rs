@@ -197,44 +197,7 @@ impl FileSystem for FileSystemOs {
             }
         }
 
-        cfg_if! {
-        if #[cfg(not(target_os = "wasi"))]{
-            dunce::canonicalize(path)
-        } else {
-            use std::path::Component;
-            let mut path_buf = path.to_path_buf();
-            loop {
-                let link = fs::read_link(&path_buf)?;
-                path_buf.pop();
-                for component in link.components() {
-                    match component {
-                        Component::ParentDir => {
-                            path_buf.pop();
-                        }
-                        Component::Normal(seg) => {
-                            #[cfg(target_family = "wasm")]
-                            // Need to trim the extra \0 introduces by https://github.com/nodejs/uvwasi/issues/262
-                            {
-                                path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
-                            }
-                            #[cfg(not(target_family = "wasm"))]
-                            {
-                                path_buf.push(seg);
-                            }
-                        }
-                        Component::RootDir => {
-                            path_buf = PathBuf::from("/");
-                        }
-                        Component::CurDir | Component::Prefix(_) => {}
-                    }
-                }
-                if !fs::symlink_metadata(&path_buf)?.is_symlink() {
-                    break;
-                }
-            }
-            Ok(path_buf)
-            }
-        }
+        dunce::canonicalize(path)
     }
 }
 
