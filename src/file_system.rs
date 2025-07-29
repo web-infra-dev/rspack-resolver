@@ -197,46 +197,66 @@ impl FileSystem for FileSystemOs {
             }
         }
 
-        cfg_if! {
-        if #[cfg(not(target_os = "wasi"))]{
-            dunce::canonicalize(path)
-        } else {
-            use std::path::Component;
-            let mut path_buf = path.to_path_buf();
-            loop {
-                let link = fs::read_link(&path_buf)?;
-                path_buf.pop();
-                for component in link.components() {
-                    match component {
-                        Component::ParentDir => {
-                            path_buf.pop();
-                        }
-                        Component::Normal(seg) => {
-                            #[cfg(target_family = "wasm")]
-                            // Need to trim the extra \0 introduces by https://github.com/nodejs/uvwasi/issues/262
-                            {
-                                path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
-                            }
-                            #[cfg(not(target_family = "wasm"))]
-                            {
-                                path_buf.push(seg);
-                            }
-                        }
-                        Component::RootDir => {
-                            path_buf = PathBuf::from("/");
-                        }
-                        Component::CurDir | Component::Prefix(_) => {}
-                    }
-                }
-                if !fs::symlink_metadata(&path_buf)?.is_symlink() {
-                    break;
-                }
-            }
-            Ok(path_buf)
-            }
-        }
+        dunce::canonicalize(path)
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+#[async_trait::async_trait]
+impl FileSystem for FileSystemOs {
+    async fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
+        std::fs::read(path)
+    }
+
+    async fn read_to_string(&self, path: &Path) -> io::Result<String> {
+        std::fs::read_to_string(path)
+    }
+
+    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        // This implementation is verbose because there might be something wrong node wasm runtime.
+        // I will investigate it in the future.
+        if let Ok(m) = std::fs::metadata(path).map(FileMetadata::from) {
+            return Ok(m);
+        }
+
+        self.symlink_metadata(path).await?;
+        let path = self.canonicalize(path).await?;
+        std::fs::metadata(path).map(FileMetadata::from)
+    }
+
+    async fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        std::fs::symlink_metadata(path).map(FileMetadata::from)
+    }
+
+    async fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+        use std::path::Component;
+        let mut path_buf = path.to_path_buf();
+        let link = fs::read_link(&path_buf)?;
+        path_buf.pop();
+        for component in link.components() {
+            match component {
+                Component::ParentDir => {
+                    path_buf.pop();
+                }
+                Component::Normal(seg) => {
+                    path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
+                }
+                Component::RootDir => {
+                    path_buf = PathBuf::from("/");
+                }
+                Component::CurDir | Component::Prefix(_) => {}
+            }
+
+            // This is not performant, we may optimize it with cache in the future
+            if fs::symlink_metadata(&path_buf).is_ok_and(|m| m.is_symlink()) {
+                let dir = self.canonicalize(&path_buf).await?;
+                path_buf = dir;
+            }
+        }
+        Ok(path_buf)
+    }
+}
+
 #[tokio::test]
 async fn metadata() {
     let meta = FileMetadata { is_file: true, is_dir: true, is_symlink: true };

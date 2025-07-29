@@ -278,15 +278,18 @@ test("resolve recursive symbol link", t => {
   );
 });
 
-test("resolve in pnp project", t => {
-  const rootDir = join(currentDir, "..", "..");
-  const pnpProjectRoot = join(rootDir, "fixtures", "pnp");
-  const resolver = new ResolverFactory({ enablePnp: true });
+// WASM doesn't support pnp
+if (!process.env.WASI_TEST) {
+  test("resolve in pnp project", t => {
+    const rootDir = join(currentDir, "..", "..");
+    const pnpProjectRoot = join(rootDir, "fixtures", "pnp");
+    const resolver = new ResolverFactory({ enablePnp: true });
 
-  t.deepEqual(resolver.sync(pnpProjectRoot, "is-even"), {
-    path: join(
-      pnpProjectRoot,
-      ".yarn/cache/is-even-npm-1.0.0-9f726520dc-2728cc2f39.zip/node_modules/is-even/index.js"
-    )
+    t.deepEqual(resolver.sync(pnpProjectRoot, "is-even"), {
+      path: join(
+        pnpProjectRoot,
+        ".yarn/cache/is-even-npm-1.0.0-9f726520dc-2728cc2f39.zip/node_modules/is-even/index.js"
+      )
+    });
   });
-});
+}
