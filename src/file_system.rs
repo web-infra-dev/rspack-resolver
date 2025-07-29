@@ -223,25 +223,25 @@ impl FileSystem for FileSystemOs {
     async fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
         use std::path::Component;
         let mut path_buf = path.to_path_buf();
-        loop {
-            let link = fs::read_link(&path_buf)?;
-            path_buf.pop();
-            for component in link.components() {
-                match component {
-                    Component::ParentDir => {
-                        path_buf.pop();
-                    }
-                    Component::Normal(seg) => {
-                        path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
-                    }
-                    Component::RootDir => {
-                        path_buf = PathBuf::from("/");
-                    }
-                    Component::CurDir | Component::Prefix(_) => {}
+        let link = fs::read_link(&path_buf)?;
+        path_buf.pop();
+        for component in link.components() {
+            match component {
+                Component::ParentDir => {
+                    path_buf.pop();
                 }
+                Component::Normal(seg) => {
+                    path_buf.push(seg.to_string_lossy().trim_end_matches('\0'));
+                }
+                Component::RootDir => {
+                    path_buf = PathBuf::from("/");
+                }
+                Component::CurDir | Component::Prefix(_) => {}
             }
-            if !fs::symlink_metadata(&path_buf)?.is_symlink() {
-                break;
+
+            if fs::symlink_metadata(&path_buf).is_ok_and(|m| m.is_symlink()) {
+                let dir = self.canonicalize(&path_buf).await?;
+                path_buf = dir;
             }
         }
         Ok(path_buf)
