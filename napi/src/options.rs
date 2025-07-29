@@ -217,7 +217,8 @@ impl From<Restriction> for rspack_resolver::Restriction {
                 panic!("Should specify path or regex")
             }
             (None, Some(regex)) => {
-                let re = Regex::new(&regex).expect(&format!("Invalid regex pattern: {}", regex));
+                let re =
+                    Regex::new(&regex).unwrap_or_else(|_| panic!("Invalid regex pattern: {regex}"));
                 Self::Fn(Arc::new(move |path| re.is_match(path.to_str().unwrap_or_default())))
             }
             (Some(path), None) => Self::Path(PathBuf::from(path)),
