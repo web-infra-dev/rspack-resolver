@@ -263,8 +263,6 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
         let package_json =
             cached_path.find_package_json(&self.cache.fs, &self.options, ctx).await?;
-        // FIXME: something wrong with [std::fs::metadata] in wasm
-        #[cfg(not(target_arch = "wasm32"))]
         if let Some(package_json) = &package_json {
             // path must be inside the package.
             debug_assert!(path.starts_with(package_json.directory()));

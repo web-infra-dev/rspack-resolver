@@ -213,6 +213,14 @@ impl FileSystem for FileSystemOs {
     }
 
     async fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        // This implementation is verbose because there might be something wrong node wasm runtime.
+        // I will investigate it in the future.
+        if let Ok(m) = std::fs::metadata(path).map(FileMetadata::from) {
+            return Ok(m);
+        }
+
+        self.symlink_metadata(path).await?;
+        let path = self.canonicalize(path).await?;
         std::fs::metadata(path).map(FileMetadata::from)
     }
 
