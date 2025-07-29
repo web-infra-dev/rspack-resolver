@@ -247,7 +247,7 @@ impl From<TsconfigOptions> for rspack_resolver::TsconfigOptions {
                     rspack_resolver::TsconfigReferences::Auto
                 }
                 Some(Either::A(opt)) => {
-                    panic!("`{opt}` is not a valid option for  tsconfig references")
+                    panic!("`{opt}` is not a valid option for tsconfig references")
                 }
                 Some(Either::B(paths)) => rspack_resolver::TsconfigReferences::Paths(
                     paths.into_iter().map(PathBuf::from).collect::<Vec<_>>(),
