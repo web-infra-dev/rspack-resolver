@@ -239,6 +239,7 @@ impl FileSystem for FileSystemOs {
                 Component::CurDir | Component::Prefix(_) => {}
             }
 
+            // This is not performant, we may optimize it with cache in the future
             if fs::symlink_metadata(&path_buf).is_ok_and(|m| m.is_symlink()) {
                 let dir = self.canonicalize(&path_buf).await?;
                 path_buf = dir;
