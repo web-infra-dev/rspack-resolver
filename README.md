@@ -30,6 +30,15 @@ const result = resolver.sync(contextPath, "./noExist.js");
 // result => { error: "Cannot find module './noExist.js'" }
 ```
 
+There's also an equivalent async API:
+
+```js
+import * as resolver from "@rspack/resolver";
+
+// Use the opinionated sync resolver with default options
+const { path: resolvedPath } = await resolver.async(contextPath, "./index.js");
+```
+
 ### Custom Resolver with Options
 
 You can customize the resolver using `ResolverFactory`:
