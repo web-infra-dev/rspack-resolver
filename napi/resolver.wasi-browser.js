@@ -67,9 +67,11 @@ function __napi_rs_initialize_modules(__napiInstance) {
   __napiInstance.exports["__napi_register__TsconfigOptions_struct_3"]?.();
   __napiInstance.exports["__napi_register__ResolveResult_struct_4"]?.();
   __napiInstance.exports["__napi_register__sync_5"]?.();
-  __napiInstance.exports["__napi_register__ResolverFactory_struct_6"]?.();
-  __napiInstance.exports["__napi_register__ResolverFactory_impl_13"]?.();
+  __napiInstance.exports["__napi_register__async__6"]?.();
+  __napiInstance.exports["__napi_register__ResolverFactory_struct_7"]?.();
+  __napiInstance.exports["__napi_register__ResolverFactory_impl_14"]?.();
 }
 export const ResolverFactory = __napiModule.exports.ResolverFactory;
+export const async = __napiModule.exports.async;
 export const EnforceExtension = __napiModule.exports.EnforceExtension;
 export const sync = __napiModule.exports.sync;
