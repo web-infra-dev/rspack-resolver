@@ -4,13 +4,13 @@ use crate::{ResolveError, ResolveOptions, Resolver};
 
 #[tokio::test]
 async fn resolve() {
-    let f = super::fixture();
+  let f = super::fixture();
 
-    let resolver = Resolver::default();
+  let resolver = Resolver::default();
 
-    let main1_js_path = f.join("main1.js").to_string_lossy().to_string();
+  let main1_js_path = f.join("main1.js").to_string_lossy().to_string();
 
-    #[rustfmt::skip]
+  #[rustfmt::skip]
     let pass = [
         ("absolute path", f.clone(), main1_js_path.as_str(), f.join("main1.js")),
         ("file with .js", f.clone(), "./main1.js", f.join("main1.js")),
@@ -52,51 +52,68 @@ async fn resolve() {
 
     ];
 
-    for (comment, path, request, expected) in pass {
-        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
-        assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
-    }
+  for (comment, path, request, expected) in pass {
+    let resolved_path = resolver
+      .resolve(&path, request)
+      .await
+      .map(|r| r.full_path());
+    assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
+  }
 }
 
 #[tokio::test]
 async fn issue238_resolve() {
-    let f = super::fixture().join("issue-238");
-    let resolver = Resolver::new(ResolveOptions {
-        extensions: vec![".js".into(), ".jsx".into(), ".ts".into(), ".tsx".into()],
-        modules: vec!["src/a".into(), "src/b".into(), "src/common".into(), "node_modules".into()],
-        ..ResolveOptions::default()
-    });
-    let resolved_path =
-        resolver.resolve(f.join("src/common"), "config/myObjectFile").await.map(|r| r.full_path());
-    assert_eq!(resolved_path, Ok(f.join("src/common/config/myObjectFile.js")),);
+  let f = super::fixture().join("issue-238");
+  let resolver = Resolver::new(ResolveOptions {
+    extensions: vec![".js".into(), ".jsx".into(), ".ts".into(), ".tsx".into()],
+    modules: vec![
+      "src/a".into(),
+      "src/b".into(),
+      "src/common".into(),
+      "node_modules".into(),
+    ],
+    ..ResolveOptions::default()
+  });
+  let resolved_path = resolver
+    .resolve(f.join("src/common"), "config/myObjectFile")
+    .await
+    .map(|r| r.full_path());
+  assert_eq!(
+    resolved_path,
+    Ok(f.join("src/common/config/myObjectFile.js")),
+  );
 }
 
 #[tokio::test]
 async fn prefer_relative() {
-    let f = super::fixture();
+  let f = super::fixture();
 
-    let resolver =
-        Resolver::new(ResolveOptions { prefer_relative: true, ..ResolveOptions::default() });
+  let resolver = Resolver::new(ResolveOptions {
+    prefer_relative: true,
+    ..ResolveOptions::default()
+  });
 
-    #[rustfmt::skip]
+  #[rustfmt::skip]
     let pass = [
         ("should correctly resolve with preferRelative 1", "main1.js", f.join("main1.js")),
         ("should correctly resolve with preferRelative 2", "m1/a.js", f.join("node_modules/m1/a.js")),
     ];
 
-    for (comment, request, expected) in pass {
-        let resolved_path = resolver.resolve(&f, request).await.map(|r| r.full_path());
-        assert_eq!(resolved_path, Ok(expected), "{comment} {request}");
-    }
+  for (comment, request, expected) in pass {
+    let resolved_path = resolver.resolve(&f, request).await.map(|r| r.full_path());
+    assert_eq!(resolved_path, Ok(expected), "{comment} {request}");
+  }
 }
 
 #[tokio::test]
 async fn resolve_to_context() {
-    let f = super::fixture();
-    let resolver =
-        Resolver::new(ResolveOptions { resolve_to_context: true, ..ResolveOptions::default() });
+  let f = super::fixture();
+  let resolver = Resolver::new(ResolveOptions {
+    resolve_to_context: true,
+    ..ResolveOptions::default()
+  });
 
-    #[rustfmt::skip]
+  #[rustfmt::skip]
     let data = [
         ("context for fixtures", f.clone(), "./", f.clone()),
         ("context for fixtures/lib", f.clone(), "./lib", f.join("lib")),
@@ -104,16 +121,19 @@ async fn resolve_to_context() {
         ("context for fixtures with query", f.clone(), "./?query", f.clone().with_file_name("fixtures?query")),
     ];
 
-    for (comment, path, request, expected) in data {
-        let resolved_path = resolver.resolve(&path, request).await.map(|r| r.full_path());
-        assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
-    }
+  for (comment, path, request, expected) in data {
+    let resolved_path = resolver
+      .resolve(&path, request)
+      .await
+      .map(|r| r.full_path());
+    assert_eq!(resolved_path, Ok(expected), "{comment} {path:?} {request}");
+  }
 }
 
 #[tokio::test]
 async fn resolve_hash_as_module() {
-    let f = super::fixture();
-    let resolver = Resolver::new(ResolveOptions::default());
-    let resolution = resolver.resolve(f, "#a").await;
-    assert_eq!(resolution, Err(ResolveError::NotFound("#a".into())));
+  let f = super::fixture();
+  let resolver = Resolver::new(ResolveOptions::default());
+  let resolution = resolver.resolve(f, "#a").await;
+  assert_eq!(resolution, Err(ResolveError::NotFound("#a".into())));
 }

@@ -23,29 +23,33 @@ mod symlink;
 mod tsconfig_paths;
 mod tsconfig_project_references;
 
-use crate::Resolver;
 use std::{env, path::PathBuf, sync::Arc, thread};
 
+use crate::Resolver;
+
 pub fn fixture_root() -> PathBuf {
-    env::current_dir().unwrap().join("fixtures")
+  env::current_dir().unwrap().join("fixtures")
 }
 
 pub fn fixture() -> PathBuf {
-    fixture_root().join("enhanced_resolve").join("test").join("fixtures")
+  fixture_root()
+    .join("enhanced_resolve")
+    .join("test")
+    .join("fixtures")
 }
 
 #[tokio::test]
 async fn threaded_environment() {
-    let cwd = env::current_dir().unwrap();
-    let resolver = Arc::new(Resolver::default());
-    for _ in 0..2 {
-        _ = thread::spawn({
-            let cwd = cwd.clone();
-            let resolver = Arc::clone(&resolver);
-            move || {
-                _ = resolver.resolve(cwd, ".");
-            }
-        })
-        .join();
-    }
+  let cwd = env::current_dir().unwrap();
+  let resolver = Arc::new(Resolver::default());
+  for _ in 0..2 {
+    _ = thread::spawn({
+      let cwd = cwd.clone();
+      let resolver = Arc::clone(&resolver);
+      move || {
+        _ = resolver.resolve(cwd, ".");
+      }
+    })
+    .join();
+  }
 }

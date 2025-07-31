@@ -1,11 +1,10 @@
 import {
-  instantiateNapiModuleSync as __emnapiInstantiateNapiModuleSync,
+  createOnMessage as __wasmCreateOnMessageForFsProxy,
   getDefaultContext as __emnapiGetDefaultContext,
-  WASI as __WASI,
-  createOnMessage as __wasmCreateOnMessageForFsProxy
+  instantiateNapiModuleSync as __emnapiInstantiateNapiModuleSync,
+  WASI as __WASI
 } from "@napi-rs/wasm-runtime";
 import { memfs } from "@napi-rs/wasm-runtime/fs";
-import __wasmUrl from "./resolver.wasm32-wasi.wasm?url";
 
 export const { fs: __fs, vol: __volume } = memfs();
 
@@ -17,6 +16,7 @@ const __wasi = new __WASI({
   }
 });
 
+const __wasmUrl = new URL("./resolver.wasm32-wasi.wasm", import.meta.url).href;
 const __emnapiContext = __emnapiGetDefaultContext();
 
 const __sharedMemory = new WebAssembly.Memory({
@@ -56,21 +56,14 @@ const {
     return importObject;
   },
   beforeInit({ instance }) {
-    __napi_rs_initialize_modules(instance);
+    for (const name of Object.keys(instance.exports)) {
+      if (name.startsWith("__napi_register__")) {
+        instance.exports[name]();
+      }
+    }
   }
 });
-
-function __napi_rs_initialize_modules(__napiInstance) {
-  __napiInstance.exports["__napi_register__NapiResolveOptions_struct_0"]?.();
-  __napiInstance.exports["__napi_register__EnforceExtension_1"]?.();
-  __napiInstance.exports["__napi_register__Restriction_struct_2"]?.();
-  __napiInstance.exports["__napi_register__TsconfigOptions_struct_3"]?.();
-  __napiInstance.exports["__napi_register__ResolveResult_struct_4"]?.();
-  __napiInstance.exports["__napi_register__sync_5"]?.();
-  __napiInstance.exports["__napi_register__async__6"]?.();
-  __napiInstance.exports["__napi_register__ResolverFactory_struct_7"]?.();
-  __napiInstance.exports["__napi_register__ResolverFactory_impl_14"]?.();
-}
+export default __napiModule.exports;
 export const ResolverFactory = __napiModule.exports.ResolverFactory;
 export const async = __napiModule.exports.async;
 export const EnforceExtension = __napiModule.exports.EnforceExtension;

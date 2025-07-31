@@ -1,71 +1,82 @@
 //! <https://github.com/webpack/enhanced-resolve/blob/main/test/alias.test.js>
 
-use normalize_path::NormalizePath;
 use std::path::Path;
+
+use normalize_path::NormalizePath;
 
 use crate::{AliasValue, Resolution, ResolveContext, ResolveError, ResolveOptions, Resolver};
 
 #[tokio::test]
 #[cfg(not(target_os = "windows"))] // MemoryFS's path separator is always `/` so the test will not pass in windows.
 async fn alias() {
-    use super::memory_fs::MemoryFS;
-    use crate::ResolverGeneric;
-    use std::path::{Path, PathBuf};
+  use std::path::{Path, PathBuf};
 
-    let f = Path::new("/");
+  use super::memory_fs::MemoryFS;
+  use crate::ResolverGeneric;
 
-    let file_system = MemoryFS::new(&[
-        ("/a/index", ""),
-        ("/a/dir/index", ""),
-        ("/recursive/index", ""),
-        ("/recursive/dir/index", ""),
-        ("/b/index", ""),
-        ("/b/dir/index", ""),
-        ("/c/index", ""),
-        ("/c/dir/index", ""),
-        ("/d/index.js", ""),
-        ("/d/dir/.empty", ""),
-        ("/e/index", ""),
-        ("/e/anotherDir/index", ""),
-        ("/e/dir/file", ""),
-        ("/dashed-name", ""),
-    ]);
+  let f = Path::new("/");
 
-    let resolver = ResolverGeneric::<MemoryFS>::new_with_file_system(
-        file_system,
-        ResolveOptions {
-            alias: vec![
-                ("aliasA".into(), vec![AliasValue::from("a")]),
-                ("b$".into(), vec![AliasValue::from("a/index")]),
-                ("c$".into(), vec![AliasValue::from("/a/index")]),
-                (
-                    "multiAlias".into(),
-                    vec![
-                        AliasValue::from("b"),
-                        AliasValue::from("c"),
-                        AliasValue::from("d"),
-                        AliasValue::from("e"),
-                        AliasValue::from("a"),
-                    ],
-                ),
-                ("recursive".into(), vec![AliasValue::from("recursive/dir")]),
-                ("/d/dir".into(), vec![AliasValue::from("/c/dir")]),
-                ("/d/index.js".into(), vec![AliasValue::from("/c/index")]),
-                ("#".into(), vec![AliasValue::from("/c/dir")]),
-                ("@".into(), vec![AliasValue::from("/c/dir")]),
-                ("ignored".into(), vec![AliasValue::Ignore]),
-                // not part of enhanced-resolve, added to make sure query in alias value works
-                ("alias_query".into(), vec![AliasValue::from("a?query_after")]),
-                ("alias_fragment".into(), vec![AliasValue::from("a#fragment_after")]),
-                ("dash".into(), vec![AliasValue::Ignore]),
-                ("@scope/package-name/file$".into(), vec![AliasValue::from("/c/dir")]),
-            ],
-            modules: vec!["/".into()],
-            ..ResolveOptions::default()
-        },
-    );
+  let file_system = MemoryFS::new(&[
+    ("/a/index", ""),
+    ("/a/dir/index", ""),
+    ("/recursive/index", ""),
+    ("/recursive/dir/index", ""),
+    ("/b/index", ""),
+    ("/b/dir/index", ""),
+    ("/c/index", ""),
+    ("/c/dir/index", ""),
+    ("/d/index.js", ""),
+    ("/d/dir/.empty", ""),
+    ("/e/index", ""),
+    ("/e/anotherDir/index", ""),
+    ("/e/dir/file", ""),
+    ("/dashed-name", ""),
+  ]);
 
-    #[rustfmt::skip]
+  let resolver = ResolverGeneric::<MemoryFS>::new_with_file_system(
+    file_system,
+    ResolveOptions {
+      alias: vec![
+        ("aliasA".into(), vec![AliasValue::from("a")]),
+        ("b$".into(), vec![AliasValue::from("a/index")]),
+        ("c$".into(), vec![AliasValue::from("/a/index")]),
+        (
+          "multiAlias".into(),
+          vec![
+            AliasValue::from("b"),
+            AliasValue::from("c"),
+            AliasValue::from("d"),
+            AliasValue::from("e"),
+            AliasValue::from("a"),
+          ],
+        ),
+        ("recursive".into(), vec![AliasValue::from("recursive/dir")]),
+        ("/d/dir".into(), vec![AliasValue::from("/c/dir")]),
+        ("/d/index.js".into(), vec![AliasValue::from("/c/index")]),
+        ("#".into(), vec![AliasValue::from("/c/dir")]),
+        ("@".into(), vec![AliasValue::from("/c/dir")]),
+        ("ignored".into(), vec![AliasValue::Ignore]),
+        // not part of enhanced-resolve, added to make sure query in alias value works
+        (
+          "alias_query".into(),
+          vec![AliasValue::from("a?query_after")],
+        ),
+        (
+          "alias_fragment".into(),
+          vec![AliasValue::from("a#fragment_after")],
+        ),
+        ("dash".into(), vec![AliasValue::Ignore]),
+        (
+          "@scope/package-name/file$".into(),
+          vec![AliasValue::from("/c/dir")],
+        ),
+      ],
+      modules: vec!["/".into()],
+      ..ResolveOptions::default()
+    },
+  );
+
+  #[rustfmt::skip]
     let pass = [
         ("should resolve a not aliased module 1", "a", "/a/index"),
         ("should resolve a not aliased module 2", "a/index", "/a/index"),
@@ -105,180 +116,212 @@ async fn alias() {
         ("should resolve scoped package name with sub dir", "@scope/package-name/file", "/c/dir/index"),
     ];
 
-    for (comment, request, expected) in pass {
-        let resolved_path = resolver.resolve(f, request).await.map(|r| r.full_path());
-        assert_eq!(resolved_path, Ok(PathBuf::from(expected)), "{comment} {request}");
-    }
+  for (comment, request, expected) in pass {
+    let resolved_path = resolver.resolve(f, request).await.map(|r| r.full_path());
+    assert_eq!(
+      resolved_path,
+      Ok(PathBuf::from(expected)),
+      "{comment} {request}"
+    );
+  }
 
-    #[rustfmt::skip]
+  #[rustfmt::skip]
     let ignore = [
         ("should resolve an ignore module", "ignored", ResolveError::Ignored(f.join("ignored")))
     ];
 
-    for (comment, request, expected) in ignore {
-        let resolution = resolver.resolve(f, request).await;
-        assert_eq!(resolution, Err(expected), "{comment} {request}");
-    }
+  for (comment, request, expected) in ignore {
+    let resolution = resolver.resolve(f, request).await;
+    assert_eq!(resolution, Err(expected), "{comment} {request}");
+  }
 }
 
 // Not part of enhanced-resolve
 #[tokio::test]
 async fn infinite_recursion() {
-    let f = super::fixture();
-    let resolver = Resolver::new(ResolveOptions {
-        alias: vec![
-            ("./a".into(), vec![AliasValue::from("./b")]),
-            ("./b".into(), vec![AliasValue::from("./a")]),
-        ],
-        ..ResolveOptions::default()
-    });
-    let resolution = resolver.resolve(f, "./a").await;
-    assert_eq!(resolution, Err(ResolveError::Recursion));
+  let f = super::fixture();
+  let resolver = Resolver::new(ResolveOptions {
+    alias: vec![
+      ("./a".into(), vec![AliasValue::from("./b")]),
+      ("./b".into(), vec![AliasValue::from("./a")]),
+    ],
+    ..ResolveOptions::default()
+  });
+  let resolution = resolver.resolve(f, "./a").await;
+  assert_eq!(resolution, Err(ResolveError::Recursion));
 }
 
 fn check_slash(path: &Path) {
-    let s = path.to_string_lossy().to_string();
-    #[cfg(target_os = "windows")]
-    {
-        assert!(!s.contains('/'), "{s}");
-        assert!(s.contains('\\'), "{s}");
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        assert!(s.contains('/'), "{s}");
-        assert!(!s.contains('\\'), "{s}");
-    }
+  let s = path.to_string_lossy().to_string();
+  #[cfg(target_os = "windows")]
+  {
+    assert!(!s.contains('/'), "{s}");
+    assert!(s.contains('\\'), "{s}");
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    assert!(s.contains('/'), "{s}");
+    assert!(!s.contains('\\'), "{s}");
+  }
 }
 
 #[tokio::test]
 async fn absolute_path() {
-    let f = super::fixture();
-    let resolver = Resolver::new(ResolveOptions {
-        alias: vec![(f.join("foo").to_str().unwrap().to_string(), vec![AliasValue::Ignore])],
-        modules: vec![f.clone().to_str().unwrap().to_string()],
-        ..ResolveOptions::default()
-    });
-    let resolution = resolver.resolve(&f, "foo/index").await;
-    assert_eq!(resolution, Err(ResolveError::Ignored(f.join("foo"))));
+  let f = super::fixture();
+  let resolver = Resolver::new(ResolveOptions {
+    alias: vec![(
+      f.join("foo").to_str().unwrap().to_string(),
+      vec![AliasValue::Ignore],
+    )],
+    modules: vec![f.clone().to_str().unwrap().to_string()],
+    ..ResolveOptions::default()
+  });
+  let resolution = resolver.resolve(&f, "foo/index").await;
+  assert_eq!(resolution, Err(ResolveError::Ignored(f.join("foo"))));
 }
 
 #[tokio::test]
 async fn system_path() {
-    let f = super::fixture();
-    let resolver = Resolver::new(ResolveOptions {
-        alias: vec![("@app".into(), vec![AliasValue::from(f.join("alias").to_string_lossy())])],
-        ..ResolveOptions::default()
-    });
+  let f = super::fixture();
+  let resolver = Resolver::new(ResolveOptions {
+    alias: vec![(
+      "@app".into(),
+      vec![AliasValue::from(f.join("alias").to_string_lossy())],
+    )],
+    ..ResolveOptions::default()
+  });
 
-    let specifiers = ["@app/files/a", "@app/files/a.js"];
+  let specifiers = ["@app/files/a", "@app/files/a.js"];
 
-    for specifier in specifiers {
-        let path = resolver.resolve(&f, specifier).await.map(Resolution::into_path_buf).unwrap();
-        assert_eq!(path, f.join("alias/files/a.js"));
-        check_slash(&path);
-    }
+  for specifier in specifiers {
+    let path = resolver
+      .resolve(&f, specifier)
+      .await
+      .map(Resolution::into_path_buf)
+      .unwrap();
+    assert_eq!(path, f.join("alias/files/a.js"));
+    check_slash(&path);
+  }
 }
 
 #[tokio::test]
 async fn alias_is_full_path() {
-    let f = super::fixture();
-    let dir = f.join("foo");
-    let dir_str = dir.to_string_lossy().to_string();
+  let f = super::fixture();
+  let dir = f.join("foo");
+  let dir_str = dir.to_string_lossy().to_string();
 
-    let resolver = Resolver::new(ResolveOptions {
-        alias: vec![("@".into(), vec![AliasValue::Path(dir_str.clone())])],
-        ..ResolveOptions::default()
-    });
+  let resolver = Resolver::new(ResolveOptions {
+    alias: vec![("@".into(), vec![AliasValue::Path(dir_str.clone())])],
+    ..ResolveOptions::default()
+  });
 
-    let mut ctx = ResolveContext::default();
+  let mut ctx = ResolveContext::default();
 
-    let specifiers = [
-        "@/index".to_string(),
-        "@/index.js".to_string(),
-        // specifier has multiple `/` for reasons we'll never know
-        "@////index".to_string(),
-        // specifier is a full path
-        dir_str,
-    ];
+  let specifiers = [
+    "@/index".to_string(),
+    "@/index.js".to_string(),
+    // specifier has multiple `/` for reasons we'll never know
+    "@////index".to_string(),
+    // specifier is a full path
+    dir_str,
+  ];
 
-    for specifier in specifiers {
-        let resolution = resolver.resolve_with_context(&f, &specifier, &mut ctx);
-        assert_eq!(resolution.await.map(|r| r.full_path()), Ok(dir.join("index.js")));
+  for specifier in specifiers {
+    let resolution = resolver.resolve_with_context(&f, &specifier, &mut ctx);
+    assert_eq!(
+      resolution.await.map(|r| r.full_path()),
+      Ok(dir.join("index.js"))
+    );
+  }
+
+  for path in ctx.file_dependencies {
+    assert_eq!(path, path.normalize(), "{path:?}");
+    check_slash(&path);
+  }
+
+  for path in ctx.missing_dependencies {
+    assert_eq!(path, path.normalize(), "{path:?}");
+    check_slash(&path);
+    if let Some(path) = path.parent() {
+      assert!(!path.is_file(), "{path:?} must not be a file");
     }
-
-    for path in ctx.file_dependencies {
-        assert_eq!(path, path.normalize(), "{path:?}");
-        check_slash(&path);
-    }
-
-    for path in ctx.missing_dependencies {
-        assert_eq!(path, path.normalize(), "{path:?}");
-        check_slash(&path);
-        if let Some(path) = path.parent() {
-            assert!(!path.is_file(), "{path:?} must not be a file");
-        }
-    }
+  }
 }
 
 // For the `should_stop` variable in `load_alias`
 #[tokio::test]
 async fn all_alias_values_are_not_found() {
-    let f = super::fixture();
-    let resolver = Resolver::new(ResolveOptions {
-        alias: vec![(
-            "m1".to_string(),
-            vec![AliasValue::Path(f.join("node_modules").join("m2").to_string_lossy().to_string())],
-        )],
-        ..ResolveOptions::default()
-    });
-    let resolution = resolver.resolve(&f, "m1/a.js").await;
-    assert_eq!(
-        resolution,
-        Err(ResolveError::MatchedAliasNotFound("m1/a.js".to_string(), "m1".to_string(),))
-    );
+  let f = super::fixture();
+  let resolver = Resolver::new(ResolveOptions {
+    alias: vec![(
+      "m1".to_string(),
+      vec![AliasValue::Path(
+        f.join("node_modules")
+          .join("m2")
+          .to_string_lossy()
+          .to_string(),
+      )],
+    )],
+    ..ResolveOptions::default()
+  });
+  let resolution = resolver.resolve(&f, "m1/a.js").await;
+  assert_eq!(
+    resolution,
+    Err(ResolveError::MatchedAliasNotFound(
+      "m1/a.js".to_string(),
+      "m1".to_string(),
+    ))
+  );
 }
 
 #[tokio::test]
 async fn alias_fragment() {
-    let f = super::fixture();
+  let f = super::fixture();
 
-    let data = [
-        // enhanced-resolve has `#` prepended with a `\0`, they are removed from the
-        // following 3 expected test results.
-        // See https://github.com/webpack/enhanced-resolve#escaping
-        (
-            "handle fragment edge case (no fragment)",
-            "./no#fragment/#/#",
-            f.join("no#fragment/#/#.js"),
-        ),
-        ("handle fragment edge case (fragment)", "./no#fragment/#/", f.join("no.js#fragment/#/")),
-        (
-            "handle fragment escaping",
-            "./no\0#fragment/\0#/\0##fragment",
-            f.join("no#fragment/#/#.js#fragment"),
-        ),
-    ];
+  let data = [
+    // enhanced-resolve has `#` prepended with a `\0`, they are removed from the
+    // following 3 expected test results.
+    // See https://github.com/webpack/enhanced-resolve#escaping
+    (
+      "handle fragment edge case (no fragment)",
+      "./no#fragment/#/#",
+      f.join("no#fragment/#/#.js"),
+    ),
+    (
+      "handle fragment edge case (fragment)",
+      "./no#fragment/#/",
+      f.join("no.js#fragment/#/"),
+    ),
+    (
+      "handle fragment escaping",
+      "./no\0#fragment/\0#/\0##fragment",
+      f.join("no#fragment/#/#.js#fragment"),
+    ),
+  ];
 
-    for (comment, request, expected) in data {
-        let resolver = Resolver::new(ResolveOptions {
-            alias: vec![("foo".to_string(), vec![AliasValue::Path(request.to_string())])],
-            ..ResolveOptions::default()
-        });
-        let resolved_path = resolver.resolve(&f, "foo").await.map(|r| r.full_path());
-        assert_eq!(resolved_path, Ok(expected), "{comment} {request}");
-    }
+  for (comment, request, expected) in data {
+    let resolver = Resolver::new(ResolveOptions {
+      alias: vec![(
+        "foo".to_string(),
+        vec![AliasValue::Path(request.to_string())],
+      )],
+      ..ResolveOptions::default()
+    });
+    let resolved_path = resolver.resolve(&f, "foo").await.map(|r| r.full_path());
+    assert_eq!(resolved_path, Ok(expected), "{comment} {request}");
+  }
 }
 
 #[tokio::test]
 async fn alias_try_fragment_as_path() {
-    let f = super::fixture();
-    let resolver = Resolver::new(ResolveOptions {
-        alias: vec![(
-            "#".to_string(),
-            vec![AliasValue::Path(f.join("#").to_string_lossy().to_string())],
-        )],
-        ..ResolveOptions::default()
-    });
-    let resolution = resolver.resolve(&f, "#/a").await.map(|r| r.full_path());
-    assert_eq!(resolution, Ok(f.join("#").join("a.js")));
+  let f = super::fixture();
+  let resolver = Resolver::new(ResolveOptions {
+    alias: vec![(
+      "#".to_string(),
+      vec![AliasValue::Path(f.join("#").to_string_lossy().to_string())],
+    )],
+    ..ResolveOptions::default()
+  });
+  let resolution = resolver.resolve(&f, "#/a").await.map(|r| r.full_path());
+  assert_eq!(resolution, Ok(f.join("#").join("a.js")));
 }
