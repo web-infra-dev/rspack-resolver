@@ -59,4 +59,4 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git status
           git tag v$version -m v$version
-          git push origin --follow-tags
+          git push origin v$version
