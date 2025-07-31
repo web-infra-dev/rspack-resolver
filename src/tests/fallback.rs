@@ -3,59 +3,66 @@
 #[tokio::test]
 #[cfg(not(target_os = "windows"))] // MemoryFS's path separator is always `/` so the test will not pass in windows.
 async fn fallback() {
-    use super::memory_fs::MemoryFS;
-    use crate::{AliasValue, ResolveError, ResolveOptions, ResolverGeneric};
-    use std::path::{Path, PathBuf};
+  use std::path::{Path, PathBuf};
 
-    let f = Path::new("/");
+  use super::memory_fs::MemoryFS;
+  use crate::{AliasValue, ResolveError, ResolveOptions, ResolverGeneric};
 
-    let file_system = MemoryFS::new(&[
-        ("/a/index", ""),
-        ("/a/dir/index", ""),
-        ("/recursive/index", ""),
-        ("/recursive/dir/index", ""),
-        ("/recursive/dir/file", ""),
-        ("/recursive/dir/dir/index", ""),
-        ("/b/index", ""),
-        ("/b/dir/index", ""),
-        ("/c/index", ""),
-        ("/c/dir/index", ""),
-        ("/d/index.js", ""),
-        ("/d/dir/.empty", ""),
-        ("/e/index", ""),
-        ("/e/anotherDir/index", ""),
-        ("/e/dir/file", ""),
-    ]);
+  let f = Path::new("/");
 
-    let resolver = ResolverGeneric::<MemoryFS>::new_with_file_system(
-        file_system,
-        ResolveOptions {
-            fallback: vec![
-                ("aliasA".into(), vec![AliasValue::Path("a".into())]),
-                ("b$".into(), vec![AliasValue::Path("a/index".into())]),
-                ("c$".into(), vec![AliasValue::Path("/a/index".into())]),
-                (
-                    "multiAlias".into(),
-                    vec![
-                        AliasValue::Path("b".into()),
-                        AliasValue::Path("c".into()),
-                        AliasValue::Path("d".into()),
-                        AliasValue::Path("e".into()),
-                        AliasValue::Path("a".into()),
-                    ],
-                ),
-                ("recursive".into(), vec![AliasValue::Path("recursive/dir".into())]),
-                ("/d/dir".into(), vec![AliasValue::Path("/c/dir".into())]),
-                ("/d/index.js".into(), vec![AliasValue::Path("/c/index".into())]),
-                ("ignored".into(), vec![AliasValue::Ignore]),
-                ("node:path".into(), vec![AliasValue::Ignore]),
-            ],
-            modules: vec!["/".into()],
-            ..ResolveOptions::default()
-        },
-    );
+  let file_system = MemoryFS::new(&[
+    ("/a/index", ""),
+    ("/a/dir/index", ""),
+    ("/recursive/index", ""),
+    ("/recursive/dir/index", ""),
+    ("/recursive/dir/file", ""),
+    ("/recursive/dir/dir/index", ""),
+    ("/b/index", ""),
+    ("/b/dir/index", ""),
+    ("/c/index", ""),
+    ("/c/dir/index", ""),
+    ("/d/index.js", ""),
+    ("/d/dir/.empty", ""),
+    ("/e/index", ""),
+    ("/e/anotherDir/index", ""),
+    ("/e/dir/file", ""),
+  ]);
 
-    #[rustfmt::skip]
+  let resolver = ResolverGeneric::<MemoryFS>::new_with_file_system(
+    file_system,
+    ResolveOptions {
+      fallback: vec![
+        ("aliasA".into(), vec![AliasValue::Path("a".into())]),
+        ("b$".into(), vec![AliasValue::Path("a/index".into())]),
+        ("c$".into(), vec![AliasValue::Path("/a/index".into())]),
+        (
+          "multiAlias".into(),
+          vec![
+            AliasValue::Path("b".into()),
+            AliasValue::Path("c".into()),
+            AliasValue::Path("d".into()),
+            AliasValue::Path("e".into()),
+            AliasValue::Path("a".into()),
+          ],
+        ),
+        (
+          "recursive".into(),
+          vec![AliasValue::Path("recursive/dir".into())],
+        ),
+        ("/d/dir".into(), vec![AliasValue::Path("/c/dir".into())]),
+        (
+          "/d/index.js".into(),
+          vec![AliasValue::Path("/c/index".into())],
+        ),
+        ("ignored".into(), vec![AliasValue::Ignore]),
+        ("node:path".into(), vec![AliasValue::Ignore]),
+      ],
+      modules: vec!["/".into()],
+      ..ResolveOptions::default()
+    },
+  );
+
+  #[rustfmt::skip]
     let pass = [
         ("should resolve a not aliased module 1", "a", "/a/index"),
         ("should resolve a not aliased module 2", "a/index", "/a/index"),
@@ -82,19 +89,23 @@ async fn fallback() {
         ("should resolve a file in multiple aliased dirs 2", "multiAlias/anotherDir", "/e/anotherDir/index"),
     ];
 
-    for (comment, request, expected) in pass {
-        let resolved_path = resolver.resolve(f, request).await.map(|r| r.full_path());
-        assert_eq!(resolved_path, Ok(PathBuf::from(expected)), "{comment} {request}");
-    }
+  for (comment, request, expected) in pass {
+    let resolved_path = resolver.resolve(f, request).await.map(|r| r.full_path());
+    assert_eq!(
+      resolved_path,
+      Ok(PathBuf::from(expected)),
+      "{comment} {request}"
+    );
+  }
 
-    #[rustfmt::skip]
+  #[rustfmt::skip]
     let ignore = [
         ("should resolve an ignore module", "ignored", ResolveError::Ignored(f.join("ignored"))),
         ("should resolve node: builtin module", "node:path", ResolveError::Ignored(PathBuf::from("/node:path"))),
     ];
 
-    for (comment, request, expected) in ignore {
-        let resolution = resolver.resolve(f, request).await;
-        assert_eq!(resolution, Err(expected), "{comment} {request}");
-    }
+  for (comment, request, expected) in ignore {
+    let resolution = resolver.resolve(f, request).await;
+    assert_eq!(resolution, Err(expected), "{comment} {request}");
+  }
 }
