@@ -410,7 +410,8 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`);
 }
 
+module.exports = nativeBinding;
 module.exports.ResolverFactory = nativeBinding.ResolverFactory;
+module.exports.async = nativeBinding.async;
 module.exports.EnforceExtension = nativeBinding.EnforceExtension;
 module.exports.sync = nativeBinding.sync;
-module.exports.async = nativeBinding.async;

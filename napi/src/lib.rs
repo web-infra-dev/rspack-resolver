@@ -57,13 +57,6 @@ pub async fn async_(path: String, request: String) -> ResolveResult {
   resolve(&resolver, &path, &request).await
 }
 
-#[napi(js_name = "async")]
-pub async fn async_(path: String, request: String) -> ResolveResult {
-    let path = PathBuf::from(path);
-    let resolver = Resolver::new(ResolveOptions::default());
-    resolve(&resolver, &path, &request).await
-}
-
 #[napi]
 pub struct ResolverFactory {
   resolver: Arc<Resolver>,
