@@ -13,6 +13,11 @@ export declare class ResolverFactory {
   async(directory: string, request: string): Promise<ResolveResult>
 }
 
+export declare function async(
+  path: string,
+  request: string
+): Promise<ResolveResult>;
+
 export declare const enum EnforceExtension {
   Auto = 0,
   Enabled = 1,
