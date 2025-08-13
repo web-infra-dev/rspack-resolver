@@ -43,7 +43,7 @@ export async function publish_handler(options) {
     console.info("git commit all...");
     await $`git status`;
     await $`git tag v${version}_npm -m v${version}_npm`;
-    await $`git push origin --follow-tags`;
+    await $`git push origin v${version}_npm`;
   }
 }
 
