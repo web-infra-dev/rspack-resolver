@@ -4,84 +4,110 @@ use crate::{ResolveOptions, Resolver};
 
 #[derive(Debug, Clone, Copy)]
 enum FileType {
-    File,
-    Dir,
+  File,
+  Dir,
 }
 
 #[allow(unused_variables)]
 fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(
-    original: P,
-    link: Q,
-    file_type: FileType,
+  original: P,
+  link: Q,
+  file_type: FileType,
 ) -> io::Result<()> {
-    #[cfg(target_family = "unix")]
-    {
-        std::os::unix::fs::symlink(original, link)
-    }
+  #[cfg(target_family = "unix")]
+  {
+    std::os::unix::fs::symlink(original, link)
+  }
 
-    #[cfg(target_family = "windows")]
-    match file_type {
-        FileType::File => std::os::windows::fs::symlink_file(original, link),
-        FileType::Dir => std::os::windows::fs::symlink_dir(original, link),
-    }
+  #[cfg(target_family = "windows")]
+  match file_type {
+    FileType::File => std::os::windows::fs::symlink_file(original, link),
+    FileType::Dir => std::os::windows::fs::symlink_dir(original, link),
+  }
 }
 
 fn init(dirname: &Path, temp_path: &Path) -> io::Result<()> {
-    if temp_path.exists() {
-        _ = fs::remove_dir_all(temp_path);
-    }
-    fs::create_dir(temp_path)?;
-    symlink(dirname.join("../lib/index.js"), temp_path.join("test"), FileType::File)?;
-    symlink(dirname.join("../lib"), temp_path.join("test2"), FileType::Dir)?;
-    fs::remove_file(temp_path.join("test"))?;
-    fs::remove_file(temp_path.join("test2"))?;
-    fs::remove_dir(temp_path)
+  if temp_path.exists() {
+    _ = fs::remove_dir_all(temp_path);
+  }
+  fs::create_dir(temp_path)?;
+  symlink(
+    dirname.join("../lib/index.js"),
+    temp_path.join("test"),
+    FileType::File,
+  )?;
+  symlink(
+    dirname.join("../lib"),
+    temp_path.join("test2"),
+    FileType::Dir,
+  )?;
+  fs::remove_file(temp_path.join("test"))?;
+  fs::remove_file(temp_path.join("test2"))?;
+  fs::remove_dir(temp_path)
 }
 
 fn create_symlinks(dirname: &Path, temp_path: &Path) -> io::Result<()> {
-    fs::create_dir(temp_path).unwrap();
-    symlink(
-        dirname.join("../lib/index.js").canonicalize().unwrap(),
-        temp_path.join("index.js"),
-        FileType::File,
-    )?;
-    symlink(dirname.join("../lib").canonicalize().unwrap(), temp_path.join("lib"), FileType::Dir)?;
-    symlink(dirname.join("..").canonicalize().unwrap(), temp_path.join("this"), FileType::Dir)?;
-    symlink(temp_path.join("this"), temp_path.join("that"), FileType::Dir)?;
-    symlink(Path::new("../../lib/index.js"), temp_path.join("node.relative.js"), FileType::File)?;
-    symlink(
-        Path::new("./node.relative.js"),
-        temp_path.join("node.relative.sym.js"),
-        FileType::File,
-    )?;
-    Ok(())
+  fs::create_dir(temp_path).unwrap();
+  symlink(
+    dirname.join("../lib/index.js").canonicalize().unwrap(),
+    temp_path.join("index.js"),
+    FileType::File,
+  )?;
+  symlink(
+    dirname.join("../lib").canonicalize().unwrap(),
+    temp_path.join("lib"),
+    FileType::Dir,
+  )?;
+  symlink(
+    dirname.join("..").canonicalize().unwrap(),
+    temp_path.join("this"),
+    FileType::Dir,
+  )?;
+  symlink(
+    temp_path.join("this"),
+    temp_path.join("that"),
+    FileType::Dir,
+  )?;
+  symlink(
+    Path::new("../../lib/index.js"),
+    temp_path.join("node.relative.js"),
+    FileType::File,
+  )?;
+  symlink(
+    Path::new("./node.relative.js"),
+    temp_path.join("node.relative.sym.js"),
+    FileType::File,
+  )?;
+  Ok(())
 }
 
 fn cleanup_symlinks(temp_path: &Path) {
-    _ = fs::remove_dir_all(temp_path);
+  _ = fs::remove_dir_all(temp_path);
 }
 
 #[tokio::test]
 async fn test() -> io::Result<()> {
-    let root = super::fixture_root().join("enhanced_resolve");
-    let dirname = root.join("test");
-    let temp_path = dirname.join("temp");
-    if !temp_path.exists() {
-        let is_admin = init(&dirname, &temp_path).is_ok();
-        if !is_admin {
-            return Ok(());
-        }
-        if let Err(err) = create_symlinks(&dirname, &temp_path) {
-            cleanup_symlinks(&temp_path);
-            return Err(err);
-        }
+  let root = super::fixture_root().join("enhanced_resolve");
+  let dirname = root.join("test");
+  let temp_path = dirname.join("temp");
+  if !temp_path.exists() {
+    let is_admin = init(&dirname, &temp_path).is_ok();
+    if !is_admin {
+      return Ok(());
     }
+    if let Err(err) = create_symlinks(&dirname, &temp_path) {
+      cleanup_symlinks(&temp_path);
+      return Err(err);
+    }
+  }
 
-    let resolver_without_symlinks =
-        Resolver::new(ResolveOptions { symlinks: false, ..ResolveOptions::default() });
-    let resolver_with_symlinks = Resolver::default();
+  let resolver_without_symlinks = Resolver::new(ResolveOptions {
+    symlinks: false,
+    ..ResolveOptions::default()
+  });
+  let resolver_with_symlinks = Resolver::default();
 
-    #[rustfmt::skip]
+  #[rustfmt::skip]
     let pass = [
         ("with a symlink to a file", temp_path.clone(), "./index.js"),
         ("with a relative symlink to a file", temp_path.clone(), "./node.relative.js"),
@@ -108,14 +134,19 @@ async fn test() -> io::Result<()> {
         ("with symlinked directory in context path and symlinked directory (chained)", temp_path.join( "that/test"), "./temp/lib/index.js")
     ];
 
-    for (comment, path, request) in pass {
-        let filename = resolver_with_symlinks.resolve(&path, request).await.map(|r| r.full_path());
-        assert_eq!(filename, Ok(root.join("lib/index.js")), "{comment:?}");
+  for (comment, path, request) in pass {
+    let filename = resolver_with_symlinks
+      .resolve(&path, request)
+      .await
+      .map(|r| r.full_path());
+    assert_eq!(filename, Ok(root.join("lib/index.js")), "{comment:?}");
 
-        let resolved_path =
-            resolver_without_symlinks.resolve(&path, request).await.map(|r| r.full_path());
-        assert_eq!(resolved_path, Ok(path.join(request)));
-    }
+    let resolved_path = resolver_without_symlinks
+      .resolve(&path, request)
+      .await
+      .map(|r| r.full_path());
+    assert_eq!(resolved_path, Ok(path.join(request)));
+  }
 
-    Ok(())
+  Ok(())
 }

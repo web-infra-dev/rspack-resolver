@@ -2,8 +2,7 @@
 name         = "rspack_napi_resolver"
 version      = "0.0.0"
 publish      = false
-edition      = "2021"
-rust-version = "1.71"
+edition      = "2024"
 
 [lib]
 crate-type = ["cdylib"]
@@ -12,8 +11,9 @@ doctest    = false
 
 [dependencies]
 rspack_resolver = { path = "..", package = "rspack_resolver" }
-napi = { version = "3.0.0-alpha", default-features = false, features = ["napi3", "serde-json", "async"] }
-napi-derive = { version = "3.0.0-alpha" }
+napi = { version = "3.1.2", default-features = false, features = ["napi3", "serde-json", "async"] }
+napi-build  = { version = "2.2.2", default-features = false }
+napi-derive = { version = "3.1.1" }
 tracing-subscriber = { version = "0.3.18", default-features = false, features = [
   "std",
   "fmt",
