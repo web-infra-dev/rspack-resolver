@@ -110,27 +110,6 @@ jobs:
       - name: Show binding packages
         run: ls -R bindings
 
-      - name: Obtain OIDC token
-        id: oidc
-        run: |
-          token=$(curl --fail -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=cfa.rspack.dev" | jq -r '.value')
-          echo "::add-mask::${token}"
-          echo "token=${token}" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Obtain GitHub credentials
-        id: github_creds
-        run: |
-          token=$(curl --fail "https://cfa.rspack.dev/api/request/${{ secrets.CFA_PROJECT_ID }}/github/credentials" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: bearer ${{ secrets.CFA_SECRET }}" \
-            --data "{\"token\":\"${{ steps.oidc.outputs.token }}\"}" | jq -r '.GITHUB_TOKEN')
-          echo "::add-mask::${token}"
-          echo "token=${token}" >> $GITHUB_OUTPUT
-        shell: bash
-
       - name: Update npm
         run: npm install -g npm@latest
 
