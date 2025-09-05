@@ -1,11 +1,8 @@
 # Rspack Resolver
 
-> [!NOTE]  
->  This is a fork of [oxc-resolver](https://github.com/oxc-project/oxc-resolver), and will be used in Rspack cause 100% compatible with enhanced-resolve is the non-goal of oxc-resolver itself, we may add enhanced-resolve specific features like [`pnp support`](https://github.com/web-infra-dev/rspack/issues/2236) and [`alternative support`](https://github.com/web-infra-dev/rspack/issues/5052) in the future.
+Rust port of [enhanced-resolve](https://github.com/webpack/enhanced-resolve).
 
-Rust port of [enhanced-resolve].
-
-- built-in [tsconfig-paths-webpack-plugin]
+- built-in [tsconfig-paths-webpack-plugin](https://github.com/jonaskello/tsconfig-paths-webpack-plugin)
   - support extending tsconfig defined in `tsconfig.extends`
   - support paths alias defined in `tsconfig.compilerOptions.paths`
   - support project references defined `tsconfig.references`
@@ -142,7 +139,7 @@ Quoting esbuild's documentation:
 
 ## Options
 
-The options are aligned with [enhanced-resolve].
+The options are aligned with [enhanced-resolve](https://github.com/webpack/enhanced-resolve).
 
 | Field            | Default                   | Description                                                                                                                                               |
 | ---------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -222,3 +219,6 @@ the resolving result for `import foo` in `component/src/index.ts` differs based 
 | plugins          | []                          | A list of additional resolve plugins which should be applied                                                                                  |
 | resolver         | undefined                   | A prepared Resolver to which the plugins are attached                                                                                         |
 | unsafeCache      | false                       | Use this cache object to unsafely cache the successful requests                                                                               |
+
+> [!NOTE]  
+> This is a fork of [oxc-resolver](https://github.com/oxc-project/oxc-resolver). And Now it's used in [Rspack](https://github.com/web-infra-dev/rspack)
