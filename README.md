@@ -221,4 +221,8 @@ the resolving result for `import foo` in `component/src/index.ts` differs based 
 | unsafeCache      | false                       | Use this cache object to unsafely cache the successful requests                                                                               |
 
 > [!NOTE]  
-> This is a fork of [oxc-resolver](https://github.com/oxc-project/oxc-resolver). And Now it's used in [Rspack](https://github.com/web-infra-dev/rspack)
+> **Rspack-resolver** is a fork of [oxc-resolver](https://github.com/oxc-project/oxc-resolver?utm_source=chatgpt.com), maintained specifically for use in [Rspack](https://github.com/web-infra-dev/rspack?utm_source=chatgpt.com).
+>
+> While it originated from `oxc-resolver`, 
+> we decided to maintain a fork because Rspack requires a different [file system API](https://github.com/web-infra-dev/rspack-resolver/pull/38). 
+> This ensures better alignment with Rspack’s design and long-term stability, while still benefiting from the foundation laid by `oxc-resolver`.
