@@ -1,11 +1,9 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
+use napi::bindgen_prelude::{Either, Either3};
 use napi_derive::napi;
 use regex::Regex;
 use rspack_resolver::AliasValue;
-use napi::bindgen_prelude::{Either3, Either};
-
-
 
 /// Module Resolution Options
 ///
@@ -286,14 +284,14 @@ impl From<AliasRawValue> for Vec<AliasValue> {
       },
       Either3::B(_) => {
         vec![AliasValue::Ignore]
-      },
+      }
       Either3::C(vec) => vec
-          .into_iter()
-          .map(|opt| match opt {
-            Some(s) => AliasValue::Path(s),
-            None => AliasValue::Ignore,
-          })
-          .collect(),
+        .into_iter()
+        .map(|opt| match opt {
+          Some(s) => AliasValue::Path(s),
+          None => AliasValue::Ignore,
+        })
+        .collect(),
     }
   }
 }
