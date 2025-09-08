@@ -203,5 +203,5 @@ jobs:
       - run: cargo test --all-features
       - name: Test Node Bindings
         run: |
-          npm run build:debug
+          npm run build:binding:debug
           npm test
