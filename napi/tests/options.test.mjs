@@ -9,6 +9,38 @@ const fixtureDir = new URL(
 ).pathname;
 
 describe("option", () => {
+  describe("alias", () => {
+    it("should allow alias string", () => {
+      const resolver = new ResolverFactory({
+        alias: { strAlias: path.join(fixtureDir, "alias/files/a.js") }
+      });
+      assert.match(
+        resolver.sync(fixtureDir, "strAlias").path,
+        /alias\/files\/a\.js$/
+      );
+    });
+
+    it("should allow alias null", () => {
+      const resolver = new ResolverFactory({
+        alias: { strAlias: false }
+      });
+      assert.match(
+        resolver.sync(fixtureDir, "strAlias").error,
+        /^Path is ignored/
+      );
+    });
+
+    it("should allow alias string array", () => {
+      const resolver = new ResolverFactory({
+        alias: { strAlias: [path.join(fixtureDir, "alias/files/a.js")] }
+      });
+      assert.match(
+        resolver.sync(fixtureDir, "strAlias").path,
+        /alias\/files\/a\.js$/
+      );
+    });
+  });
+
   describe("aliasFields", () => {
     it("should allow field string ", () => {
       const resolver = new ResolverFactory({ aliasFields: ["browser"] });
