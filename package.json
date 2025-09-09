@@ -8,7 +8,7 @@
     "build:binding:profiling": "napi build --platform --profile profiling --package-json-path npm/package.json --manifest-path napi/Cargo.toml",
     "build:binding:debug": "napi build --platform                     --package-json-path npm/package.json --manifest-path napi/Cargo.toml",
     "prepublishOnly": "napi pre-publish -t npm --package-json-path npm/package.json --npm-dir bindings",
-    "test": "ava && node --test napi/tests/*.test.mjs",
+    "test": "ava && node --test napi/tests/",
     "prettier": "prettier --check .",
     "prettier:ci": "prettier --list-different .",
     "format": "prettier --write ."
