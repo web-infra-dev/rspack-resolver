@@ -12,7 +12,7 @@ describe("option", () => {
   describe("alias", () => {
     it("should allow alias string", () => {
       const resolver = new ResolverFactory({
-        alias: { strAlias: path.join(fixtureDir, "alias/files/a.js") }
+        alias: { strAlias: path.join(fixtureDir, "alias", "files", "a.js") },
       });
       assert.match(
         resolver.sync(fixtureDir, "strAlias").path,
@@ -32,7 +32,7 @@ describe("option", () => {
 
     it("should allow alias string array", () => {
       const resolver = new ResolverFactory({
-        alias: { strAlias: [path.join(fixtureDir, "alias/files/a.js")] }
+        alias: { strAlias: [path.join(fixtureDir, "alias", "files", "a.js")] },
       });
       assert.match(
         resolver.sync(fixtureDir, "strAlias").path,
@@ -44,6 +44,10 @@ describe("option", () => {
   describe("aliasFields", () => {
     it("should allow field string ", () => {
       const resolver = new ResolverFactory({ aliasFields: ["browser"] });
+      console.log(
+        resolver.sync(fixtureDir, "./browser-module/lib/replaced.js")
+      );
+
       assert.match(
         resolver.sync(fixtureDir, "./browser-module/lib/replaced.js").path,
         /browser-module\/lib\/browser\.js$/
