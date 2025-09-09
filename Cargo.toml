@@ -95,9 +95,9 @@ futures = "0.3.31"
 async-trait = "0.1.84"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { version = "1.44.2", default-features = false, features = ["sync", "rt-multi-thread", "macros", "fs"] }
+tokio = { version = "1.47.1", default-features = false, features = ["sync", "rt-multi-thread", "macros", "fs"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-tokio = { version = "1.44.2", default-features = false, features = ["sync", "rt", "macros" ]}
+tokio = { version = "1.47.1", default-features = false, features = ["sync", "rt", "macros" ]}
 
 [dev-dependencies]
 vfs            = "0.12.0"                                        # for testing with in memory file system
