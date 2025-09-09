@@ -2,21 +2,21 @@ import { describe, it } from "node:test";
 import { ResolverFactory } from "../index.js";
 import * as assert from "node:assert";
 import * as path from "node:path";
+import { fileURLToPath } from "url";
 
-const fixtureDir = new URL(
-  "../../fixtures/enhanced_resolve/test/fixtures",
-  import.meta.url
-).pathname;
+const fixtureDir = fileURLToPath(
+  new URL("../../fixtures/enhanced_resolve/test/fixtures", import.meta.url)
+);
 
 describe("option", () => {
   describe("alias", () => {
     it("should allow alias string", () => {
       const resolver = new ResolverFactory({
-        alias: { strAlias: path.join(fixtureDir, "alias", "files", "a.js") },
+        alias: { strAlias: path.join(fixtureDir, "alias/files/a.js") }
       });
-      assert.match(
+      assert.equal(
         resolver.sync(fixtureDir, "strAlias").path,
-        /alias\/files\/a\.js$/
+        path.join(fixtureDir, "alias/files/a.js")
       );
     });
 
@@ -32,11 +32,11 @@ describe("option", () => {
 
     it("should allow alias string array", () => {
       const resolver = new ResolverFactory({
-        alias: { strAlias: [path.join(fixtureDir, "alias", "files", "a.js")] },
+        alias: { strAlias: [path.join(fixtureDir, "alias/files/a.js")] }
       });
-      assert.match(
+      assert.equal(
         resolver.sync(fixtureDir, "strAlias").path,
-        /alias\/files\/a\.js$/
+        path.join(fixtureDir, "alias/files/a.js")
       );
     });
   });
@@ -44,13 +44,9 @@ describe("option", () => {
   describe("aliasFields", () => {
     it("should allow field string ", () => {
       const resolver = new ResolverFactory({ aliasFields: ["browser"] });
-      console.log(
-        resolver.sync(fixtureDir, "./browser-module/lib/replaced.js")
-      );
-
-      assert.match(
+      assert.equal(
         resolver.sync(fixtureDir, "./browser-module/lib/replaced.js").path,
-        /browser-module\/lib\/browser\.js$/
+        path.join(fixtureDir, "./browser-module/lib/browser.js")
       );
     });
     it("should allow json path array", () => {
@@ -58,22 +54,26 @@ describe("option", () => {
         aliasFields: [["innerBrowser1", "field", "browser"]]
       });
 
-      assert.match(
+      assert.equal(
         resolver.sync(fixtureDir, "./browser-module/lib/main1.js").path,
-        /browser-module\/lib\/main\.js$/
+        path.join(fixtureDir, "./browser-module/lib/main.js")
       );
     });
   });
 
   describe("exportsFields", () => {
-    const createTest = exportsFields => {
+    const createTest = exportsFields => () => {
       const resolver = new ResolverFactory({ exportsFields });
-      assert.match(
+
+      assert.equal(
         resolver.sync(
           path.resolve(fixtureDir, "./exports-field3"),
           "exports-field"
         ).path,
-        /\/exports-field\/src\/index\.js$/
+        path.join(
+          fixtureDir,
+          "exports-field3/node_modules/exports-field/src/index.js"
+        )
       );
     };
     it("should allow string as field item", createTest(["broken"]));
@@ -83,9 +83,9 @@ describe("option", () => {
   describe("mainFields", () => {
     const createTest = mainFields => {
       const resolver = new ResolverFactory({ mainFields });
-      assert.match(
+      assert.equal(
         resolver.sync(fixtureDir, "../..").path,
-        /\/lib\/index\.js$/
+        path.join(fixtureDir, "../../", "lib/index.js")
       );
     };
     it("should use `'main'` as default", createTest(undefined));
