@@ -4,13 +4,14 @@ mod tracing;
 use std::{
   path::{Path, PathBuf},
   sync::Arc,
+  vec,
 };
 
 use napi::tokio::runtime;
 use napi_derive::napi;
 use rspack_resolver::{ResolveOptions, Resolver};
 
-use self::options::{NapiResolveOptions, StrOrStrList};
+use self::options::{AliasRawValue, NapiResolveOptions, StrOrStrList};
 #[rustfmt::skip]
 use self::tracing::init_tracing;
 
@@ -129,17 +130,8 @@ impl ResolverFactory {
         .map(|alias| {
           alias
             .into_iter()
-            .map(|(k, v)| {
-              let v = v
-                .into_iter()
-                .map(|item| match item {
-                  Some(path) => rspack_resolver::AliasValue::from(path),
-                  None => rspack_resolver::AliasValue::Ignore,
-                })
-                .collect();
-              (k, v)
-            })
-            .collect::<Vec<_>>()
+            .map(|(k, v)| (k, AliasRawValue(v).into()))
+            .collect()
         })
         .unwrap_or(default.alias),
       alias_fields: op
