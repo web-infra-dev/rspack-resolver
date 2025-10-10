@@ -53,6 +53,7 @@ async fn default_enforce_extension() {
   let mut ctx = ResolveContext::default();
   let resolved = Resolver::new(ResolveOptions {
     extensions: vec![".ts".into(), String::new(), ".js".into()],
+    symlinks: false,
     ..ResolveOptions::default()
   })
   .resolve_with_context(&f, "./foo", &mut ctx)
@@ -78,6 +79,7 @@ async fn respect_enforce_extension() {
   let resolved = Resolver::new(ResolveOptions {
     enforce_extension: EnforceExtension::Disabled,
     extensions: vec![".ts".into(), String::new(), ".js".into()],
+    symlinks: false,
     ..ResolveOptions::default()
   })
   .resolve_with_context(&f, "./foo", &mut ctx)

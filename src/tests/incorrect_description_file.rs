@@ -9,7 +9,11 @@ use crate::{JSONError, Resolution, ResolveContext, ResolveError, ResolveOptions,
 async fn incorrect_description_file_1() {
   let f = super::fixture().join("incorrect-package");
   let mut ctx = ResolveContext::default();
-  let resolution = Resolver::default()
+  let resolver = Resolver::new(ResolveOptions {
+    symlinks: false,
+    ..ResolveOptions::default()
+  });
+  let resolution = resolver
     .resolve_with_context(f.join("pack1"), ".", &mut ctx)
     .await;
   let _error = ResolveError::JSON(JSONError {

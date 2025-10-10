@@ -211,6 +211,7 @@ impl CachedPathImpl {
   pub fn realpath<'a, Fs: FileSystem + Send + Sync>(
     &'a self,
     fs: &'a Fs,
+    ctx: &'a mut Ctx,
   ) -> BoxFuture<'a, io::Result<PathBuf>> {
     let fut = async move {
       self
@@ -224,7 +225,8 @@ impl CachedPathImpl {
             return fs.canonicalize(&self.path).await.map(Some);
           }
           if let Some(parent) = self.parent() {
-            let parent_path = parent.realpath(fs).await?;
+            let parent_path = parent.realpath(fs, ctx).await?;
+            ctx.add_file_dependency(&parent_path);
             return Ok(Some(
               parent_path.normalize_with(self.path.strip_prefix(&parent.path).unwrap()),
             ));
@@ -313,7 +315,7 @@ impl CachedPathImpl {
           return Ok(None);
         };
         let real_path = if options.symlinks {
-          self.realpath(fs).await?.join("package.json")
+          self.realpath(fs, ctx).await?.join("package.json")
         } else {
           package_json_path.clone()
         };

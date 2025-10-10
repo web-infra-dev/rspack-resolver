@@ -47,10 +47,10 @@ mod windows {
           "/a/node_modules/module/package.json",
           // symlink checks
           "/a/node_modules/module/file.js",
-          // "/a/node_modules/module",
-          // "/a/node_modules",
-          // "/a",
-          // "/",
+          "/a/node_modules/module",
+          "/a/node_modules",
+          "/a",
+          "/",
         ],
         vec![
           // missing package.jsons
@@ -79,9 +79,9 @@ mod windows {
         vec![
           // symlink checks
           "/modules/other-module/file.js",
-          // "/modules/other-module",
-          // "/modules",
-          // "/",
+          "/modules/other-module",
+          "/modules",
+          "/",
         ],
         vec![
           // missing package.jsons
