@@ -29,9 +29,15 @@ async fn main() {
     // condition_names: vec!["node".into(), "require".into()],
     ..ResolveOptions::default()
   };
+  let mut ctx = Default::default();
 
-  match Resolver::new(options).resolve(path, &specifier).await {
+  match Resolver::new(options)
+    .resolve_with_context(path, &specifier, &mut ctx)
+    .await
+  {
     Err(error) => println!("Error: {error}"),
     Ok(resolution) => println!("Resolved: {:?}", resolution.full_path()),
-  }
+  };
+  println!("file_deps: {:#?}", ctx.file_dependencies);
+  println!("missing_deps: {:#?}", ctx.missing_dependencies);
 }
