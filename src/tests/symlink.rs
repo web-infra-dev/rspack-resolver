@@ -141,11 +141,17 @@ async fn test() -> io::Result<()> {
       .map(|r| r.full_path());
     assert_eq!(filename, Ok(root.join("lib/index.js")), "{comment:?}");
 
+    let mut ctx = &mut Default::default();
     let resolved_path = resolver_without_symlinks
-      .resolve(&path, request)
+      .resolve_with_context(&path, request, &mut ctx)
       .await
       .map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(path.join(request)));
+    assert_eq!(
+      ctx.file_dependencies.contains(&resolved_path.unwrap()),
+      true,
+      "file dependencies should contain resolved path {comment:?}"
+    );
   }
 
   Ok(())

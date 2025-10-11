@@ -263,7 +263,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ctx.with_fully_specified(self.options.fully_specified);
     let cached_path = self.cache.value(path);
     let cached_path = self.require(&cached_path, specifier, ctx).await?;
-    let path = self.load_realpath(&cached_path).await?;
+    let path = self.load_realpath(&cached_path, ctx).await?;
 
     let package_json = cached_path
       .find_package_json(&self.cache.fs, &self.options, ctx)
@@ -681,11 +681,17 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Ok(None)
   }
 
-  async fn load_realpath(&self, cached_path: &CachedPath) -> Result<PathBuf, ResolveError> {
+  async fn load_realpath(&self, cached_path: &CachedPath, ctx: &mut Ctx) -> Result<PathBuf, ResolveError> {
     if self.options.symlinks {
       cached_path
         .realpath(&self.cache.fs)
         .await
+          .and_then(
+            |path| {
+              ctx.add_file_dependency(&path);
+              Ok(path)
+            }
+          )
         .map_err(ResolveError::from)
     } else {
       Ok(cached_path.to_path_buf())
