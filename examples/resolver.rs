@@ -29,9 +29,21 @@ async fn main() {
     // condition_names: vec!["node".into(), "require".into()],
     ..ResolveOptions::default()
   };
+  let mut ctx = Default::default();
 
-  match Resolver::new(options).resolve(path, &specifier).await {
+  match Resolver::new(options)
+    .resolve_with_context(path, &specifier, &mut ctx)
+    .await
+  {
     Err(error) => println!("Error: {error}"),
     Ok(resolution) => println!("Resolved: {:?}", resolution.full_path()),
-  }
+  };
+
+  let mut sorted_file_deps = ctx.file_dependencies.iter().collect::<Vec<_>>();
+  sorted_file_deps.sort();
+  println!("file_deps: {:#?}", sorted_file_deps);
+
+  let mut sorted_missing = ctx.missing_dependencies.iter().collect::<Vec<_>>();
+  sorted_missing.sort();
+  println!("missing_deps: {:#?}", sorted_missing);
 }
