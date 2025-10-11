@@ -687,10 +687,14 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ctx: &mut Ctx,
   ) -> Result<PathBuf, ResolveError> {
     if self.options.symlinks {
-      cached_path
+      let real_path = cached_path
         .realpath(&self.cache.fs, ctx)
         .await
-        .map_err(ResolveError::from)
+        .map_err(ResolveError::from)?;
+
+      ctx.add_file_dependency(&real_path);
+
+      Ok(real_path)
     } else {
       Ok(cached_path.to_path_buf())
     }
