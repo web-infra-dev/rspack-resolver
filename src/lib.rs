@@ -681,17 +681,19 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Ok(None)
   }
 
-  async fn load_realpath(&self, cached_path: &CachedPath, ctx: &mut Ctx) -> Result<PathBuf, ResolveError> {
+  async fn load_realpath(
+    &self,
+    cached_path: &CachedPath,
+    ctx: &mut Ctx,
+  ) -> Result<PathBuf, ResolveError> {
     if self.options.symlinks {
       cached_path
         .realpath(&self.cache.fs)
         .await
-          .and_then(
-            |path| {
-              ctx.add_file_dependency(&path);
-              Ok(path)
-            }
-          )
+        .map(|path| {
+          ctx.add_file_dependency(&path);
+          path
+        })
         .map_err(ResolveError::from)
     } else {
       Ok(cached_path.to_path_buf())

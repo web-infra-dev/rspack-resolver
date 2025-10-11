@@ -147,9 +147,8 @@ async fn test() -> io::Result<()> {
       .await
       .map(|r| r.full_path());
     assert_eq!(resolved_path, Ok(path.join(request)));
-    assert_eq!(
+    assert!(
       ctx.file_dependencies.contains(&resolved_path.unwrap()),
-      true,
       "file dependencies should contain resolved path {comment:?}"
     );
   }
