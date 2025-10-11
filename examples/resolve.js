@@ -49,7 +49,7 @@ resolver.resolve(
     } else {
       console.log("Resolved:", result);
     }
-    console.log("file_deps:", fileDependencies);
-    console.log("missing_deps:", missingDependencies);
+    console.log("file_deps:", Array.from(fileDependencies).sort());
+    console.log("missing_deps:", Array.from(missingDependencies).sort());
   }
 );

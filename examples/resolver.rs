@@ -38,6 +38,12 @@ async fn main() {
     Err(error) => println!("Error: {error}"),
     Ok(resolution) => println!("Resolved: {:?}", resolution.full_path()),
   };
-  println!("file_deps: {:#?}", ctx.file_dependencies);
-  println!("missing_deps: {:#?}", ctx.missing_dependencies);
+
+  let mut sorted_file_deps = ctx.file_dependencies.iter().collect::<Vec<_>>();
+  sorted_file_deps.sort();
+  println!("file_deps: {:#?}", sorted_file_deps);
+
+  let mut sorted_missing = ctx.missing_dependencies.iter().collect::<Vec<_>>();
+  sorted_missing.sort();
+  println!("missing_deps: {:#?}", sorted_missing);
 }
