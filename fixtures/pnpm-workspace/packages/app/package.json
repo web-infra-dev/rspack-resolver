@@ -2,6 +2,7 @@
   "name": "@monorepo/app",
   "private": true,
   "dependencies": {
+    "@monorepo/missing": "workspace:*",
     "@monorepo/lib": "workspace:*"
   }
 }

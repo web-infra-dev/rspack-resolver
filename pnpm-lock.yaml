@@ -83,8 +83,17 @@ importers:
       '@monorepo/lib':
         specifier: workspace:*
         version: link:../lib
+      '@monorepo/missing':
+        specifier: workspace:*
+        version: link:../missing
 
   fixtures/pnpm-workspace/packages/lib:
+    dependencies:
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+
+  fixtures/pnpm-workspace/packages/missing:
     dependencies:
       react:
         specifier: ^18.3.1
