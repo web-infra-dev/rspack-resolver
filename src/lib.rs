@@ -687,17 +687,44 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     ctx: &mut Ctx,
   ) -> Result<PathBuf, ResolveError> {
     if self.options.symlinks {
-      cached_path
-        .realpath(&self.cache.fs)
-        .await
-        .map(|path| {
+      match cached_path.realpath(&self.cache.fs).await {
+        Ok(path) => {
           ctx.add_file_dependency(&path);
-          path
-        })
-        .map_err(ResolveError::from)
+          Ok(path)
+        }
+        Err(e) => {
+          if let Some(resolved) = self.resolve_symbolic_link_file(&cached_path).await {
+            ctx.add_missing_dependency(&resolved);
+          }
+
+          Err(e.into())
+        }
+      }
     } else {
       Ok(cached_path.to_path_buf())
     }
+  }
+
+  async fn resolve_symbolic_link_file(&self, cached_path: &CachedPath) -> Option<PathBuf> {
+    let path = cached_path.path();
+
+    // start from dirname(path)
+    let ancestors = path.ancestors().skip(1);
+    for ancestor in ancestors {
+      let cached_ancestor = self.cache.value(ancestor);
+      match cached_ancestor.realpath(&self.cache.fs).await {
+        Ok(real_path) => {
+          let right_path = path.strip_prefix(ancestor).unwrap();
+
+          return Some(real_path.join(right_path));
+        }
+        Err(_) => {
+          // just ignore keep trying ancestor paths
+        }
+      }
+    }
+
+    None
   }
 
   fn check_restrictions(&self, path: &Path) -> bool {
@@ -776,11 +803,24 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     {
       return Ok(Some(path));
     }
-    if cached_path.is_file(&self.cache.fs, ctx).await && self.check_restrictions(cached_path.path())
-    {
+
+    if self.is_file(cached_path, ctx).await && self.check_restrictions(cached_path.path()) {
       return Ok(Some(cached_path.clone()));
     }
     Ok(None)
+  }
+
+  async fn is_file(&self, path: &CachedPath, ctx: &mut Ctx) -> bool {
+    if path.is_file(&self.cache.fs, ctx).await {
+      true
+    } else {
+      if self.options.symlinks {
+        if let Some(resolved) = self.resolve_symbolic_link_file(&path).await {
+          ctx.add_missing_dependency(&resolved);
+        }
+      }
+      false
+    }
   }
 
   async fn load_node_modules(
@@ -1103,7 +1143,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         .filter(|s| path.ends_with(Path::new(s)))
         .is_some()
       {
-        return if cached_path.is_file(&self.cache.fs, ctx).await {
+        return if self.is_file(cached_path, ctx).await {
           if self.check_restrictions(cached_path.path()) {
             Ok(Some(cached_path.clone()))
           } else {
@@ -1270,7 +1310,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       }
     }
     // Bail if path is module directory such as `ipaddr.js`
-    if !cached_path.is_file(&self.cache.fs, ctx).await
+    if !self.is_file(cached_path, ctx).await
       || !self.check_restrictions(cached_path.path())
     {
       ctx.with_fully_specified(false);
@@ -1509,7 +1549,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                 // 1. Return the URL resolution of main in packageURL.
                 let path = cached_path.path().normalize_with(main_field);
                 let cached_path = self.cache.value(&path);
-                if cached_path.is_file(&self.cache.fs, ctx).await
+                if self.is_file(&cached_path, ctx).await
                   && self.check_restrictions(cached_path.path())
                 {
                   return Ok(Some(cached_path.clone()));
