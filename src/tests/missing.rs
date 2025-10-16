@@ -119,7 +119,6 @@ async fn test_missing_in_symbol_linked_folder() {
   let app_path = workspace.join("packages/app");
   let missing_lib = workspace.join("packages/missing");
 
-  dbg!(&workspace);
 
   let mut ctx = Default::default();
   let resolution = Resolver::default()
@@ -137,6 +136,6 @@ async fn test_missing_in_symbol_linked_folder() {
     !ctx
       .missing_dependencies
       .contains(&missing_lib.join("dist/cjs/index.js/index")),
-    "should not load index when parent not existed"
+    "should not load index when parent does not exist"
   )
 }
