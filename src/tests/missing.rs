@@ -119,7 +119,6 @@ async fn test_missing_in_symbol_linked_folder() {
   let app_path = workspace.join("packages/app");
   let missing_lib = workspace.join("packages/missing");
 
-  dbg!(&workspace);
 
   let mut ctx = Default::default();
   let resolution = Resolver::default()
