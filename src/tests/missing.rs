@@ -132,4 +132,11 @@ async fn test_missing_in_symbol_linked_folder() {
       .contains(&missing_lib.join("dist/cjs/index.js")),
     "real path of missing lib must be in missing dependencies"
   );
+
+  assert!(
+    !ctx
+      .missing_dependencies
+      .contains(&missing_lib.join("dist/cjs/index.js/index")),
+    "should not load index when parent not existed"
+  )
 }

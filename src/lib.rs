@@ -620,8 +620,10 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
             return Ok(Some(path));
           }
           // e. LOAD_INDEX(M)
-          if let Some(path) = self.load_index(&cached_path, ctx).await? {
-            return Ok(Some(path));
+          if cached_path.is_dir(&self.cache.fs, ctx).await {
+            if let Some(path) = self.load_index(&cached_path, ctx).await? {
+              return Ok(Some(path));
+            }
           }
         }
         // f. LOAD_INDEX(X) DEPRECATED
@@ -1310,9 +1312,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       }
     }
     // Bail if path is module directory such as `ipaddr.js`
-    if !self.is_file(cached_path, ctx).await
-      || !self.check_restrictions(cached_path.path())
-    {
+    if !self.is_file(cached_path, ctx).await || !self.check_restrictions(cached_path.path()) {
       ctx.with_fully_specified(false);
       return Ok(None);
     }
