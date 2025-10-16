@@ -695,7 +695,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
           Ok(path)
         }
         Err(e) => {
-          if let Some(resolved) = self.resolve_symbolic_link_file(&cached_path).await {
+          if let Some(resolved) = self.resolve_symbolic_link_file(cached_path).await {
             ctx.add_missing_dependency(&resolved);
           }
 
@@ -714,16 +714,12 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     let ancestors = path.ancestors().skip(1);
     for ancestor in ancestors {
       let cached_ancestor = self.cache.value(ancestor);
-      match cached_ancestor.realpath(&self.cache.fs).await {
-        Ok(real_path) => {
-          let right_path = path.strip_prefix(ancestor).unwrap();
+      if let Ok(real_path) = cached_ancestor.realpath(&self.cache.fs).await {
+        let right_path = path.strip_prefix(ancestor).unwrap();
 
-          return Some(real_path.join(right_path));
-        }
-        Err(_) => {
-          // just ignore keep trying ancestor paths
-        }
+        return Some(real_path.join(right_path));
       }
+      // just ignore keep trying ancestor paths
     }
 
     None
@@ -817,7 +813,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       true
     } else {
       if self.options.symlinks {
-        if let Some(resolved) = self.resolve_symbolic_link_file(&path).await {
+        if let Some(resolved) = self.resolve_symbolic_link_file(path).await {
           ctx.add_missing_dependency(&resolved);
         }
       }
