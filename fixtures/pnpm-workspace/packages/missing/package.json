@@ -1,7 +1,7 @@
 {
   "name": "@monorepo/missing",
   "main": "dist/cjs/index.js",
-  "versiojn": "0.0.1",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "dependencies": {
