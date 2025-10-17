@@ -120,7 +120,7 @@ async fn test_missing_in_symbol_linked_folder() {
   let missing_lib = workspace.join("packages/missing");
 
   let mut ctx = Default::default();
-  let resolution = Resolver::default()
+  let _ = Resolver::default()
     .resolve_with_context(&app_path, "@monorepo/missing", &mut ctx)
     .await;
 

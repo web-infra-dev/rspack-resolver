@@ -712,10 +712,15 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
     // start from dirname(path)
     let ancestors = path.ancestors().skip(1);
+    let mut comps = path.components().collect::<Vec<_>>();
+    let mut right_comps = Vec::with_capacity(comps.len());
+
     for ancestor in ancestors {
+      right_comps.insert(0, comps.pop().unwrap());
+
       let cached_ancestor = self.cache.value(ancestor);
       if let Ok(real_path) = cached_ancestor.realpath(&self.cache.fs).await {
-        let right_path = path.strip_prefix(ancestor).unwrap();
+        let right_path = right_comps.iter().collect::<PathBuf>();
 
         return Some(real_path.join(right_path));
       }
