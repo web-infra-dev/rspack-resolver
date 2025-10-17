@@ -317,16 +317,9 @@ impl CachedPathImpl {
         } else {
           package_json_path.clone()
         };
-        PackageJson::parse(package_json_path.clone(), real_path, &package_json_string)
+        PackageJson::parse(package_json_path.clone(), real_path, package_json_string)
           .map(Arc::new)
           .map(Some)
-          .map_err(|error| {
-            ResolveError::from_serde_json_error(
-              package_json_path,
-              &error,
-              Some(package_json_string),
-            )
-          })
       })
       .await
       .cloned();

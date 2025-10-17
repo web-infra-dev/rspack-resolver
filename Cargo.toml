@@ -81,6 +81,8 @@ serde = { version = "1.0.203", features = ["derive"] } # derive for Deserialize 
 serde_json = { version = "1.0.117", features = [
   "preserve_order",
 ] } # preserve_order: package_json.exports requires order such as `["require", "import", "default"]`
+simd-json = { version = "0.17.0", default-features = false, features = ["runtime-detection", "serde_impl"] }
+
 rustc-hash = { version = "2.0.0", default-features = false, features = ["std"] }
 dunce = "1.0.4" # Normalize Windows paths to the most compatible format, avoiding UNC where possible
 thiserror = "1.0.61"

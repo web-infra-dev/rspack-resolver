@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value as JSONValue;
 
-use crate::{path::PathUtil, ResolveError};
+use crate::{path::PathUtil, JSONError, ResolveError};
 
 pub type JSONMap = serde_json::Map<String, JSONValue>;
 
@@ -43,9 +43,22 @@ impl PackageJson {
   pub(crate) fn parse(
     path: PathBuf,
     realpath: PathBuf,
-    json: &str,
-  ) -> Result<Self, serde_json::Error> {
-    let mut raw_json: JSONValue = serde_json::from_str(json)?;
+    mut json: String,
+  ) -> Result<Self, ResolveError> {
+    let mut raw_json: JSONValue =
+      simd_json::from_slice(unsafe { json.as_bytes_mut() }).map_err(|e| {
+        let byte_offset = e.index();
+
+        let (line, column) = Self::off_to_location(&json, byte_offset);
+
+        ResolveError::JSON(JSONError {
+          path: path.clone(),
+          message: e.to_string(),
+          line,
+          column,
+          content: Some(json),
+        })
+      })?;
     let mut package_json = Self::default();
 
     if let Some(json_object) = raw_json.as_object_mut() {
@@ -74,6 +87,27 @@ impl PackageJson {
     package_json.realpath = realpath;
     package_json.raw_json = std::sync::Arc::new(raw_json);
     Ok(package_json)
+  }
+
+  fn off_to_location(json: &str, offset: usize) -> (usize, usize) {
+    let mut line = 0;
+    let mut col = 0;
+    let mut current_offset = 0;
+    for ch in json.chars() {
+      let b = ch.len_utf8();
+      current_offset += b;
+      if ch == '\n' {
+        line += 1;
+        col = 0;
+      } else {
+        col += b;
+      }
+
+      if current_offset >= offset {
+        break;
+      }
+    }
+    (line + 1, col + 1)
   }
 
   fn get_value_by_path<'a>(
