@@ -711,20 +711,19 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     let path = cached_path.path();
 
     // start from dirname(path)
-    let ancestors = path.ancestors().skip(1);
-    let mut comps = path.components().collect::<Vec<_>>();
-    let mut right_comps = Vec::with_capacity(comps.len());
+    let mut ancestors_comps = path.components().collect::<Vec<_>>();
+    let mut right_comps = Vec::with_capacity(ancestors_comps.len());
 
-    for ancestor in ancestors {
-      right_comps.insert(0, comps.pop().unwrap());
+    while let Some(comp) = ancestors_comps.pop() {
+      right_comps.insert(0, comp);
 
-      let cached_ancestor = self.cache.value(ancestor);
+      let ancestor_path = ancestors_comps.iter().collect::<PathBuf>();
+      let cached_ancestor = self.cache.value(&ancestor_path);
+
       if let Ok(real_path) = cached_ancestor.realpath(&self.cache.fs).await {
-        let right_path = right_comps.iter().collect::<PathBuf>();
-
+        let right_path = right_comps.iter().rev().collect::<PathBuf>();
         return Some(real_path.join(right_path));
       }
-      // just ignore keep trying ancestor paths
     }
 
     None
