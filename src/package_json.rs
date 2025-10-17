@@ -46,7 +46,8 @@ impl PackageJson {
     mut json: String,
   ) -> Result<Self, ResolveError> {
     let mut raw_json: JSONValue =
-      simd_json::from_slice(unsafe { json.as_bytes_mut() }).map_err(|e| {
+        // SAFETY: mut reference from an owned String
+        simd_json::from_slice(unsafe { json.as_bytes_mut() }).map_err(|e| {
         let byte_offset = e.index();
 
         let (line, column) = Self::off_to_location(&json, byte_offset);
