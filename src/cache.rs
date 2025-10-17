@@ -181,7 +181,7 @@ impl CachedPathImpl {
     self.parent.as_ref()
   }
 
-  async fn meta<Fs: Send + Sync + FileSystem>(&self, fs: &Fs) -> Option<FileMetadata> {
+  pub(crate) async fn meta<Fs: Send + Sync + FileSystem>(&self, fs: &Fs) -> Option<FileMetadata> {
     *self
       .meta
       .get_or_init(|| async { fs.metadata(&self.path).await.ok() })

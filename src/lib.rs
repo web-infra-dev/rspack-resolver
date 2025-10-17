@@ -809,9 +809,11 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   async fn is_file(&self, path: &CachedPath, ctx: &mut Ctx) -> bool {
-    if path.is_file(&self.cache.fs, ctx).await {
-      true
+    if let Some(meta) = path.meta(&self.cache.fs).await {
+      ctx.add_file_dependency(path.path());
+      meta.is_file
     } else {
+      ctx.add_missing_dependency(path.path());
       if self.options.symlinks {
         if let Some(resolved) = self.resolve_symbolic_link_file(path).await {
           ctx.add_missing_dependency(&resolved);
