@@ -3,11 +3,11 @@
 //! Code related to export field are copied from [Parcel's resolver](https://github.com/parcel-bundler/parcel/blob/v2/packages/utils/node-resolver-rs/src/package_json.rs)
 use std::path::{Path, PathBuf};
 
-use serde_json::Value as JSONValue;
+use simd_json::OwnedValue as JSONValue;
 
-use crate::{path::PathUtil, ResolveError};
+use crate::{path::PathUtil, JsonParseError, ResolveError};
 
-pub type JSONMap = serde_json::Map<String, JSONValue>;
+pub type JSONMap = simd_json::value::owned::Object;
 
 /// Deserialized package.json
 #[derive(Debug, Default)]
@@ -43,9 +43,10 @@ impl PackageJson {
   pub(crate) fn parse(
     path: PathBuf,
     realpath: PathBuf,
-    json: &str,
-  ) -> Result<Self, serde_json::Error> {
-    let mut raw_json: JSONValue = serde_json::from_str(json)?;
+    json: &mut str,
+  ) -> Result<Self, JsonParseError> {
+    let mut raw_json =
+      simd_json::to_owned_value(json.as_bytes_mut()).map_err(JsonParseError::from)?;
     let mut package_json = Self::default();
 
     if let Some(json_object) = raw_json.as_object_mut() {
@@ -76,10 +77,7 @@ impl PackageJson {
     Ok(package_json)
   }
 
-  fn get_value_by_path<'a>(
-    fields: &'a serde_json::Map<String, JSONValue>,
-    path: &[String],
-  ) -> Option<&'a JSONValue> {
+  fn get_value_by_path<'a>(fields: &'a JSONMap, path: &[String]) -> Option<&'a JSONValue> {
     if path.is_empty() {
       return None;
     }

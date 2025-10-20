@@ -74,11 +74,11 @@ use std::{
 use dashmap::{mapref::one::Ref, DashMap};
 use futures::future::{try_join_all, BoxFuture};
 use rustc_hash::FxHashSet;
-use serde_json::Value as JSONValue;
+use simd_json::OwnedValue as JSONValue;
 
 pub use crate::{
   builtins::NODEJS_BUILTINS,
-  error::{JSONError, ResolveError, SpecifierError},
+  error::{JSONError, JsonParseError, ResolveError, SpecifierError},
   file_system::{FileMetadata, FileSystem, FileSystemOs},
   options::{
     Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,

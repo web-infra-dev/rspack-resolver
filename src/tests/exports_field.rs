@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use serde_json::json;
+use simd_json::json;
 
 use crate::{Ctx, PathUtil, ResolveError, ResolveOptions, Resolver};
 
@@ -381,13 +381,13 @@ async fn extension_alias_throw_error() {
 struct TestCase {
   name: &'static str,
   expect: Option<Vec<&'static str>>,
-  exports_field: serde_json::Value,
+  exports_field: simd_json::OwnedValue,
   request: &'static str,
   condition_names: Vec<&'static str>,
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn exports_field(value: serde_json::Value) -> serde_json::Value {
+fn exports_field(value: simd_json::OwnedValue) -> simd_json::OwnedValue {
   value
 }
 

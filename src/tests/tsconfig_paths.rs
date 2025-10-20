@@ -139,7 +139,7 @@ async fn empty() {
 #[tokio::test]
 async fn test_paths() {
   let path = Path::new("/foo/tsconfig.json");
-  let mut tsconfig_json = serde_json::json!({
+  let mut tsconfig_json = simd_json::to_string(&simd_json::json!({
       "compilerOptions": {
           "paths": {
               "jquery": ["node_modules/jquery/dist/jquery"],
@@ -150,8 +150,8 @@ async fn test_paths() {
               "url": ["node_modules/my-url"],
           }
       }
-  })
-  .to_string();
+  }))
+  .unwrap();
   let tsconfig = TsConfig::parse(true, path, &mut tsconfig_json).unwrap();
 
   let data = [
@@ -176,12 +176,12 @@ async fn test_paths() {
 #[tokio::test]
 async fn test_base_url() {
   let path = Path::new("/foo/tsconfig.json");
-  let mut tsconfig_json = serde_json::json!({
+  let mut tsconfig_json = simd_json::to_string(&simd_json::json!({
       "compilerOptions": {
           "baseUrl": "./src"
       }
-  })
-  .to_string();
+  }))
+  .unwrap();
   let tsconfig = TsConfig::parse(true, path, &mut tsconfig_json).unwrap();
 
   let data = [
@@ -201,7 +201,7 @@ async fn test_base_url() {
 #[tokio::test]
 async fn test_paths_and_base_url() {
   let path = Path::new("/foo/tsconfig.json");
-  let mut tsconfig_json = serde_json::json!({
+  let mut tsconfig_json = simd_json::to_string(&simd_json::json!({
       "compilerOptions": {
           "baseUrl": "./src",
           "paths": {
@@ -211,8 +211,8 @@ async fn test_paths_and_base_url() {
               "@/components/*": ["components/*"]
           }
       }
-  })
-  .to_string();
+  }))
+  .unwrap();
   let tsconfig = TsConfig::parse(true, path, &mut tsconfig_json).unwrap();
 
   let data = [
@@ -291,14 +291,14 @@ mod windows_test {
     fn default() -> Self {
       Self {
         name: "",
-        tsconfig: serde_json::json!({
+        tsconfig: simd_json::to_string(&simd_json::json!({
             "compilerOptions": {
                 "paths": {
                     "lib/*": ["location/*"]
                 }
             }
-        })
-        .to_string(),
+        }))
+        .unwrap(),
         package_json: None,
         main_fields: None,
         existing_files: vec![],
@@ -358,14 +358,14 @@ mod windows_test {
       },
       OneTest {
         name: "should resolve to correct path when many are specified",
-        tsconfig: serde_json::json!({
+        tsconfig: simd_json::to_string(&simd_json::json!({
             "compilerOptions": {
                 "paths": {
                     "lib/*": ["foo1/*", "foo2/*", "location/*", "foo3/*"],
                 }
             }
-        })
-        .to_string(),
+        }))
+        .unwrap(),
         existing_files: vec!["/root/location/mylib/index.ts"],
         requested_module: "lib/mylib",
         expected_path: "/root/location/mylib/index.ts",
@@ -374,15 +374,15 @@ mod windows_test {
       OneTest {
         name:
           "should locate path that matches with star and prioritize pattern with longest prefix",
-        tsconfig: serde_json::json!({
+        tsconfig: simd_json::to_string(&simd_json::json!({
             "compilerOptions": {
                 "paths": {
                     "*": ["location/*"],
                     "lib/*": ["location/*"],
                 }
             }
-        })
-        .to_string(),
+        }))
+        .unwrap(),
         existing_files: vec![
           "/root/location/lib/mylib/index.ts",
           "/root/location/mylib/index.ts",
@@ -408,14 +408,14 @@ mod windows_test {
       },
       OneTest {
         name: "should locate path that matches without star and exists",
-        tsconfig: serde_json::json!({
+        tsconfig: simd_json::to_string(&simd_json::json!({
             "compilerOptions": {
                 "paths": {
                     "lib/foo": ["location/foo"]
                 }
             }
-        })
-        .to_string(),
+        }))
+        .unwrap(),
         existing_files: vec!["/root/location/foo.ts"],
         requested_module: "lib/foo",
         expected_path: "/root/location/foo.ts",
@@ -432,10 +432,10 @@ mod windows_test {
         name: "should resolve from main field in package.json",
         package_json: Some((
           PathBuf::from("/root/location/mylib"),
-          serde_json::json!({
+          simd_json::to_string(&simd_json::json!({
               "main": "./kalle.ts"
-          })
-          .to_string(),
+          }))
+          .unwrap(),
         )),
         existing_files: vec!["/root/location/mylib/kalle.ts"],
         requested_module: "lib/mylib",
@@ -446,10 +446,10 @@ mod windows_test {
         name: "should resolve from main field in package.json (js)",
         package_json: Some((
           PathBuf::from("/root/location/mylib.js"),
-          serde_json::json!({
+          simd_json::to_string(&simd_json::json!({
               "main": "./kalle.js"
-          })
-          .to_string(),
+          }))
+          .unwrap(),
         )),
         existing_files: vec!["/root/location/mylib.js/kalle.js"],
         extensions: vec![".ts".into(), ".js".into()],
@@ -462,11 +462,11 @@ mod windows_test {
         main_fields: Some(vec!["missing".into(), "browser".into(), "main".into()]),
         package_json: Some((
           PathBuf::from("/root/location/mylibjs"),
-          serde_json::json!({
+          simd_json::to_string(&simd_json::json!({
               "main": "./main.js",
               "browser": "./browser.js"
-          })
-          .to_string(),
+          }))
+          .unwrap(),
         )),
         existing_files: vec![
           "/root/location/mylibjs/main.js",
@@ -482,11 +482,11 @@ mod windows_test {
         main_fields: Some(vec!["browser".into(), "main".into()]),
         package_json: Some((
           PathBuf::from("/root/location/mylibjs"),
-          serde_json::json!({
+          simd_json::to_string(&simd_json::json!({
               "main": "./kalle.js",
               "browser": "./nope.js"
-          })
-          .to_string(),
+          }))
+          .unwrap(),
         )),
         existing_files: vec!["/root/location/mylibjs/kalle.js"],
         extensions: vec![".ts".into(), ".js".into()],
@@ -502,14 +502,14 @@ mod windows_test {
       // name: "should resolve main file with cjs file extension"
       OneTest {
         name: "should resolve .ts from .js alias",
-        tsconfig: serde_json::json!({
+        tsconfig: simd_json::to_string(&simd_json::json!({
             "compilerOptions": {
                 "paths": {
                     "@/*": ["src/*"]
                 }
             }
-        })
-        .to_string(),
+        }))
+        .unwrap(),
         existing_files: vec!["/root/src/foo.ts"],
         requested_module: "@/foo", // original data was "@/foo.ts" but I don't get why it is the case?
         expected_path: "/root/src/foo.ts", // original data was "/root/src/foo"
@@ -536,14 +536,14 @@ mod windows_test {
     let fail = [
       OneTest {
         name: "should not locate path that does not match",
-        tsconfig: serde_json::json!({
+        tsconfig: simd_json::to_string(&simd_json::json!({
             "compilerOptions": {
                 "paths": {
                     "lib/*": ["location/*"]
                 }
             }
-        })
-        .to_string(),
+        }))
+        .unwrap(),
         existing_files: vec!["/root/location/mylib"],
         requested_module: "lib/mylibjs",
         ..OneTest::default()

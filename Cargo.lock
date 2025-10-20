@@ -886,7 +886,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "serde",
- "serde_json",
+ "simd-json",
  "thiserror 1.0.63",
  "tokio",
  "tracing",
@@ -972,6 +972,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "simd-json"
+version = "0.14.2"
+dependencies = [
+ "indexmap",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
