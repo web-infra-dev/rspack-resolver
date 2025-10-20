@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use simd_json::OwnedValue as JSONValue;
 
-use crate::{path::PathUtil, ResolveError};
+use crate::{path::PathUtil, JsonParseError, ResolveError};
 
 pub type JSONMap = simd_json::value::owned::Object;
 
@@ -44,8 +44,9 @@ impl PackageJson {
     path: PathBuf,
     realpath: PathBuf,
     json: &mut str,
-  ) -> Result<Self, simd_json::Error> {
-    let mut raw_json = simd_json::to_owned_value(json)?;
+  ) -> Result<Self, JsonParseError> {
+    let mut raw_json =
+      simd_json::to_owned_value(json.as_bytes_mut()).map_err(JsonParseError::from)?;
     let mut package_json = Self::default();
 
     if let Some(json_object) = raw_json.as_object_mut() {

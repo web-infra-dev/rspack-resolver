@@ -1,4 +1,4 @@
-use std::{io, path::PathBuf, sync::Arc};
+use std::{fmt, io, path::PathBuf, sync::Arc};
 
 use thiserror::Error;
 
@@ -104,7 +104,7 @@ impl ResolveError {
 
   pub(crate) fn from_json_error(
     path: PathBuf,
-    error: &simd_json::Error,
+    error: &JsonParseError,
     content: Option<String>,
   ) -> Self {
     Self::JSON(JSONError {
@@ -114,6 +114,63 @@ impl ResolveError {
       column: error.column(),
       content,
     })
+  }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct JsonParseError {
+  message: String,
+  line: usize,
+  column: usize,
+}
+
+impl JsonParseError {
+  pub fn new(message: impl Into<String>) -> Self {
+    Self {
+      message: message.into(),
+      line: 0,
+      column: 0,
+    }
+  }
+
+  pub fn with_location(message: impl Into<String>, line: usize, column: usize) -> Self {
+    Self {
+      message: message.into(),
+      line,
+      column,
+    }
+  }
+
+  pub fn message(&self) -> &str {
+    &self.message
+  }
+
+  pub fn line(&self) -> usize {
+    self.line
+  }
+
+  pub fn column(&self) -> usize {
+    self.column
+  }
+}
+
+impl fmt::Display for JsonParseError {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str(&self.message)
+  }
+}
+
+impl std::error::Error for JsonParseError {}
+
+impl From<simd_json::Error> for JsonParseError {
+  fn from(error: simd_json::Error) -> Self {
+    let line = error.line();
+    let column = error.column();
+    if line == 0 && column == 0 {
+      Self::new(error.to_string())
+    } else {
+      Self::with_location(error.to_string(), line, column)
+    }
   }
 }
 

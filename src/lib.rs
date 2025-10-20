@@ -78,7 +78,7 @@ use simd_json::OwnedValue as JSONValue;
 
 pub use crate::{
   builtins::NODEJS_BUILTINS,
-  error::{JSONError, ResolveError, SpecifierError},
+  error::{JSONError, JsonParseError, ResolveError, SpecifierError},
   file_system::{FileMetadata, FileSystem, FileSystemOs},
   options::{
     Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,

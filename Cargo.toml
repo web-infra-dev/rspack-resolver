@@ -137,6 +137,3 @@ codegen-units = 1
 strip         = false # set to `false` for debug information
 debug         = false# set to `true` for debug information
 panic         = "abort"
-[patch.crates-io]
-simd-json = { path = "vendor/simd-json" }
-
