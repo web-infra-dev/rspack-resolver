@@ -8,7 +8,7 @@ use std::{
 };
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use serde_json::Value;
+use simd_json::OwnedValue as Value;
 use tokio::{
   runtime::{self, Builder},
   task::JoinSet,
@@ -105,7 +105,8 @@ fn bench_resolver(c: &mut Criterion) {
   let cwd = env::current_dir().unwrap().join("benches");
 
   let pkg_content = read_to_string("./benches/package.json").unwrap();
-  let pkg_json: Value = serde_json::from_str(&pkg_content).unwrap();
+  let mut pkg_content = pkg_content;
+  let pkg_json: Value = simd_json::to_owned_value(pkg_content.as_mut_str()).unwrap();
   // about 1000 npm packages
   let data = pkg_json["dependencies"]
     .as_object()

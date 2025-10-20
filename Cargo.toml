@@ -78,9 +78,7 @@ name = "resolver"
 tracing = "0.1.40"
 dashmap = "6.0.1"
 serde = { version = "1.0.203", features = ["derive"] } # derive for Deserialize from package.json
-serde_json = { version = "1.0.117", features = [
-  "preserve_order",
-] } # preserve_order: package_json.exports requires order such as `["require", "import", "default"]`
+simd-json = { version = "0.14.2", default-features = false, features = ["std", "value"] }
 rustc-hash = { version = "2.0.0", default-features = false, features = ["std"] }
 dunce = "1.0.4" # Normalize Windows paths to the most compatible format, avoiding UNC where possible
 thiserror = "1.0.61"
@@ -109,7 +107,7 @@ normalize-path = { version = "0.2.1" }
 [features]
 default = ["yarn_pnp"]
 ## Enables the [PackageJson::raw_json] API,
-## which returns the `package.json` with `serde_json::Value`.
+## which returns the `package.json` with `simd_json::OwnedValue`.
 package_json_raw_json_api = []
 ## [Yarn Plug'n'Play](https://yarnpkg.com/features/pnp)
 yarn_pnp = ["pnp"]
@@ -139,3 +137,6 @@ codegen-units = 1
 strip         = false # set to `false` for debug information
 debug         = false# set to `true` for debug information
 panic         = "abort"
+[patch.crates-io]
+simd-json = { path = "vendor/simd-json" }
+

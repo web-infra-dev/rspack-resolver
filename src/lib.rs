@@ -74,7 +74,7 @@ use std::{
 use dashmap::{mapref::one::Ref, DashMap};
 use futures::future::{try_join_all, BoxFuture};
 use rustc_hash::FxHashSet;
-use serde_json::Value as JSONValue;
+use simd_json::OwnedValue as JSONValue;
 
 pub use crate::{
   builtins::NODEJS_BUILTINS,

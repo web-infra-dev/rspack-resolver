@@ -75,15 +75,22 @@ pub struct ProjectReference {
 }
 
 impl TsConfig {
-  pub fn parse(root: bool, path: &Path, json: &mut str) -> Result<Self, serde_json::Error> {
+  pub fn parse(root: bool, path: &Path, json: &mut str) -> Result<Self, simd_json::Error> {
     _ = json_strip_comments::strip(json);
-    if json.trim().is_empty() {
-      let mut tsconfig: Self = serde_json::from_str("{}")?;
-      tsconfig.root = root;
-      tsconfig.path = path.to_path_buf();
-      return Ok(tsconfig);
-    }
-    let mut tsconfig: Self = serde_json::from_str(json)?;
+    let value = if json.trim().is_empty() {
+      simd_json::OwnedValue::Object(Default::default())
+    } else {
+      simd_json::to_owned_value(json)?
+    };
+    let object = match value {
+      simd_json::OwnedValue::Object(map) => map,
+      _ => {
+        return Err(simd_json::Error::new(
+          "tsconfig root value must be a JSON object",
+        ))
+      }
+    };
+    let mut tsconfig = Self::from_object(object)?;
     tsconfig.root = root;
     tsconfig.path = path.to_path_buf();
     let directory = tsconfig.directory().to_path_buf();
@@ -101,6 +108,138 @@ impl TsConfig {
         .map_or(directory, Clone::clone);
     }
     Ok(tsconfig)
+  }
+
+  fn from_object(object: simd_json::value::owned::Object) -> Result<Self, simd_json::Error> {
+    let mut tsconfig = Self {
+      root: false,
+      path: PathBuf::new(),
+      extends: None,
+      compiler_options: CompilerOptions::default(),
+      references: Vec::new(),
+    };
+
+    if let Some(extends) = object.get("extends") {
+      tsconfig.extends = Self::parse_extends(extends)?;
+    }
+
+    if let Some(compiler_options) = object.get("compilerOptions") {
+      tsconfig.compiler_options = Self::parse_compiler_options(compiler_options)?;
+    }
+
+    if let Some(references) = object.get("references") {
+      tsconfig.references = Self::parse_references(references)?;
+    }
+
+    Ok(tsconfig)
+  }
+
+  fn parse_extends(
+    value: &simd_json::OwnedValue,
+  ) -> Result<Option<ExtendsField>, simd_json::Error> {
+    if value.is_null() {
+      return Ok(None);
+    }
+    if let Some(string) = value.as_str() {
+      return Ok(Some(ExtendsField::Single(string.to_string())));
+    }
+    if let Some(values) = value.as_array() {
+      let mut extends = Vec::with_capacity(values.len());
+      for entry in values {
+        let Some(string) = entry.as_str() else {
+          return Err(simd_json::Error::new(
+            "tsconfig extends array entries must be strings",
+          ));
+        };
+        extends.push(string.to_string());
+      }
+      return Ok(Some(ExtendsField::Multiple(extends)));
+    }
+    Err(simd_json::Error::new(
+      "tsconfig extends must be a string or an array of strings",
+    ))
+  }
+
+  fn parse_compiler_options(
+    value: &simd_json::OwnedValue,
+  ) -> Result<CompilerOptions, simd_json::Error> {
+    let mut options = CompilerOptions::default();
+    let Some(object) = value.as_object() else {
+      return Err(simd_json::Error::new(
+        "tsconfig compilerOptions must be an object",
+      ));
+    };
+
+    if let Some(base_url) = object.get("baseUrl") {
+      let Some(base_url) = base_url.as_str() else {
+        return Err(simd_json::Error::new(
+          "tsconfig compilerOptions.baseUrl must be a string",
+        ));
+      };
+      options.base_url = Some(PathBuf::from(base_url));
+    }
+
+    if let Some(paths) = object.get("paths") {
+      let Some(paths_object) = paths.as_object() else {
+        return Err(simd_json::Error::new(
+          "tsconfig compilerOptions.paths must be an object",
+        ));
+      };
+      let mut map = CompilerOptionsPathsMap::default();
+      for (alias, targets) in paths_object {
+        let Some(array) = targets.as_array() else {
+          return Err(simd_json::Error::new(
+            "tsconfig compilerOptions.paths values must be arrays",
+          ));
+        };
+        let mut paths = Vec::with_capacity(array.len());
+        for value in array {
+          let Some(target) = value.as_str() else {
+            return Err(simd_json::Error::new(
+              "tsconfig compilerOptions.paths entries must be strings",
+            ));
+          };
+          paths.push(target.to_string());
+        }
+        map.insert(alias.clone(), paths);
+      }
+      options.paths = Some(map);
+    }
+
+    Ok(options)
+  }
+
+  fn parse_references(
+    value: &simd_json::OwnedValue,
+  ) -> Result<Vec<ProjectReference>, simd_json::Error> {
+    let Some(array) = value.as_array() else {
+      return Err(simd_json::Error::new(
+        "tsconfig references must be an array",
+      ));
+    };
+    let mut references = Vec::with_capacity(array.len());
+    for entry in array {
+      let Some(object) = entry.as_object() else {
+        return Err(simd_json::Error::new(
+          "tsconfig references entries must be objects",
+        ));
+      };
+      let Some(path) = object.get("path") else {
+        return Err(simd_json::Error::new(
+          "tsconfig references entries must contain a path",
+        ));
+      };
+      let Some(path) = path.as_str() else {
+        return Err(simd_json::Error::new(
+          "tsconfig references path must be a string",
+        ));
+      };
+      references.push(ProjectReference {
+        path: PathBuf::from(path),
+        tsconfig: None,
+      });
+    }
+    Ok(references)
   }
 
   pub fn build(mut self) -> Self {

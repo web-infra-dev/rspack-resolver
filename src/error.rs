@@ -102,9 +102,9 @@ impl ResolveError {
     matches!(self, Self::Ignored(_))
   }
 
-  pub(crate) fn from_serde_json_error(
+  pub(crate) fn from_json_error(
     path: PathBuf,
-    error: &serde_json::Error,
+    error: &simd_json::Error,
     content: Option<String>,
   ) -> Self {
     Self::JSON(JSONError {
@@ -124,7 +124,7 @@ pub enum SpecifierError {
   Empty(String),
 }
 
-/// JSON error from [serde_json::Error]
+/// JSON error from [simd_json::Error]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct JSONError {
   pub path: PathBuf,
