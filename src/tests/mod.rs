@@ -22,6 +22,8 @@ mod simple;
 mod symlink;
 mod tsconfig_paths;
 mod tsconfig_project_references;
+#[cfg(windows)]
+mod windows;
 
 use std::{env, path::PathBuf, sync::Arc, thread};
 
