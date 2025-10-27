@@ -3,7 +3,7 @@
 //! enhanced_resolve's test <https://github.com/webpack/enhanced-resolve/blob/main/test/pnp.test.js>
 //! cannot be ported over because it uses mocks on `pnpApi` provided by the runtime.
 
-use crate::{ResolveError::NotFound, ResolveOptions, Resolver};
+use crate::{path::PathUtil, ResolveError::NotFound, ResolveOptions, Resolver};
 
 #[tokio::test]
 async fn pnp1() {
@@ -102,6 +102,7 @@ async fn pnp_resolve_description_file() {
     fixture
       .join(".yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact")
       .join("package.json")
+      .normalize()
       .to_string_lossy()
       .to_string()
   );

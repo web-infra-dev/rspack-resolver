@@ -412,7 +412,14 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     }
     // 2. If X begins with '/'
     //   a. set Y to be the file system root
-    let path = self.cache.value(Path::new(specifier));
+    let path = self.cache.value(
+      //
+      #[cfg(windows)]
+      &Path::new(specifier).normalize(),
+      #[cfg(not(windows))]
+      Path::new(specifier),
+    );
+
     if let Some(path) = self
       .load_as_file_or_directory(&path, specifier, ctx)
       .await?
