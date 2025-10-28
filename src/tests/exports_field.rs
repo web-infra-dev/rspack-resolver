@@ -381,14 +381,14 @@ async fn extension_alias_throw_error() {
 struct TestCase {
   name: &'static str,
   expect: Option<Vec<&'static str>>,
-  exports_field: package_json::JSONValue,
+  exports_field: package_json::JSONValue<'static>,
   request: &'static str,
   condition_names: Vec<&'static str>,
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn exports_field(value: package_json::JSONValue) -> package_json::JSONValue {
-  value
+fn exports_field(value: simd_json::value::OwnedValue) -> package_json::JSONValue<'static> {
+  value.into()
 }
 
 #[tokio::test]
