@@ -3,7 +3,6 @@
 use std::{env, path::PathBuf};
 
 use rspack_resolver::{EnforceExtension, Resolution, ResolveContext, ResolveOptions, Resolver};
-
 use simd_json::prelude::*;
 
 fn dir() -> PathBuf {
@@ -42,10 +41,7 @@ async fn package_json() {
   let resolution = resolve("./tests/package.json").await;
   let package_json = resolution.package_json().unwrap();
   assert_eq!(package_json.name.as_ref().unwrap(), "name");
-  assert_eq!(
-    package_json.r#type.as_str().unwrap(),
-    "module"
-  );
+  assert_eq!(package_json.r#type.as_str().unwrap(), "module");
   assert!(package_json.side_effects.as_ref().unwrap().is_object());
 }
 

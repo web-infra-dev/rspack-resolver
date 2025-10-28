@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use simd_json::prelude::*;
 
-use crate::{path::PathUtil, ResolveError};
+use crate::{path::PathUtil, JSONError, ResolveError};
 
 pub type JSONMap = simd_json::value::owned::Object;
 
@@ -46,9 +46,17 @@ impl PackageJson {
   pub(crate) fn parse(
     path: PathBuf,
     realpath: PathBuf,
-    json: &str,
-  ) -> Result<Self, serde_json::Error> {
-    let mut raw_json: JSONValue = serde_json::from_str(json)?;
+    mut json: Vec<u8>,
+  ) -> Result<Self, ResolveError> {
+    let mut raw_json: JSONValue = simd_json::from_slice(&mut json).map_err(|parse_error| {
+      ResolveError::JSON(JSONError {
+        path: path.clone(),
+        message: "sj parse failed".to_string(),
+        line: parse_error.index(),
+        column: parse_error.index(),
+        content: None,
+      })
+    })?;
     let mut package_json = Self::default();
 
     if let Some(json_object) = raw_json.as_object_mut() {
@@ -79,10 +87,7 @@ impl PackageJson {
     Ok(package_json)
   }
 
-  fn get_value_by_paths<'a>(
-    fields: &'a JSONMap,
-    paths: &[String],
-  ) -> Option<&'a JSONValue> {
+  fn get_value_by_paths<'a>(fields: &'a JSONMap, paths: &[String]) -> Option<&'a JSONValue> {
     if paths.is_empty() {
       return None;
     }
@@ -222,14 +227,12 @@ impl PackageJson {
   fn alias_value<'a>(key: &Path, value: &'a JSONValue) -> Result<Option<&'a str>, ResolveError> {
     match value {
       JSONValue::String(value) => Ok(Some(value.as_str())),
-      JSONValue::Static( sn) =>  {
-          if matches!(sn.as_bool(), Some(false)) {
-
-         Err(ResolveError::Ignored(key.to_path_buf()))
-          }else{
-            Ok(None)
-          }
-
+      JSONValue::Static(sn) => {
+        if matches!(sn.as_bool(), Some(false)) {
+          Err(ResolveError::Ignored(key.to_path_buf()))
+        } else {
+          Ok(None)
+        }
       }
       _ => Ok(None),
     }

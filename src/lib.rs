@@ -73,8 +73,8 @@ use std::{
 
 use dashmap::{mapref::one::Ref, DashMap};
 use futures::future::{try_join_all, BoxFuture};
-use rustc_hash::FxHashSet;
 use package_json::JSONValue;
+use rustc_hash::FxHashSet;
 
 pub use crate::{
   builtins::NODEJS_BUILTINS,

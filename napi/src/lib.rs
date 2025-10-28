@@ -1,13 +1,16 @@
 mod options;
 mod tracing;
 
-use std::{path::{Path, PathBuf}, sync::Arc, vec};
-
-use simd_json::prelude::*;
+use std::{
+  path::{Path, PathBuf},
+  sync::Arc,
+  vec,
+};
 
 use napi::tokio::runtime;
 use napi_derive::napi;
 use rspack_resolver::{ResolveOptions, Resolver};
+use simd_json::prelude::*;
 
 use self::options::{AliasRawValue, NapiResolveOptions, StrOrStrList};
 #[rustfmt::skip]
