@@ -74,7 +74,7 @@ use std::{
 use dashmap::{mapref::one::Ref, DashMap};
 use futures::future::{try_join_all, BoxFuture};
 use rustc_hash::FxHashSet;
-use serde_json::Value as JSONValue;
+use package_json::JSONValue;
 
 pub use crate::{
   builtins::NODEJS_BUILTINS,
@@ -1877,7 +1877,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         JSONValue::Object(target) => {
           // 1. If exports contains any index property keys, as defined in ECMA-262 6.1.7 Array Index, throw an Invalid Package Configuration error.
           // 2. For each property p of target, in object insertion order as,
-          for (key, target_value) in target {
+          for (key, target_value) in target.iter() {
             // 1. If p equals "default" or conditions contains an entry for p, then
             if key == "default" || conditions.contains(key) {
               // 1. Let targetValue be the value of the p property in target.

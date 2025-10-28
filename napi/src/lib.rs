@@ -1,11 +1,9 @@
 mod options;
 mod tracing;
 
-use std::{
-  path::{Path, PathBuf},
-  sync::Arc,
-  vec,
-};
+use std::{path::{Path, PathBuf}, sync::Arc, vec};
+
+use simd_json::prelude::*;
 
 use napi::tokio::runtime;
 use napi_derive::napi;
