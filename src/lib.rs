@@ -675,11 +675,17 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     if ctx.fully_specified {
       return Ok(None);
     }
-    let path = path.path().as_os_str();
+
+    let base_path = path.path().as_os_str().to_string_lossy();
+    let base_len = base_path.len();
+    // Guess extra 10 bytes is enough for single extension
+    let mut path_with_extension = String::with_capacity(base_len + 10);
+
+    path_with_extension.push_str(&base_path);
     for extension in extensions {
-      let mut path_with_extension = path.to_os_string();
-      path_with_extension.reserve_exact(extension.len());
-      path_with_extension.push(extension);
+      path_with_extension.truncate(base_len);
+      path_with_extension.push_str(extension);
+
       let cached_path = self.cache.value(Path::new(&path_with_extension));
       if let Some(path) = self.load_alias_or_file(&cached_path, ctx).await? {
         return Ok(Some(path));
