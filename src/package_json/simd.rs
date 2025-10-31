@@ -129,8 +129,8 @@ impl PackageJson {
   /// They are: `description`, `keywords`, `scripts`,
   /// `dependencies` and `devDependencies`, `peerDependencies`, `optionalDependencies`.
   #[cfg(feature = "package_json_raw_json_api")]
-  pub fn raw_json(&self) -> &std::sync::Arc<JSONValue> {
-    &self.raw_json
+  pub fn raw_json(&self) -> &JSONValue {
+    self.raw_json.borrow_dependent()
   }
 
   /// Directory to `package.json`

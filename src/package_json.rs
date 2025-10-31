@@ -12,19 +12,17 @@ pub enum ModuleType {
 }
 
 impl From<Option<&str>> for ModuleType {
-    fn from(value: Option<&str>) -> Self {
-        match value {
-            Some("module") => ModuleType::Module,
-            Some("commonjs") => ModuleType::CommonJs,
-            _ => ModuleType::CommonJs,
-        }
+  fn from(value: Option<&str>) -> Self {
+    match value {
+      Some("module") => ModuleType::Module,
+      Some("commonjs") => ModuleType::CommonJs,
+      _ => ModuleType::CommonJs,
     }
+  }
 }
-#[derive(Debug,  Clone,  PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SideEffects {
-    Bool(bool),
-    String(String),
-    Array(Vec<String>),
+  Bool(bool),
+  String(String),
+  Array(Vec<String>),
 }
-
-

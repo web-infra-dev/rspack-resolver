@@ -83,7 +83,7 @@ pub use crate::{
     Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,
     TsconfigReferences,
   },
-  package_json::{PackageJson, ModuleType, JSONValue},
+  package_json::{JSONValue, ModuleType, PackageJson},
   resolution::Resolution,
 };
 use crate::{

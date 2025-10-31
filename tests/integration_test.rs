@@ -2,7 +2,9 @@
 
 use std::{env, path::PathBuf};
 
-use rspack_resolver::{EnforceExtension, ModuleType, Resolution, ResolveContext, ResolveOptions, Resolver};
+use rspack_resolver::{
+  EnforceExtension, ModuleType, Resolution, ResolveContext, ResolveOptions, Resolver,
+};
 
 fn dir() -> PathBuf {
   env::current_dir().unwrap()
@@ -48,6 +50,7 @@ async fn package_json() {
 #[cfg(feature = "package_json_raw_json_api")]
 #[tokio::test]
 async fn package_json_raw_json_api() {
+  use simd_json::prelude::*;
   let resolution = resolve("./tests/package.json").await;
   assert!(resolution
     .package_json()
