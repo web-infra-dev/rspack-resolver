@@ -131,7 +131,7 @@ impl PackageJson {
       "imports",
       "browser",
     ];
-    let mut json_map = serde_json::value::Map::new();
+    let mut json_map = serde_json::value::Map::with_capacity(KEYS_TO_KEEP.len());
 
     for key in KEYS_TO_KEEP {
       if let Some(name) = value.get(key).and_then(|v| from_refborrowed_value(v).ok()) {
