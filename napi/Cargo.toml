@@ -20,8 +20,6 @@ tracing-subscriber = { version = "0.3.18", default-features = false, features = 
   "ansi"
 ] }
 regex = "1.11.1"
-simd-json = "0.17.0"
-
 
 [build-dependencies]
 napi-build = "2.1.3"

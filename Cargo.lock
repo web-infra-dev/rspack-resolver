@@ -851,7 +851,6 @@ dependencies = [
  "napi-derive",
  "regex",
  "rspack_resolver",
- "simd-json",
  "tracing-subscriber",
 ]
 
