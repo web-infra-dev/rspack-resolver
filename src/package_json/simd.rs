@@ -14,6 +14,8 @@ use crate::{path::PathUtil, JSONError, ResolveError};
 
 pub type JSONMap<'a> = simd_json::borrowed::Object<'a>;
 
+#[cfg(feature = "package_json_raw_json_api")]
+use simd_json::serde::from_refborrowed_value;
 pub use simd_json::BorrowedValue as JSONValue;
 
 use crate::package_json::{ModuleType, SideEffects};
@@ -30,7 +32,7 @@ self_cell!(
 
 impl Default for JSONCell {
   fn default() -> Self {
-    JSONCell::new(Vec::new(), |_data| JSONValue::Static(StaticNode::Null))
+    Self::new(Vec::new(), |_data| JSONValue::Static(StaticNode::Null))
   }
 }
 
@@ -52,7 +54,7 @@ pub struct PackageJson {
   /// The "type" field.
   ///
   /// <https://nodejs.org/api/packages.html#type>
-  pub r#type: ModuleType,
+  pub r#type: Option<ModuleType>,
 
   /// The "sideEffects" field.
   ///
@@ -60,6 +62,9 @@ pub struct PackageJson {
   pub side_effects: Option<SideEffects>,
 
   raw_json: std::sync::Arc<JSONCell>,
+
+  #[cfg(feature = "package_json_raw_json_api")]
+  serde_json: std::sync::Arc<serde_json::Value>,
 }
 
 impl PackageJson {
@@ -71,6 +76,7 @@ impl PackageJson {
     json: Vec<u8>,
   ) -> Result<Self, ResolveError> {
     let json_cell = JSONCell::try_new(json, |v| {
+      // SAFETY: We have exclusive ownership of the Vec<u8>, so it's safe to cast to mutable.
       let slice = unsafe { std::slice::from_raw_parts_mut(v.as_ptr().cast_mut(), v.len()) };
       simd_json::to_borrowed_value(slice)
     })
@@ -84,23 +90,55 @@ impl PackageJson {
       })
     })?;
 
-    let mut package_json = PackageJson::default();
+    let mut package_json = Self::default();
     if let Some(json_object) = json_cell.borrow_dependent().as_object() {
       package_json.name = json_object
         .get("name")
         .and_then(|field| field.as_str())
         .map(ToString::to_string);
 
-      package_json.r#type = json_object.get("type").as_str().into();
+      package_json.r#type = json_object
+        .get("type")
+        .as_str()
+        .and_then(|str| str.try_into().ok());
       package_json.side_effects = json_object
         .get("sideEffects")
         .and_then(|value| SideEffects::try_from(value).ok());
+
+      #[cfg(feature = "package_json_raw_json_api")]
+      {
+        package_json.init_serde_json(json_object);
+      }
     }
 
     package_json.path = path;
     package_json.realpath = realpath;
     package_json.raw_json = std::sync::Arc::new(json_cell);
+
     Ok(package_json)
+  }
+
+  #[cfg(feature = "package_json_raw_json_api")]
+  fn init_serde_json(&mut self, value: &JSONMap) {
+    const KEYS_TO_KEEP: [&str; 9] = [
+      "name",
+      "version",
+      "sideEffects",
+      "type",
+      "main",
+      "module",
+      "exports",
+      "imports",
+      "browser",
+    ];
+    let mut json_map = serde_json::value::Map::new();
+
+    for key in KEYS_TO_KEEP {
+      if let Some(name) = value.get(key).and_then(|v| from_refborrowed_value(v).ok()) {
+        json_map.insert(key.to_string(), name);
+      }
+    }
+    self.serde_json = std::sync::Arc::new(serde_json::Value::Object(json_map));
   }
 
   fn get_value_by_paths<'a>(fields: &'a JSONMap, paths: &[String]) -> Option<&'a JSONValue<'a>> {
@@ -129,8 +167,8 @@ impl PackageJson {
   /// They are: `description`, `keywords`, `scripts`,
   /// `dependencies` and `devDependencies`, `peerDependencies`, `optionalDependencies`.
   #[cfg(feature = "package_json_raw_json_api")]
-  pub fn raw_json(&self) -> &JSONValue {
-    self.raw_json.borrow_dependent()
+  pub fn raw_json(&self) -> &std::sync::Arc<serde_json::Value> {
+    &self.serde_json
   }
 
   /// Directory to `package.json`
@@ -249,7 +287,7 @@ impl PackageJson {
 
   fn alias_value<'a>(key: &Path, value: &'a JSONValue) -> Result<Option<&'a str>, ResolveError> {
     match value {
-      JSONValue::String(value) => Ok(Some(&value)),
+      JSONValue::String(value) => Ok(Some(value)),
       JSONValue::Static(sn) => {
         if matches!(sn.as_bool(), Some(false)) {
           Err(ResolveError::Ignored(key.to_path_buf()))
@@ -266,8 +304,8 @@ impl<'a> TryFrom<&'a JSONValue<'a>> for SideEffects {
   type Error = &'static str;
   fn try_from(value: &'a JSONValue<'a>) -> Result<Self, Self::Error> {
     match value {
-      Value::Static(StaticNode::Bool(b)) => Ok(SideEffects::Bool(*b)),
-      Value::String(str) => Ok(SideEffects::String(str.to_string())),
+      Value::Static(StaticNode::Bool(b)) => Ok(Self::Bool(*b)),
+      Value::String(str) => Ok(Self::String(str.to_string())),
       Value::Array(arr) => {
         let mut vec = Vec::with_capacity(arr.len());
         for item in arr.iter() {
@@ -277,7 +315,7 @@ impl<'a> TryFrom<&'a JSONValue<'a>> for SideEffects {
             return Err("Invalid sideEffects array item, expected string");
           }
         }
-        Ok(SideEffects::Array(vec))
+        Ok(Self::Array(vec))
       }
       _ => Err("Invalid sideEffects value, expected bool, string or array of strings"),
     }

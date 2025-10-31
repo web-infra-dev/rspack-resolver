@@ -42,7 +42,7 @@ async fn package_json() {
   let resolution = resolve("./tests/package.json").await;
   let package_json = resolution.package_json().unwrap();
   assert_eq!(package_json.name.as_ref().unwrap(), "name");
-  assert_eq!(package_json.r#type, ModuleType::Module);
+  assert_eq!(package_json.r#type, Some(ModuleType::Module));
   // fixme: add sideEffects after perf comparison
   // assert!(package_json.side_effects.as_ref().unwrap().is_object());
 }
@@ -50,7 +50,6 @@ async fn package_json() {
 #[cfg(feature = "package_json_raw_json_api")]
 #[tokio::test]
 async fn package_json_raw_json_api() {
-  use simd_json::prelude::*;
   let resolution = resolve("./tests/package.json").await;
   assert!(resolution
     .package_json()

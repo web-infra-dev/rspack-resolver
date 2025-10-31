@@ -1596,7 +1596,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
               Some,
             )
           }
-          _ => None,
+          JSONValue::Static(_) => None,
         };
         // 4. If mainExport is not undefined, then
         if let Some(main_export) = main_export {
@@ -1741,7 +1741,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
     let mut best_target = None;
     let mut best_match = "";
-    let mut best_key = String::from("");
+    let mut best_key = String::new();
     // 2. Let expansionKeys be the list of keys of matchObj containing only a single "*", sorted by the sorting function PATTERN_KEY_COMPARE which orders in descending order of specificity.
     // 3. For each key expansionKey in expansionKeys, do
     for (key, target) in match_obj {
@@ -1772,7 +1772,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
           // TODO: [DEP0148] DeprecationWarning: Use of deprecated folder mapping "./dist/" in the "exports" field module resolution of the package at xxx/package.json.
           best_target = Some(target);
           best_match = &match_key[expansion_key.len()..];
-          best_key = expansion_key.clone();
+          best_key.clone_from(&expansion_key);
         }
       }
     }
@@ -1942,7 +1942,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
           // 3. Return or throw the last fallback resolution null return or error.
           // Note: see `resolved.is_err() && i == targets.len()`
         }
-        _ => {}
+        JSONValue::Static(_) => {}
       }
       // 4. Otherwise, if target is null, return null.
       Ok(None)

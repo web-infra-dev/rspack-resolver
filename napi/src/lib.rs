@@ -10,7 +10,6 @@ use std::{
 use napi::tokio::runtime;
 use napi_derive::napi;
 use rspack_resolver::{ResolveOptions, Resolver};
-use simd_json::prelude::*;
 
 use self::options::{AliasRawValue, NapiResolveOptions, StrOrStrList};
 #[rustfmt::skip]
@@ -31,7 +30,7 @@ async fn resolve(resolver: &Resolver, path: &Path, request: &str) -> ResolveResu
       error: None,
       module_type: resolution
         .package_json()
-        .and_then(|p| p.r#type.as_ref())
+        .and_then(|p| p.r#type)
         .map(|t| t.to_string()),
     },
     Err(err) => ResolveResult {
