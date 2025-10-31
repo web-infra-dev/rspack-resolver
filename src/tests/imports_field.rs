@@ -4,11 +4,9 @@
 
 use std::path::Path;
 
-use simd_json::json;
-use simd_json::prelude::*;
+use simd_json::{json, prelude::*};
 
-use crate::{Ctx, JSONMap, PathUtil, ResolveError, ResolveOptions, Resolver};
-use crate::package_json::JSONValue;
+use crate::{package_json::JSONValue, Ctx, PathUtil, ResolveError, ResolveOptions, Resolver};
 
 #[tokio::test]
 async fn test_simple() {

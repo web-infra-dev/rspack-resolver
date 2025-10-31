@@ -2,17 +2,21 @@
 //!
 //! Code related to export field are copied from [Parcel's resolver](https://github.com/parcel-bundler/parcel/blob/v2/packages/utils/node-resolver-rs/src/package_json.rs)
 
-use std::fmt::Debug;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::{
+  fmt::Debug,
+  path::{Path, PathBuf},
+};
+
 use self_cell::self_cell;
-use simd_json::prelude::*;
+use simd_json::{borrowed::Value, prelude::*};
 
 use crate::{path::PathUtil, JSONError, ResolveError};
 
 pub type JSONMap<'a> = simd_json::borrowed::Object<'a>;
 
 pub use simd_json::BorrowedValue as JSONValue;
+
+use crate::package_json::{ModuleType, SideEffects};
 
 self_cell!(
     struct JSONCell {
@@ -24,14 +28,11 @@ self_cell!(
     impl {Debug}
 );
 
-impl Default for JSONCell{
-
-fn default() -> Self {
-    JSONCell::new(Vec::new(), |data| {
-        JSONValue::Static(StaticNode::Null)
-    })
-}
+impl Default for JSONCell {
+  fn default() -> Self {
+    JSONCell::new(Vec::new(), |_data| JSONValue::Static(StaticNode::Null))
   }
+}
 
 /// Deserialized package.json
 #[derive(Debug, Default)]
@@ -51,12 +52,12 @@ pub struct PackageJson {
   /// The "type" field.
   ///
   /// <https://nodejs.org/api/packages.html#type>
-  pub r#type: Option<String>,
+  pub r#type: ModuleType,
 
   /// The "sideEffects" field.
   ///
   /// <https://webpack.js.org/guides/tree-shaking>
-  pub side_effects: Option<serde_json::Value>,
+  pub side_effects: Option<SideEffects>,
 
   raw_json: std::sync::Arc<JSONCell>,
 }
@@ -67,15 +68,13 @@ impl PackageJson {
   pub(crate) fn parse(
     path: PathBuf,
     realpath: PathBuf,
-    mut json: Vec<u8>,
+    json: Vec<u8>,
   ) -> Result<Self, ResolveError> {
-
-    let mut json_cell =  JSONCell::try_new(json, |v| {
-      let slice =
-          unsafe { std::slice::from_raw_parts_mut(v.as_ptr().cast_mut(), v.len()) };
+    let json_cell = JSONCell::try_new(json, |v| {
+      let slice = unsafe { std::slice::from_raw_parts_mut(v.as_ptr().cast_mut(), v.len()) };
       simd_json::to_borrowed_value(slice)
-
-    }).map_err(|parse_error| {
+    })
+    .map_err(|parse_error| {
       ResolveError::JSON(JSONError {
         path: path.clone(),
         message: "sj parse failed".to_string(),
@@ -87,14 +86,15 @@ impl PackageJson {
 
     let mut package_json = PackageJson::default();
     if let Some(json_object) = json_cell.borrow_dependent().as_object() {
-
       package_json.name = json_object
         .get("name")
         .and_then(|field| field.as_str())
         .map(ToString::to_string);
 
-      package_json.r#type = json_object.get("type").as_str().map(ToString::to_string);
-      package_json.side_effects = None; //json_object.get("sideEffects").as_object().map(Into::into);
+      package_json.r#type = json_object.get("type").as_str().into();
+      package_json.side_effects = json_object
+        .get("sideEffects")
+        .and_then(|value| SideEffects::try_from(value).ok());
     }
 
     package_json.path = path;
@@ -157,14 +157,13 @@ impl PackageJson {
     &'a self,
     main_fields: &'a [String],
   ) -> impl Iterator<Item = &'a str> + 'a {
-    main_fields
-      .iter()
-      .filter_map(|main_field|
-          self.raw_json.borrow_dependent()
-              .get_str(main_field.as_str())
-      )
-
-    }
+    main_fields.iter().filter_map(|main_field| {
+      self
+        .raw_json
+        .borrow_dependent()
+        .get_str(main_field.as_str())
+    })
+  }
 
   /// The "exports" field allows defining the entry points of a package when imported by name loaded either via a node_modules lookup or a self-reference to its own name.
   ///
@@ -172,11 +171,11 @@ impl PackageJson {
   pub(crate) fn exports_fields<'a>(
     &'a self,
     exports_fields: &'a [Vec<String>],
-  ) -> impl Iterator<Item = &'a JSONValue> + 'a {
+  ) -> impl Iterator<Item = &'a JSONValue<'a>> + 'a {
     exports_fields.iter().filter_map(|object_path| {
       self
         .raw_json
-          .borrow_dependent()
+        .borrow_dependent()
         .as_object()
         .and_then(|json_object| Self::get_value_by_paths(json_object, object_path))
     })
@@ -188,11 +187,11 @@ impl PackageJson {
   pub(crate) fn imports_fields<'a>(
     &'a self,
     imports_fields: &'a [Vec<String>],
-  ) -> impl Iterator<Item = &'a JSONMap> + 'a {
+  ) -> impl Iterator<Item = &'a JSONMap<'a>> + 'a {
     imports_fields.iter().filter_map(|object_path| {
       self
         .raw_json
-          .borrow_dependent()
+        .borrow_dependent()
         .as_object()
         .and_then(|json_object| Self::get_value_by_paths(json_object, object_path))
         .and_then(|value| value.as_object())
@@ -206,11 +205,11 @@ impl PackageJson {
   fn browser_fields<'a>(
     &'a self,
     alias_fields: &'a [Vec<String>],
-  ) -> impl Iterator<Item = &'a JSONMap> + 'a {
+  ) -> impl Iterator<Item = &'a JSONMap<'a>> + 'a {
     alias_fields.iter().filter_map(|object_path| {
       self
         .raw_json
-          .borrow_dependent()
+        .borrow_dependent()
         .as_object()
         .and_then(|json_object| Self::get_value_by_paths(json_object, object_path))
         // Only object is valid, all other types are invalid
@@ -259,6 +258,28 @@ impl PackageJson {
         }
       }
       _ => Ok(None),
+    }
+  }
+}
+
+impl<'a> TryFrom<&'a JSONValue<'a>> for SideEffects {
+  type Error = &'static str;
+  fn try_from(value: &'a JSONValue<'a>) -> Result<Self, Self::Error> {
+    match value {
+      Value::Static(StaticNode::Bool(b)) => Ok(SideEffects::Bool(*b)),
+      Value::String(str) => Ok(SideEffects::String(str.to_string())),
+      Value::Array(arr) => {
+        let mut vec = Vec::with_capacity(arr.len());
+        for item in arr.iter() {
+          if let Value::String(s) = item {
+            vec.push(s.to_string());
+          } else {
+            return Err("Invalid sideEffects array item, expected string");
+          }
+        }
+        Ok(SideEffects::Array(vec))
+      }
+      _ => Err("Invalid sideEffects value, expected bool, string or array of strings"),
     }
   }
 }

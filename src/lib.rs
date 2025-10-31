@@ -73,7 +73,6 @@ use std::{
 
 use dashmap::{mapref::one::Ref, DashMap};
 use futures::future::{try_join_all, BoxFuture};
-use package_json::JSONValue;
 use rustc_hash::FxHashSet;
 
 pub use crate::{
@@ -84,7 +83,7 @@ pub use crate::{
     Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,
     TsconfigReferences,
   },
-  package_json::PackageJson,
+  package_json::{PackageJson, ModuleType, JSONValue},
   resolution::Resolution,
 };
 use crate::{
