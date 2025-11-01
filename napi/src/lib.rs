@@ -30,8 +30,7 @@ async fn resolve(resolver: &Resolver, path: &Path, request: &str) -> ResolveResu
       error: None,
       module_type: resolution
         .package_json()
-        .and_then(|p| p.r#type.as_ref())
-        .and_then(|t| t.as_str())
+        .and_then(|p| p.r#type)
         .map(|t| t.to_string()),
     },
     Err(err) => ResolveResult {
