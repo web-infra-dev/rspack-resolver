@@ -120,25 +120,25 @@ impl PackageJson {
 
   #[cfg(feature = "package_json_raw_json_api")]
   fn init_serde_json(&mut self, value: &JSONMap) {
-    // const KEYS_TO_KEEP: [&str; 9] = [
-    //   "name",
-    //   "version",
-    //   "sideEffects",
-    //   "type",
-    //   "main",
-    //   "module",
-    //   "exports",
-    //   "imports",
-    //   "browser",
-    // ];
-    // let mut json_map = serde_json::value::Map::with_capacity(KEYS_TO_KEEP.len());
-    //
-    // for key in KEYS_TO_KEEP {
-    //   if let Some(name) = value.get(key).and_then(|v| from_refborrowed_value(v).ok()) {
-    //     json_map.insert(key.to_string(), name);
-    //   }
-    // }
-    // self.serde_json = std::sync::Arc::new(serde_json::Value::Object(json_map));
+    const KEYS_TO_KEEP: [&str; 9] = [
+      "name",
+      "version",
+      "sideEffects",
+      "type",
+      "main",
+      "module",
+      "exports",
+      "imports",
+      "browser",
+    ];
+    let mut json_map = serde_json::value::Map::with_capacity(KEYS_TO_KEEP.len());
+
+    for key in KEYS_TO_KEEP {
+      if let Some(name) = value.get(key).and_then(|v| from_refborrowed_value(v).ok()) {
+        json_map.insert(key.to_string(), name);
+      }
+    }
+    self.serde_json = std::sync::Arc::new(serde_json::Value::Object(json_map));
   }
 
   fn get_value_by_paths<'a>(fields: &'a JSONMap, paths: &[String]) -> Option<&'a JSONValue<'a>> {
