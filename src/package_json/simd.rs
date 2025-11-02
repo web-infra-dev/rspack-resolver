@@ -78,7 +78,7 @@ impl PackageJson {
     let json_cell = JSONCell::try_new(json, |v| {
       // SAFETY: We have exclusive ownership of the Vec<u8>, so it's safe to cast to mutable.
       let slice = unsafe { std::slice::from_raw_parts_mut(v.as_ptr().cast_mut(), v.len()) };
-      simd_json::to_borrowed_value(slice)
+      simd_json::value::to_borrowed_value(slice)
     })
     .map_err(|parse_error| {
       ResolveError::JSON(JSONError {
