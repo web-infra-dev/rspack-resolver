@@ -82,7 +82,7 @@ serde_json = { version = "1.0.117", features = [
   "preserve_order",
 ] } # preserve_order: package_json.exports requires order such as `["require", "import", "default"]`
 
-simd-json = {  version = "0.17.0", features = ["serde_impl"], default-features = false }
+simd-json = {  version = "0.17.0", features = ["serde_impl", "runtime-detection"], default-features = false }
 self_cell = "1.2.1"
 
 rustc-hash = { version = "2.0.0", default-features = false, features = ["std"] }
