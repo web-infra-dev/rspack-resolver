@@ -115,7 +115,7 @@ package_json_raw_json_api = []
 yarn_pnp = ["pnp"]
 # For codspeed benchmark
 codspeed = ["criterion2/codspeed"]
-no_tracing=["tracing/release_max_level_off", "tracing/max_level_off"]
+off_tracing=["tracing/release_max_level_off", "tracing/max_level_off"]
 
 [package.metadata.docs.rs]
 all-features = true

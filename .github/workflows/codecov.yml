@@ -33,7 +33,7 @@ jobs:
           tools: cargo-llvm-cov
           components: llvm-tools-preview
 
-      - run: cargo llvm-cov --lcov --output-path lcov.info --features=no_tracing
+      - run: cargo llvm-cov --lcov --output-path lcov.info --features=off_tracing
         env:
           RUST_MIN_STACK: 8388608
 

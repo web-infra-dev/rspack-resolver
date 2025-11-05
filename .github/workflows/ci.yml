@@ -203,6 +203,8 @@ jobs:
           cache-key: warm
       - run: cargo test --doc
       - run: cargo test --all-features
+        env:
+          RUST_MIN_STACK: 8388608
       - name: Test Node Bindings
         run: |
           npm run build:binding:debug
