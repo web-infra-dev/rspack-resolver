@@ -13,6 +13,7 @@ use dashmap::{DashMap, DashSet};
 use futures::future::BoxFuture;
 use rustc_hash::FxHasher;
 use tokio::sync::OnceCell as OnceLock;
+use tracing::Level;
 
 use crate::{
   context::ResolveContext as Ctx, package_json::PackageJson, path::PathUtil, FileMetadata,
@@ -268,7 +269,7 @@ impl CachedPathImpl {
   /// # Errors
   ///
   /// * [ResolveError::JSON]
-  #[tracing::instrumenttracing::instrument(skip_all, fields(path = %self.path.display()))]
+  #[tracing::instrument(level=Level::DEBUG,skip_all, fields(path = %self.path.display()))]
   pub async fn find_package_json<Fs: FileSystem + Send + Sync>(
     &self,
     fs: &Fs,
@@ -299,7 +300,7 @@ impl CachedPathImpl {
   /// # Errors
   ///
   /// * [ResolveError::JSON]
-  #[tracing::instrument(skip_all, fields(path = %self.path.display()))]
+  #[tracing::instrument(level=Level::DEBUG,skip_all, fields(path = %self.path.display()))]
   pub async fn package_json<Fs: FileSystem + Send + Sync>(
     &self,
     fs: &Fs,

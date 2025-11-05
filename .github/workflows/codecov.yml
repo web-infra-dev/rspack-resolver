@@ -33,7 +33,7 @@ jobs:
           tools: cargo-llvm-cov
           components: llvm-tools-preview
 
-      - run: cargo llvm-cov --lcov --output-path lcov.info
+      - run: cargo llvm-cov --lcov --output-path lcov.info --features=no_tracing
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

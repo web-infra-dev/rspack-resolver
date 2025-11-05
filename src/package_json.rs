@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::Value as JSONValue;
+use tracing::Level;
 
 use crate::{path::PathUtil, ResolveError};
 
@@ -40,6 +41,7 @@ pub struct PackageJson {
 impl PackageJson {
   /// # Panics
   /// # Errors
+  #[tracing::instrument(level=Level::DEBUG, name="pkgjson_parse", skip_all, fields(path = %realpath.display()))]
   pub(crate) fn parse(
     path: PathBuf,
     realpath: PathBuf,
