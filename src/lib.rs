@@ -217,7 +217,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     &self,
     directory: P,
     specifier: &str,
-    resolve_context: &mut ResolveContext,
+    resolve_context: &mut ResolveContext ,
   ) -> Result<Resolution, ResolveError> {
     let mut ctx = Ctx::default();
     ctx.init_file_dependencies();
@@ -234,6 +234,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   /// Wrap `resolve_impl` with `tracing` information
+  #[tracing::instrument(skip(self,ctx), fields(path = %directory.to_string_lossy(), specifier = specifier))]
   async fn resolve_tracing(
     &self,
     directory: &Path,
@@ -429,7 +430,9 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Err(ResolveError::NotFound(specifier.to_string()))
   }
 
+
   // 3. If X begins with './' or '/' or '../'
+  #[tracing::instrument("require_relative",skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
   async fn require_relative(
     &self,
     cached_path: &CachedPath,
@@ -477,6 +480,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       .await
   }
 
+  #[tracing::instrument(skip_all, fields(specifier = specifier))]
   async fn require_bare(
     &self,
     cached_path: &CachedPath,
@@ -577,6 +581,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Ok(None)
   }
 
+  #[tracing::instrument(skip_all, fields(path = %cached_path.path().to_string_lossy()))]
   async fn load_as_file(&self, cached_path: &CachedPath, ctx: &mut Ctx) -> ResolveResult {
     // enhanced-resolve feature: extension_alias
     if let Some(path) = self.load_extension_alias(cached_path, ctx).await? {
@@ -737,6 +742,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     true
   }
 
+  #[tracing::instrument("load_index", skip_all, fields(path = %cached_path.path().to_string_lossy()))]
   async fn load_index(&self, cached_path: &CachedPath, ctx: &mut Ctx) -> ResolveResult {
     for main_file in &self.options.main_files {
       let main_path = cached_path.path().normalize_with(main_file);
@@ -1346,6 +1352,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Ok(None)
   }
 
+  #[tracing::instrument(skip(self), fields(path = path.display().to_string()))]
   fn load_tsconfig<'a>(
     &'a self,
     root: bool,
