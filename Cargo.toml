@@ -116,7 +116,7 @@ yarn_pnp = ["pnp"]
 # For codspeed benchmark
 codspeed = ["criterion2/codspeed" ]
 # For remove tracing calls in release build
-enable_tracing=[]
+enable_instrument=[]
 
 [package.metadata.docs.rs]
 all-features = true
