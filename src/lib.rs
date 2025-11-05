@@ -432,7 +432,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   // 3. If X begins with './' or '/' or '../'
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
   async fn require_relative(
     &self,
     cached_path: &CachedPath,
@@ -532,7 +532,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Ok((parsed, None))
   }
 
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
   async fn load_package_self_or_node_modules(
     &self,
     cached_path: &CachedPath,
@@ -645,7 +645,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     self.load_index(cached_path, ctx).await
   }
 
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
   async fn load_as_file_or_directory(
     &self,
     cached_path: &CachedPath,
@@ -696,7 +696,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Ok(None)
   }
 
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(path = %cached_path.path().to_string_lossy()))]
   async fn load_realpath(
     &self,
     cached_path: &CachedPath,
@@ -800,7 +800,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Ok(None)
   }
 
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
   async fn load_node_modules(
     &self,
     cached_path: &CachedPath,
@@ -882,7 +882,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   #[cfg(feature = "yarn_pnp")]
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(path = %cached_path.path().to_string_lossy()))]
   fn find_pnp_manifest(
     &self,
     cached_path: &CachedPath,
@@ -909,7 +909,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   #[cfg(feature = "yarn_pnp")]
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
   async fn load_pnp(
     &self,
     cached_path: &CachedPath,
@@ -1013,7 +1013,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     Ok(None)
   }
 
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
   async fn load_package_self(
     &self,
     cached_path: &CachedPath,
@@ -1057,7 +1057,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   /// RESOLVE_ESM_MATCH(MATCH)
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(specifier = specifier, path = %cached_path.path().to_string_lossy()))]
   async fn resolve_esm_match(
     &self,
     specifier: &str,
@@ -1097,7 +1097,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   /// enhanced-resolve: AliasFieldPlugin for [ResolveOptions::alias_fields]
-  #[tracing::instrument(level=Level::DEBUG,  skip_all, fields(specifier = module_specifier, path = %cached_path.path().to_string_lossy()))]
+  #[tracing::instrument(level=Level::DEBUG, skip_all, fields(specifier = module_specifier, path = %cached_path.path().to_string_lossy()))]
   async fn load_browser_field(
     &self,
     cached_path: &CachedPath,
