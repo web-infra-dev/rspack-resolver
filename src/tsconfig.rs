@@ -75,6 +75,7 @@ pub struct ProjectReference {
 }
 
 impl TsConfig {
+  #[cfg_attr(feature="enable_instrument", tracing::instrument(level=tracing::Level::DEBUG, skip_all, fields(path = %path.to_string_lossy())))]
   pub fn parse(root: bool, path: &Path, json: &mut str) -> Result<Self, serde_json::Error> {
     _ = json_strip_comments::strip(json);
     if json.trim().is_empty() {

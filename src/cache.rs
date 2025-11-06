@@ -268,6 +268,7 @@ impl CachedPathImpl {
   /// # Errors
   ///
   /// * [ResolveError::JSON]
+  #[cfg_attr(feature="enable_instrument", tracing::instrument(level=tracing::Level::DEBUG, skip_all, fields(path = %self.path.display())))]
   pub async fn find_package_json<Fs: FileSystem + Send + Sync>(
     &self,
     fs: &Fs,
@@ -298,6 +299,7 @@ impl CachedPathImpl {
   /// # Errors
   ///
   /// * [ResolveError::JSON]
+  #[cfg_attr(feature="enable_instrument", tracing::instrument(level=tracing::Level::DEBUG, skip_all, fields(path = %self.path.display())))]
   pub async fn package_json<Fs: FileSystem + Send + Sync>(
     &self,
     fs: &Fs,

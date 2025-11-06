@@ -34,6 +34,8 @@ jobs:
           components: llvm-tools-preview
 
       - run: cargo llvm-cov --lcov --output-path lcov.info
+        env:
+          RUST_MIN_STACK: 8388608
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

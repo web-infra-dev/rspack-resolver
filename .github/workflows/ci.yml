@@ -51,6 +51,8 @@ jobs:
       - name: Build cache by Cargo Check and Cargo Test
         if: ${{ github.ref_name == 'main' }}
         run: cargo test --all-features --no-run
+        env:
+          RUST_MIN_STACK: 8388608
       - name: Prettier Check
         if: ${{ matrix.os != 'windows-latest' }}
         run: |
@@ -201,6 +203,8 @@ jobs:
           cache-key: warm
       - run: cargo test --doc
       - run: cargo test --all-features
+        env:
+          RUST_MIN_STACK: 8388608
       - name: Test Node Bindings
         run: |
           npm run build:binding:debug
