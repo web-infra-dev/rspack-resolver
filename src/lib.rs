@@ -1772,7 +1772,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                         && (pattern_trailer.is_empty()
                         || (match_key.len() >= expansion_key.len()
                         && match_key.ends_with(pattern_trailer)))
-                        && Self::pattern_key_compare(&best_key, &expansion_key).is_gt()
+                        && Self::pattern_key_compare(&best_key, expansion_key).is_gt()
           {
             // 1. Let target be the value of matchObj[expansionKey].
             best_target = Some(target);

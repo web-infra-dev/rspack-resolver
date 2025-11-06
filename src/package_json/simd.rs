@@ -3,14 +3,16 @@
 //! Code related to export field are copied from [Parcel's resolver](https://github.com/parcel-bundler/parcel/blob/v2/packages/utils/node-resolver-rs/src/package_json.rs)
 
 use std::{
-  fmt::Debug,
+  fmt::{Debug, Formatter},
+  marker::PhantomData,
   path::{Path, PathBuf},
 };
 
-use self_cell::self_cell;
-use simd_json::{borrowed::Value, prelude::*, to_borrowed_value};
+use simd_json::{
+  borrowed::Value, prelude::*, to_borrowed_value, BorrowedValue, Error as ParseError,
+};
 
-use crate::{path::PathUtil, JSONError, ResolveError};
+use crate::{path::PathUtil, ResolveError};
 
 pub type JSONMap<'a> = simd_json::borrowed::Object<'a>;
 
@@ -20,19 +22,44 @@ pub use simd_json::BorrowedValue as JSONValue;
 
 use crate::package_json::{ModuleType, SideEffects};
 
-self_cell!(
-    struct JSONCell {
-        owner: Vec<u8>,
+pub struct JSONCell {
+  value: BorrowedValue<'static>,
+  buf: Vec<u8>,
+  _invariant: PhantomData<&'static str>,
+}
 
-        #[covariant]
-        dependent: JSONValue,
-    }
-    impl {Debug}
-);
+impl JSONCell {
+  pub fn try_new(mut buf: Vec<u8>) -> Result<Self, ParseError> {
+    let value = to_borrowed_value(&mut buf)?;
+    // SAFETY: This is safe because `buf` is owned by the `JSONCell` struct,
+    let value = unsafe { std::mem::transmute::<BorrowedValue<'_>, BorrowedValue<'static>>(value) };
+
+    Ok(Self {
+      value,
+      buf,
+      _invariant: PhantomData,
+    })
+  }
+
+  pub fn borrow_dependent(&self) -> &JSONValue<'_> {
+    &self.value
+  }
+}
+
+impl Debug for JSONCell {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    let str = String::from_utf8_lossy(&self.buf);
+    f.write_fmt(format_args!("JSONCell({str})"))
+  }
+}
 
 impl Default for JSONCell {
   fn default() -> Self {
-    Self::new(Vec::new(), |_data| JSONValue::Static(StaticNode::Null))
+    Self {
+      value: JSONValue::Static(StaticNode::Null),
+      buf: Vec::new(),
+      _invariant: PhantomData,
+    }
   }
 }
 
@@ -70,27 +97,8 @@ pub struct PackageJson {
 impl PackageJson {
   /// # Panics
   /// # Errors
-  pub(crate) fn parse(
-    path: PathBuf,
-    realpath: PathBuf,
-    json: Vec<u8>,
-  ) -> Result<Self, ResolveError> {
-    let json_cell = JSONCell::try_new(json, |v| {
-      // SAFETY: We have exclusive ownership of the Vec<u8>, so it's safe to cast to mutable.
-      let slice = unsafe { std::slice::from_raw_parts_mut(v.as_ptr().cast_mut(), v.len()) };
-
-      to_borrowed_value(slice).map_err(|e| {
-        let content = String::from_utf8_lossy(v);
-        let (line, column) = offset_to_location(&content, e.index());
-        ResolveError::JSON(JSONError {
-          path: path.clone(),
-          message: format!("JSON parse error: {:?}", e.error()),
-          line,
-          column,
-          content: Some(content.to_string()),
-        })
-      })
-    })?;
+  pub(crate) fn parse(path: PathBuf, realpath: PathBuf, json: Vec<u8>) -> Result<Self, ParseError> {
+    let json_cell = JSONCell::try_new(json)?;
 
     let mut package_json = Self::default();
     if let Some(json_object) = json_cell.borrow_dependent().as_object() {
@@ -101,8 +109,9 @@ impl PackageJson {
 
       package_json.r#type = json_object
         .get("type")
-        .as_str()
+        .and_then(|str| str.as_str())
         .and_then(|str| str.try_into().ok());
+
       package_json.side_effects = json_object
         .get("sideEffects")
         .and_then(|value| SideEffects::try_from(value).ok());
@@ -300,28 +309,6 @@ impl PackageJson {
       _ => Ok(None),
     }
   }
-}
-
-fn offset_to_location(json: &str, offset: usize) -> (usize, usize) {
-  let mut line = 0;
-  let mut col = 0;
-  let mut current_offset = 0;
-  for ch in json.chars() {
-    let b = ch.len_utf8();
-    current_offset += b;
-    if ch == '\n' {
-      line += 1;
-      col = 0;
-    } else {
-      col += b;
-    }
-
-    if current_offset >= offset {
-      break;
-    }
-  }
-  // zero-based to one-based
-  (line + 1, col + 1)
 }
 
 impl<'a> TryFrom<&'a JSONValue<'a>> for SideEffects {

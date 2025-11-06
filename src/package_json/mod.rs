@@ -36,3 +36,24 @@ pub enum SideEffects {
   String(String),
   Array(Vec<String>),
 }
+
+pub fn off_to_location(json: &str, offset: usize) -> (usize, usize) {
+  let mut line = 0;
+  let mut col = 0;
+  let mut current_offset = 0;
+  for ch in json.chars() {
+    let b = ch.len_utf8();
+    current_offset += b;
+    if ch == '\n' {
+      line += 1;
+      col = 0;
+    } else {
+      col += b;
+    }
+
+    if current_offset >= offset {
+      break;
+    }
+  }
+  (line + 1, col + 1)
+}
