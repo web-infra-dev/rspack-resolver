@@ -8,7 +8,7 @@ use std::{
 };
 
 use self_cell::self_cell;
-use simd_json::{borrowed::Value, prelude::*};
+use simd_json::{borrowed::Value, prelude::*, to_borrowed_value};
 
 use crate::{path::PathUtil, JSONError, ResolveError};
 
@@ -78,15 +78,17 @@ impl PackageJson {
     let json_cell = JSONCell::try_new(json, |v| {
       // SAFETY: We have exclusive ownership of the Vec<u8>, so it's safe to cast to mutable.
       let slice = unsafe { std::slice::from_raw_parts_mut(v.as_ptr().cast_mut(), v.len()) };
-      simd_json::value::borrowed::to_value(slice)
-    })
-    .map_err(|parse_error| {
-      ResolveError::JSON(JSONError {
-        path: path.clone(),
-        message: "sj parse failed".to_string(),
-        line: parse_error.index(),
-        column: parse_error.index(),
-        content: None,
+
+      to_borrowed_value(slice).map_err(|e| {
+        let content = String::from_utf8_lossy(v);
+        let (line, column) = offset_to_location(&content, e.index());
+        ResolveError::JSON(JSONError {
+          path: path.clone(),
+          message: format!("JSON parse error: {:?}", e.error()),
+          line,
+          column,
+          content: Some(content.to_string()),
+        })
       })
     })?;
 
@@ -298,6 +300,28 @@ impl PackageJson {
       _ => Ok(None),
     }
   }
+}
+
+fn offset_to_location(json: &str, offset: usize) -> (usize, usize) {
+  let mut line = 0;
+  let mut col = 0;
+  let mut current_offset = 0;
+  for ch in json.chars() {
+    let b = ch.len_utf8();
+    current_offset += b;
+    if ch == '\n' {
+      line += 1;
+      col = 0;
+    } else {
+      col += b;
+    }
+
+    if current_offset >= offset {
+      break;
+    }
+  }
+  // zero-based to one-based
+  (line + 1, col + 1)
 }
 
 impl<'a> TryFrom<&'a JSONValue<'a>> for SideEffects {
