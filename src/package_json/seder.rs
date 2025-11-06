@@ -40,6 +40,7 @@ pub struct PackageJson {
 impl PackageJson {
   /// # Panics
   /// # Errors
+  #[cfg_attr(feature="enable_instrument", tracing::instrument(level=tracing::Level::DEBUG, name="pkgjson_parse", skip_all, fields(path = %realpath.display())))]
   pub(crate) fn parse(
     path: PathBuf,
     realpath: PathBuf,
