@@ -1,6 +1,3 @@
-// mod seder;
-// pub use seder::*;
-
 mod simd;
 
 use std::fmt::Display;
