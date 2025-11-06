@@ -43,8 +43,7 @@ async fn package_json() {
   let package_json = resolution.package_json().unwrap();
   assert_eq!(package_json.name.as_ref().unwrap(), "name");
   assert_eq!(package_json.r#type, Some(ModuleType::Module));
-  // fixme: add sideEffects after perf comparison
-  // assert!(package_json.side_effects.as_ref().unwrap().is_object());
+  assert!(matches!(package_json.side_effects, Some(_)));
 }
 
 #[cfg(feature = "package_json_raw_json_api")]
