@@ -1,13 +1,67 @@
 //! package.json definitions
 //!
 //! Code related to export field are copied from [Parcel's resolver](https://github.com/parcel-bundler/parcel/blob/v2/packages/utils/node-resolver-rs/src/package_json.rs)
-use std::path::{Path, PathBuf};
 
-use serde_json::Value as JSONValue;
+use std::{
+  fmt::{Debug, Formatter},
+  marker::PhantomData,
+  path::{Path, PathBuf},
+};
+
+use simd_json::{
+  borrowed::Value, prelude::*, to_borrowed_value, BorrowedValue, Error as ParseError,
+};
 
 use crate::{path::PathUtil, ResolveError};
 
-pub type JSONMap = serde_json::Map<String, JSONValue>;
+pub type JSONMap<'a> = simd_json::borrowed::Object<'a>;
+
+#[cfg(feature = "package_json_raw_json_api")]
+use simd_json::serde::from_refborrowed_value;
+pub use simd_json::BorrowedValue as JSONValue;
+
+use crate::package_json::{ModuleType, SideEffects};
+
+pub struct JSONCell {
+  value: BorrowedValue<'static>,
+  buf: Vec<u8>,
+  _invariant: PhantomData<&'static str>,
+}
+
+impl JSONCell {
+  pub fn try_new(mut buf: Vec<u8>) -> Result<Self, ParseError> {
+    let value = to_borrowed_value(&mut buf)?;
+    // SAFETY: This is safe because `buf` is owned by the `JSONCell` struct,
+    let value = unsafe { std::mem::transmute::<BorrowedValue<'_>, BorrowedValue<'static>>(value) };
+
+    Ok(Self {
+      value,
+      buf,
+      _invariant: PhantomData,
+    })
+  }
+
+  pub fn borrow_dependent(&self) -> &JSONValue<'_> {
+    &self.value
+  }
+}
+
+impl Debug for JSONCell {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    let str = String::from_utf8_lossy(&self.buf);
+    f.write_fmt(format_args!("JSONCell({str})"))
+  }
+}
+
+impl Default for JSONCell {
+  fn default() -> Self {
+    Self {
+      value: JSONValue::Static(StaticNode::Null),
+      buf: Vec::new(),
+      _invariant: PhantomData,
+    }
+  }
+}
 
 /// Deserialized package.json
 #[derive(Debug, Default)]
@@ -27,66 +81,85 @@ pub struct PackageJson {
   /// The "type" field.
   ///
   /// <https://nodejs.org/api/packages.html#type>
-  pub r#type: Option<JSONValue>,
+  pub r#type: Option<ModuleType>,
 
   /// The "sideEffects" field.
   ///
   /// <https://webpack.js.org/guides/tree-shaking>
-  pub side_effects: Option<JSONValue>,
+  pub side_effects: Option<SideEffects>,
 
-  raw_json: std::sync::Arc<JSONValue>,
+  raw_json: std::sync::Arc<JSONCell>,
+
+  #[cfg(feature = "package_json_raw_json_api")]
+  serde_json: std::sync::Arc<serde_json::Value>,
 }
 
 impl PackageJson {
   /// # Panics
   /// # Errors
-  #[cfg_attr(feature="enable_instrument", tracing::instrument(level=tracing::Level::DEBUG, name="pkgjson_parse", skip_all, fields(path = %realpath.display())))]
-  pub(crate) fn parse(
-    path: PathBuf,
-    realpath: PathBuf,
-    json: &str,
-  ) -> Result<Self, serde_json::Error> {
-    let mut raw_json: JSONValue = serde_json::from_str(json)?;
+  pub(crate) fn parse(path: PathBuf, realpath: PathBuf, json: Vec<u8>) -> Result<Self, ParseError> {
+    let json_cell = JSONCell::try_new(json)?;
+
     let mut package_json = Self::default();
-
-    if let Some(json_object) = raw_json.as_object_mut() {
-      // Remove large fields that are useless for pragmatic use.
-      #[cfg(feature = "package_json_raw_json_api")]
-      {
-        json_object.remove("description");
-        json_object.remove("keywords");
-        json_object.remove("scripts");
-        json_object.remove("dependencies");
-        json_object.remove("devDependencies");
-        json_object.remove("peerDependencies");
-        json_object.remove("optionalDependencies");
-      }
-
-      // Add name, type and sideEffects.
+    if let Some(json_object) = json_cell.borrow_dependent().as_object() {
       package_json.name = json_object
         .get("name")
         .and_then(|field| field.as_str())
         .map(ToString::to_string);
-      package_json.r#type = json_object.get("type").cloned();
-      package_json.side_effects = json_object.get("sideEffects").cloned();
+
+      package_json.r#type = json_object
+        .get("type")
+        .and_then(|str| str.as_str())
+        .and_then(|str| str.try_into().ok());
+
+      package_json.side_effects = json_object
+        .get("sideEffects")
+        .and_then(|value| SideEffects::try_from(value).ok());
+
+      #[cfg(feature = "package_json_raw_json_api")]
+      {
+        package_json.init_serde_json(json_object);
+      }
     }
 
     package_json.path = path;
     package_json.realpath = realpath;
-    package_json.raw_json = std::sync::Arc::new(raw_json);
+    package_json.raw_json = std::sync::Arc::new(json_cell);
+
     Ok(package_json)
   }
 
-  fn get_value_by_path<'a>(
-    fields: &'a serde_json::Map<String, JSONValue>,
-    path: &[String],
-  ) -> Option<&'a JSONValue> {
-    if path.is_empty() {
+  #[cfg(feature = "package_json_raw_json_api")]
+  fn init_serde_json(&mut self, value: &JSONMap) {
+    const KEYS_TO_KEEP: [&str; 9] = [
+      "name",
+      "version",
+      "sideEffects",
+      "type",
+      "main",
+      "module",
+      "exports",
+      "imports",
+      "browser",
+    ];
+    let mut json_map = serde_json::value::Map::with_capacity(KEYS_TO_KEEP.len());
+
+    for key in KEYS_TO_KEEP {
+      if let Some(name) = value.get(key).and_then(|v| from_refborrowed_value(v).ok()) {
+        json_map.insert(key.to_string(), name);
+      }
+    }
+    self.serde_json = std::sync::Arc::new(serde_json::Value::Object(json_map));
+  }
+
+  fn get_value_by_paths<'a>(fields: &'a JSONMap, paths: &[String]) -> Option<&'a JSONValue<'a>> {
+    if paths.is_empty() {
       return None;
     }
-    let mut value = fields.get(&path[0])?;
-    for key in path.iter().skip(1) {
-      if let Some(inner_value) = value.as_object().and_then(|o| o.get(key)) {
+
+    let mut value = fields.get(paths[0].as_str())?;
+    for key in paths.iter().skip(1) {
+      if let Some(inner_value) = value.as_object().and_then(|o| o.get(key.as_str())) {
         value = inner_value;
       } else {
         return None;
@@ -105,8 +178,8 @@ impl PackageJson {
   /// They are: `description`, `keywords`, `scripts`,
   /// `dependencies` and `devDependencies`, `peerDependencies`, `optionalDependencies`.
   #[cfg(feature = "package_json_raw_json_api")]
-  pub fn raw_json(&self) -> &std::sync::Arc<JSONValue> {
-    &self.raw_json
+  pub fn raw_json(&self) -> &std::sync::Arc<serde_json::Value> {
+    &self.serde_json
   }
 
   /// Directory to `package.json`
@@ -133,10 +206,12 @@ impl PackageJson {
     &'a self,
     main_fields: &'a [String],
   ) -> impl Iterator<Item = &'a str> + 'a {
-    main_fields
-      .iter()
-      .filter_map(|main_field| self.raw_json.get(main_field))
-      .filter_map(|value| value.as_str())
+    main_fields.iter().filter_map(|main_field| {
+      self
+        .raw_json
+        .borrow_dependent()
+        .get_str(main_field.as_str())
+    })
   }
 
   /// The "exports" field allows defining the entry points of a package when imported by name loaded either via a node_modules lookup or a self-reference to its own name.
@@ -145,12 +220,13 @@ impl PackageJson {
   pub(crate) fn exports_fields<'a>(
     &'a self,
     exports_fields: &'a [Vec<String>],
-  ) -> impl Iterator<Item = &'a JSONValue> + 'a {
+  ) -> impl Iterator<Item = &'a JSONValue<'a>> + 'a {
     exports_fields.iter().filter_map(|object_path| {
       self
         .raw_json
+        .borrow_dependent()
         .as_object()
-        .and_then(|json_object| Self::get_value_by_path(json_object, object_path))
+        .and_then(|json_object| Self::get_value_by_paths(json_object, object_path))
     })
   }
 
@@ -160,12 +236,13 @@ impl PackageJson {
   pub(crate) fn imports_fields<'a>(
     &'a self,
     imports_fields: &'a [Vec<String>],
-  ) -> impl Iterator<Item = &'a JSONMap> + 'a {
+  ) -> impl Iterator<Item = &'a JSONMap<'a>> + 'a {
     imports_fields.iter().filter_map(|object_path| {
       self
         .raw_json
+        .borrow_dependent()
         .as_object()
-        .and_then(|json_object| Self::get_value_by_path(json_object, object_path))
+        .and_then(|json_object| Self::get_value_by_paths(json_object, object_path))
         .and_then(|value| value.as_object())
     })
   }
@@ -177,12 +254,13 @@ impl PackageJson {
   fn browser_fields<'a>(
     &'a self,
     alias_fields: &'a [Vec<String>],
-  ) -> impl Iterator<Item = &'a JSONMap> + 'a {
+  ) -> impl Iterator<Item = &'a JSONMap<'a>> + 'a {
     alias_fields.iter().filter_map(|object_path| {
       self
         .raw_json
+        .borrow_dependent()
         .as_object()
-        .and_then(|json_object| Self::get_value_by_path(json_object, object_path))
+        .and_then(|json_object| Self::get_value_by_paths(json_object, object_path))
         // Only object is valid, all other types are invalid
         // https://github.com/webpack/enhanced-resolve/blob/3a28f47788de794d9da4d1702a3a583d8422cd48/lib/AliasFieldPlugin.js#L44-L52
         .and_then(|value| value.as_object())
@@ -208,7 +286,7 @@ impl PackageJson {
       } else {
         let dir = self.path.parent().unwrap();
         for (key, value) in object {
-          let joined = dir.normalize_with(key);
+          let joined = dir.normalize_with(key.to_string());
           if joined == path {
             return Self::alias_value(path, value);
           }
@@ -220,9 +298,37 @@ impl PackageJson {
 
   fn alias_value<'a>(key: &Path, value: &'a JSONValue) -> Result<Option<&'a str>, ResolveError> {
     match value {
-      JSONValue::String(value) => Ok(Some(value.as_str())),
-      JSONValue::Bool(b) if !b => Err(ResolveError::Ignored(key.to_path_buf())),
+      JSONValue::String(value) => Ok(Some(value)),
+      JSONValue::Static(sn) => {
+        if matches!(sn.as_bool(), Some(false)) {
+          Err(ResolveError::Ignored(key.to_path_buf()))
+        } else {
+          Ok(None)
+        }
+      }
       _ => Ok(None),
+    }
+  }
+}
+
+impl<'a> TryFrom<&'a JSONValue<'a>> for SideEffects {
+  type Error = &'static str;
+  fn try_from(value: &'a JSONValue<'a>) -> Result<Self, Self::Error> {
+    match value {
+      Value::Static(StaticNode::Bool(b)) => Ok(Self::Bool(*b)),
+      Value::String(str) => Ok(Self::String(str.to_string())),
+      Value::Array(arr) => {
+        let mut vec = Vec::with_capacity(arr.len());
+        for item in arr.iter() {
+          if let Value::String(s) = item {
+            vec.push(s.to_string());
+          } else {
+            return Err("Invalid sideEffects array item, expected string");
+          }
+        }
+        Ok(Self::Array(vec))
+      }
+      _ => Err("Invalid sideEffects value, expected bool, string or array of strings"),
     }
   }
 }

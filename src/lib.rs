@@ -74,7 +74,6 @@ use std::{
 use dashmap::{mapref::one::Ref, DashMap};
 use futures::future::{try_join_all, BoxFuture};
 use rustc_hash::FxHashSet;
-use serde_json::Value as JSONValue;
 
 pub use crate::{
   builtins::NODEJS_BUILTINS,
@@ -84,7 +83,7 @@ pub use crate::{
     Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,
     TsconfigReferences,
   },
-  package_json::PackageJson,
+  package_json::{JSONValue, ModuleType, PackageJson},
   resolution::Resolution,
 };
 use crate::{
@@ -1613,7 +1612,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
               Some,
             )
           }
-          _ => None,
+          JSONValue::Static(_) => None,
         };
         // 4. If mainExport is not undefined, then
         if let Some(main_export) = main_export {
@@ -1726,7 +1725,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   async fn package_imports_exports_resolve(
     &self,
     match_key: &str,
-    match_obj: &JSONMap,
+    match_obj: &JSONMap<'_>,
     package_url: &Path,
     is_imports: bool,
     conditions: &[String],
@@ -1758,7 +1757,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
     let mut best_target = None;
     let mut best_match = "";
-    let mut best_key = "";
+    let mut best_key = String::new();
     // 2. Let expansionKeys be the list of keys of matchObj containing only a single "*", sorted by the sorting function PATTERN_KEY_COMPARE which orders in descending order of specificity.
     // 3. For each key expansionKey in expansionKeys, do
     for (expansion_key, target) in match_obj {
@@ -1773,22 +1772,22 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
                         && (pattern_trailer.is_empty()
                         || (match_key.len() >= expansion_key.len()
                         && match_key.ends_with(pattern_trailer)))
-                        && Self::pattern_key_compare(best_key, expansion_key).is_gt()
+                        && Self::pattern_key_compare(&best_key, expansion_key).is_gt()
           {
             // 1. Let target be the value of matchObj[expansionKey].
             best_target = Some(target);
             // 2. Let patternMatch be the substring of matchKey starting at the index of the length of patternBase up to the length of matchKey minus the length of patternTrailer.
             best_match = &match_key[pattern_base.len()..match_key.len() - pattern_trailer.len()];
-            best_key = expansion_key;
+            best_key = expansion_key.to_string();
           }
         } else if expansion_key.ends_with('/')
-          && match_key.starts_with(expansion_key)
-          && Self::pattern_key_compare(best_key, expansion_key).is_gt()
+          && match_key.starts_with(&**expansion_key)
+          && Self::pattern_key_compare(&best_key, expansion_key).is_gt()
         {
           // TODO: [DEP0148] DeprecationWarning: Use of deprecated folder mapping "./dist/" in the "exports" field module resolution of the package at xxx/package.json.
           best_target = Some(target);
           best_match = &match_key[expansion_key.len()..];
-          best_key = expansion_key;
+          best_key = expansion_key.to_string();
         }
       }
     }
@@ -1797,7 +1796,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       return self
         .package_target_resolve(
           package_url,
-          best_key,
+          &best_key,
           best_target,
           Some(best_match),
           is_imports,
@@ -1893,9 +1892,10 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         JSONValue::Object(target) => {
           // 1. If exports contains any index property keys, as defined in ECMA-262 6.1.7 Array Index, throw an Invalid Package Configuration error.
           // 2. For each property p of target, in object insertion order as,
-          for (key, target_value) in target {
+          for (key, target_value) in target.iter() {
+            let key = key.to_string();
             // 1. If p equals "default" or conditions contains an entry for p, then
-            if key == "default" || conditions.contains(key) {
+            if key == "default" || conditions.contains(&key) {
               // 1. Let targetValue be the value of the p property in target.
               // 2. Let resolved be the result of PACKAGE_TARGET_RESOLVE( packageURL, targetValue, patternMatch, isImports, conditions).
               let resolved = self
@@ -1957,7 +1957,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
           // 3. Return or throw the last fallback resolution null return or error.
           // Note: see `resolved.is_err() && i == targets.len()`
         }
-        _ => {}
+        JSONValue::Static(_) => {}
       }
       // 4. Otherwise, if target is null, return null.
       Ok(None)

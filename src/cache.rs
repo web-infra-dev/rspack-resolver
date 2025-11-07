@@ -15,8 +15,10 @@ use rustc_hash::FxHasher;
 use tokio::sync::OnceCell as OnceLock;
 
 use crate::{
-  context::ResolveContext as Ctx, package_json::PackageJson, path::PathUtil, FileMetadata,
-  FileSystem, ResolveError, ResolveOptions, TsConfig,
+  context::ResolveContext as Ctx,
+  package_json::{off_to_location, PackageJson},
+  path::PathUtil,
+  FileMetadata, FileSystem, JSONError, ResolveError, ResolveOptions, TsConfig,
 };
 
 #[derive(Default)]
@@ -311,7 +313,7 @@ impl CachedPathImpl {
       .package_json
       .get_or_try_init(|| async {
         let package_json_path = self.path.join("package.json");
-        let Ok(package_json_string) = fs.read_to_string(&package_json_path).await else {
+        let Ok(package_json_string) = fs.read(&package_json_path).await else {
           return Ok(None);
         };
         let real_path = if options.symlinks {
@@ -319,19 +321,32 @@ impl CachedPathImpl {
         } else {
           package_json_path.clone()
         };
-        PackageJson::parse(package_json_path.clone(), real_path, &package_json_string)
-          .map(Arc::new)
-          .map(Some)
-          .map_err(|error| {
-            ResolveError::from_serde_json_error(
-              package_json_path,
-              &error,
-              Some(package_json_string),
-            )
-          })
+        match PackageJson::parse(package_json_path.clone(), real_path, package_json_string) {
+          Ok(v) => Ok(Some(Arc::new(v))),
+          Err(parse_err) => {
+            let package_json_path = self.path.join("package.json");
+            let package_json_string = match fs.read_to_string(&package_json_path).await {
+              Ok(c) => c,
+              Err(io_err) => {
+                return Err(ResolveError::from(io_err));
+              }
+            };
+
+            let (line, column) = off_to_location(&package_json_string, parse_err.index());
+
+            Err(ResolveError::JSON(JSONError {
+              path: package_json_path,
+              message: format!("Parsing error: {:?}", parse_err.error()),
+              line,
+              column,
+              content: Some(package_json_string),
+            }))
+          }
+        }
       })
       .await
       .cloned();
+
     // https://github.com/webpack/enhanced-resolve/blob/58464fc7cb56673c9aa849e68e6300239601e615/lib/DescriptionFileUtils.js#L68-L82
     match &result {
       Ok(Some(package_json)) => {

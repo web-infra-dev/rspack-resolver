@@ -4,9 +4,9 @@
 
 use std::path::Path;
 
-use serde_json::json;
+use simd_json::{json, prelude::*};
 
-use crate::{Ctx, JSONMap, PathUtil, ResolveError, ResolveOptions, Resolver};
+use crate::{package_json::JSONValue, Ctx, PathUtil, ResolveError, ResolveOptions, Resolver};
 
 #[tokio::test]
 async fn test_simple() {
@@ -101,15 +101,14 @@ async fn shared_resolvers() {
 struct TestCase {
   name: &'static str,
   expect: Option<Vec<&'static str>>,
-  imports_field: JSONMap,
+  imports_field: JSONValue<'static>,
   request: &'static str,
   condition_names: Vec<&'static str>,
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn imports_field(value: serde_json::Value) -> JSONMap {
-  let s = serde_json::to_string(&value).unwrap();
-  serde_json::from_str(&s).unwrap()
+fn imports_field(value: simd_json::value::OwnedValue) -> JSONValue<'static> {
+  value.into()
 }
 
 #[tokio::test]
@@ -1305,7 +1304,7 @@ async fn test_cases() {
     let resolved = Resolver::default()
       .package_imports_exports_resolve(
         case.request,
-        &case.imports_field,
+        case.imports_field.as_object().unwrap(),
         Path::new(""),
         true,
         &case

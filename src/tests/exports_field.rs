@@ -4,9 +4,9 @@
 
 use std::path::Path;
 
-use serde_json::json;
+use simd_json::json;
 
-use crate::{Ctx, PathUtil, ResolveError, ResolveOptions, Resolver};
+use crate::{package_json, Ctx, PathUtil, ResolveError, ResolveOptions, Resolver};
 
 #[tokio::test]
 async fn test_simple() {
@@ -381,14 +381,14 @@ async fn extension_alias_throw_error() {
 struct TestCase {
   name: &'static str,
   expect: Option<Vec<&'static str>>,
-  exports_field: serde_json::Value,
+  exports_field: package_json::JSONValue<'static>,
   request: &'static str,
   condition_names: Vec<&'static str>,
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn exports_field(value: serde_json::Value) -> serde_json::Value {
-  value
+fn exports_field(value: simd_json::value::OwnedValue) -> package_json::JSONValue<'static> {
+  value.into()
 }
 
 #[tokio::test]

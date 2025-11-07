@@ -2,7 +2,9 @@
 
 use std::{env, path::PathBuf};
 
-use rspack_resolver::{EnforceExtension, Resolution, ResolveContext, ResolveOptions, Resolver};
+use rspack_resolver::{
+  EnforceExtension, ModuleType, Resolution, ResolveContext, ResolveOptions, Resolver,
+};
 
 fn dir() -> PathBuf {
   env::current_dir().unwrap()
@@ -40,11 +42,8 @@ async fn package_json() {
   let resolution = resolve("./tests/package.json").await;
   let package_json = resolution.package_json().unwrap();
   assert_eq!(package_json.name.as_ref().unwrap(), "name");
-  assert_eq!(
-    package_json.r#type.as_ref().unwrap().as_str(),
-    "module".into()
-  );
-  assert!(package_json.side_effects.as_ref().unwrap().is_object());
+  assert_eq!(package_json.r#type, Some(ModuleType::Module));
+  assert!(matches!(package_json.side_effects, Some(_)));
 }
 
 #[cfg(feature = "package_json_raw_json_api")]
