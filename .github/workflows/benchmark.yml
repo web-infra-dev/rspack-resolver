@@ -44,7 +44,7 @@ jobs:
       - name: Build Benchmark
         env:
           RUSTFLAGS: "-C debuginfo=1 -C strip=none -g --cfg codspeed"
-        run: cargo codspeed build --features codspeed
+        run: cargo codspeed build --features codspeed,enable_instrument,tracing/release_max_level_off,tracing/max_level_off
 
       - name: Run benchmark
         uses: CodSpeedHQ/action@v3
