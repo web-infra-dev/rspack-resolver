@@ -86,7 +86,7 @@ simd-json = {  version = "0.17.0", features = ["serde_impl", "runtime-detection"
 
 rustc-hash = { version = "2.0.0", default-features = false, features = ["std"] }
 dunce = "1.0.4" # Normalize Windows paths to the most compatible format, avoiding UNC where possible
-thiserror = "1.0.61"
+thiserror = "2.0.17"
 json-strip-comments = "1.0.2"
 indexmap = { version = "2.2.6", features = ["serde"] }
 cfg-if = "1.0"
