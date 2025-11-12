@@ -336,7 +336,7 @@ impl CachedPathImpl {
 
             Err(ResolveError::JSON(JSONError {
               path: package_json_path,
-              message: format!("Parsing error: {:?}", parse_err.error()),
+              message: parse_err.error().to_string(),
               line,
               column,
               content: Some(package_json_string),

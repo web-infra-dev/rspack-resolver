@@ -24,6 +24,7 @@ mod tsconfig_paths;
 mod tsconfig_project_references;
 #[cfg(windows)]
 mod windows;
+mod package_json;
 
 use std::{env, path::PathBuf, sync::Arc, thread};
 

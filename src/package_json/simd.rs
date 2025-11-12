@@ -9,7 +9,7 @@ use std::{
 };
 
 use simd_json::{
-  borrowed::Value, prelude::*, to_borrowed_value, BorrowedValue, Error as ParseError,
+  borrowed::Value, prelude::*, to_borrowed_value, BorrowedValue, Error as SimdParseError,
 };
 
 use crate::{path::PathUtil, ResolveError};
@@ -29,10 +29,22 @@ pub struct JSONCell {
 }
 
 impl JSONCell {
-  pub fn try_new(mut buf: Vec<u8>) -> Result<Self, ParseError> {
+  pub fn try_new(mut buf: Vec<u8>) -> Result<Self, SimdParseError> {
     let value = to_borrowed_value(&mut buf)?;
     // SAFETY: This is safe because `buf` is owned by the `JSONCell` struct,
-    let value = unsafe { std::mem::transmute::<BorrowedValue<'_>, BorrowedValue<'static>>(value) };
+    let mut value =
+      unsafe { std::mem::transmute::<BorrowedValue<'_>, BorrowedValue<'static>>(value) };
+
+    #[cfg(feature = "package_json_raw_json_api")]
+    if let Some(json_object) = value.as_object_mut() {
+      json_object.remove("description");
+      json_object.remove("keywords");
+      json_object.remove("scripts");
+      json_object.remove("dependencies");
+      json_object.remove("devDependencies");
+      json_object.remove("peerDependencies");
+      json_object.remove("optionalDependencies");
+    }
 
     Ok(Self {
       value,
@@ -94,11 +106,47 @@ pub struct PackageJson {
   serde_json: std::sync::Arc<serde_json::Value>,
 }
 
+const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+#[derive(Debug, PartialEq)]
+pub struct XParseError {
+  pub(crate) message: String,
+  pub(crate) index: usize,
+}
+
+impl XParseError {
+  pub fn index(&self) -> usize {
+    self.index
+  }
+  pub fn error(&self) -> &str {
+    &self.message
+  }
+}
+
+impl From<SimdParseError> for XParseError {
+  fn from(value: SimdParseError) -> Self {
+    Self {
+      index: value.index(),
+      message: format!("{:?}", value.error()).to_lowercase(),
+    }
+  }
+}
+
 impl PackageJson {
   /// # Panics
   /// # Errors
-  pub(crate) fn parse(path: PathBuf, realpath: PathBuf, json: Vec<u8>) -> Result<Self, ParseError> {
-    let json_cell = JSONCell::try_new(json)?;
+  pub(crate) fn parse(
+    path: PathBuf,
+    realpath: PathBuf,
+    json: Vec<u8>,
+  ) -> Result<Self, XParseError> {
+    if json.starts_with(&BOM) {
+      return Err(XParseError {
+        message: "BOM character found".to_string(),
+        index: 0,
+      });
+    }
+
+    let json_cell = JSONCell::try_new(json).map_err(|e| XParseError::from(e))?;
 
     let mut package_json = Self::default();
     if let Some(json_object) = json_cell.borrow_dependent().as_object() {
@@ -131,22 +179,11 @@ impl PackageJson {
 
   #[cfg(feature = "package_json_raw_json_api")]
   fn init_serde_json(&mut self, value: &JSONMap) {
-    const KEYS_TO_KEEP: [&str; 9] = [
-      "name",
-      "version",
-      "sideEffects",
-      "type",
-      "main",
-      "module",
-      "exports",
-      "imports",
-      "browser",
-    ];
-    let mut json_map = serde_json::value::Map::with_capacity(KEYS_TO_KEEP.len());
+    let mut json_map = serde_json::value::Map::with_capacity(9);
 
-    for key in KEYS_TO_KEEP {
-      if let Some(name) = value.get(key).and_then(|v| from_refborrowed_value(v).ok()) {
-        json_map.insert(key.to_string(), name);
+    for (key, value) in value.iter() {
+      if let Ok(v) = from_refborrowed_value(value) {
+        json_map.insert(key.to_string(), v);
       }
     }
     self.serde_json = std::sync::Arc::new(serde_json::Value::Object(json_map));
