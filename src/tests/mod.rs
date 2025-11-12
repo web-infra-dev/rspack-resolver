@@ -12,6 +12,7 @@ mod incorrect_description_file;
 mod main_field;
 mod memory_fs;
 mod missing;
+mod package_json;
 #[cfg(feature = "yarn_pnp")]
 mod pnp;
 mod resolve;
@@ -24,7 +25,6 @@ mod tsconfig_paths;
 mod tsconfig_project_references;
 #[cfg(windows)]
 mod windows;
-mod package_json;
 
 use std::{env, path::PathBuf, sync::Arc, thread};
 

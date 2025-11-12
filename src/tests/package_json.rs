@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
   use std::path::PathBuf;
-  use crate::package_json::XParseError;
-  use crate::PackageJson;
+
+  use crate::{package_json::XParseError, PackageJson};
 
   #[tokio::test]
   async fn test_json_with_bom() {
@@ -11,10 +11,13 @@ mod tests {
 
     let result = PackageJson::parse(mock_path.clone(), mock_path.clone(), json_with_bom).err();
 
-    assert_eq!(result, Some(XParseError{
-      message: "BOM character found".to_string(),
-      index: 0
-    }));
+    assert_eq!(
+      result,
+      Some(XParseError {
+        message: "BOM character found".to_string(),
+        index: 0
+      })
+    );
   }
 
   #[tokio::test]
@@ -34,10 +37,13 @@ mod tests {
 
     let parsed_err = PackageJson::parse(mock_path.clone(), mock_path.clone(), json_with_bom).err();
 
-    assert_eq!(parsed_err, Some(XParseError{
+    assert_eq!(
+      parsed_err,
+      Some(XParseError {
         message: "syntax".to_string(),
         index: 7
-    }));
+      })
+    );
   }
 
   #[tokio::test]

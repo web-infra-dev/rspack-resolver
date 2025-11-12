@@ -32,8 +32,7 @@ impl JSONCell {
   pub fn try_new(mut buf: Vec<u8>) -> Result<Self, SimdParseError> {
     let value = to_borrowed_value(&mut buf)?;
     // SAFETY: This is safe because `buf` is owned by the `JSONCell` struct,
-    let mut value =
-      unsafe { std::mem::transmute::<BorrowedValue<'_>, BorrowedValue<'static>>(value) };
+    let value = unsafe { std::mem::transmute::<BorrowedValue<'_>, BorrowedValue<'static>>(value) };
 
     #[cfg(feature = "package_json_raw_json_api")]
     if let Some(json_object) = value.as_object_mut() {
