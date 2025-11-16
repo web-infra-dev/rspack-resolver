@@ -331,16 +331,15 @@ impl CachedPathImpl {
                 return Err(ResolveError::from(io_err));
               }
             };
-            let seder_err = serde_json::from_str::<serde_json::Value>(&package_json_string)
-              .err();
+            let seder_err = serde_json::from_str::<serde_json::Value>(&package_json_string).err();
 
             if let Some(err) = seder_err {
-              return  Err(ResolveError::from_serde_json_error(
+              return Err(ResolveError::from_serde_json_error(
                 package_json_path,
                 &err,
                 Some(package_json_string),
-              ))
-            }else{
+              ));
+            } else {
               let (line, column) = off_to_location(&package_json_string, parse_err.index());
 
               Err(ResolveError::JSON(JSONError {
