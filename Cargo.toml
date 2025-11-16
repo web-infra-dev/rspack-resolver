@@ -3,26 +3,28 @@ members  = ["napi"]
 resolver = "2"
 
 [package]
-version      = "0.6.4"
-name         = "rspack_resolver"
 authors      = ["Rspack"]
 categories   = ["development-tools"]
 description  = "ESM / CJS module resolution"
 edition      = "2021"
 homepage     = "https://github.com/web-infra-dev/rspack-resolver"
+include      = ["/src", "/examples", "/benches", "!/benches/pnpm-lock.yaml", "!/benches/node_modules"]
 keywords     = ["node", "resolve", "cjs", "esm", "enhanced-resolve"]
 license      = "MIT"
+name         = "rspack_resolver"
+name         = "rspack_resolver"
 readme       = "README.md"
 repository   = "https://github.com/web-infra-dev/rspack-resolver"
 rust-version = "1.70"
-include      = ["/src", "/examples", "/benches", "!/benches/pnpm-lock.yaml", "!/benches/node_modules"]
+version      = "0.6.5"
+version      = "0.6.4"
 
 [lib]
 doctest = false
 
 [[bench]]
-name    = "resolver"
 harness = false
+name    = "resolver"
 
 [lints.clippy]
 all   = { level = "warn", priority = -1 }
@@ -35,7 +37,6 @@ unimplemented = "warn"
 # This increases readability, avoids `clone` mindlessly and heap allocating on accident.
 clone_on_ref_ptr = "warn"
 # These two are mutually exclusive, I like `mod.rs` files for better fuzzy searches on module entries.
-self_named_module_files         = "warn" # "-Wclippy::mod_module_files"
 empty_drop                      = "warn"
 empty_structs_with_brackets     = "warn"
 exit                            = "warn"
@@ -45,8 +46,9 @@ impl_trait_in_params            = "warn"
 rc_buffer                       = "warn"
 rc_mutex                        = "warn"
 rest_pat_in_fully_bound_structs = "warn"
-unnecessary_safety_comment      = "warn"
+self_named_module_files         = "warn" # "-Wclippy::mod_module_files"
 undocumented_unsafe_blocks      = "warn"
+unnecessary_safety_comment      = "warn"
 # I want to write the best Rust code so both pedantic and nursery is enabled.
 # We should only disable rules globally if they are either false positives, chaotic, or does not make sense.
 nursery  = { level = "warn", priority = -1 }
@@ -75,39 +77,39 @@ multiple_crate_versions = "allow"
 name = "resolver"
 
 [dependencies]
-tracing = "0.1.40"
 dashmap = "6.0.1"
 serde = { version = "1.0.203", features = ["derive"] } # derive for Deserialize from package.json
 serde_json = { version = "1.0.117", features = [
   "preserve_order",
 ] } # preserve_order: package_json.exports requires order such as `["require", "import", "default"]`
+tracing = "0.1.40"
 
-simd-json = {  version = "0.17.0", features = ["serde_impl", "runtime-detection"], default-features = false }
+simd-json = { version = "0.17.0", features = ["serde_impl", "runtime-detection"], default-features = false }
 
-rustc-hash = { version = "2.0.0", default-features = false, features = ["std"] }
-dunce = "1.0.4" # Normalize Windows paths to the most compatible format, avoiding UNC where possible
-thiserror = "2.0.17"
+cfg-if              = "1.0"
+dunce               = "1.0.4"                                                             # Normalize Windows paths to the most compatible format, avoiding UNC where possible
+indexmap            = { version = "2.2.6", features = ["serde"] }
 json-strip-comments = "1.0.2"
-indexmap = { version = "2.2.6", features = ["serde"] }
-cfg-if = "1.0"
+rustc-hash          = { version = "2.0.0", default-features = false, features = ["std"] }
+thiserror           = "2.0.17"
 
 pnp = { version = "0.12.5", optional = true }
 
+async-trait       = "0.1.84"
 document-features = { version = "0.2.8", optional = true }
-futures = "0.3.31"
-async-trait = "0.1.84"
+futures           = "0.3.31"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.47.1", default-features = false, features = ["sync", "rt-multi-thread", "macros", "fs"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-tokio = { version = "1.47.1", default-features = false, features = ["sync", "rt", "macros" ]}
+tokio = { version = "1.47.1", default-features = false, features = ["sync", "rt", "macros"] }
 
 [dev-dependencies]
-vfs            = "0.12.0"                                        # for testing with in memory file system
-regex          = "1.11.1"
-rayon          = { version = "1.10.0" }
-criterion2     = { version = "2.0.0", default-features = false, features = ["async_tokio"]}
+criterion2     = { version = "2.0.0", default-features = false, features = ["async_tokio"] }
 normalize-path = { version = "0.2.1" }
+rayon          = { version = "1.10.0" }
+regex          = "1.11.1"
+vfs            = "0.12.0"                                                                    # for testing with in memory file system
 
 [features]
 default = ["yarn_pnp"]
@@ -117,9 +119,9 @@ package_json_raw_json_api = []
 ## [Yarn Plug'n'Play](https://yarnpkg.com/features/pnp)
 yarn_pnp = ["pnp"]
 # For codspeed benchmark
-codspeed = ["criterion2/codspeed" ]
+codspeed = ["criterion2/codspeed"]
 # For remove tracing calls in release build
-enable_instrument=[]
+enable_instrument = []
 
 [package.metadata.docs.rs]
 all-features = true
@@ -129,18 +131,18 @@ rustdoc-args = ["--cfg", "docsrs"]
 [profile.release]
 # Configurations explicitly listed here for clarity.
 # Using the best options for performance.
-opt-level     = 3
-lto           = "fat"
 codegen-units = 1
-strip         = "symbols" # set to `false` for debug information
 debug         = false     # set to `true` for debug information
+lto           = "fat"
+opt-level     = 3
 panic         = "abort"   # Let it crash and force ourselves to write safe Rust.
+strip         = "symbols" # set to `false` for debug information
 
 [profile.profiling]
-inherits      = "release"
-opt-level     = 3
-lto           = "fat"
 codegen-units = 1
-strip         = false # set to `false` for debug information
-debug         = false# set to `true` for debug information
+debug         = false     # set to `true` for debug information
+inherits      = "release"
+lto           = "fat"
+opt-level     = 3
 panic         = "abort"
+strip         = false     # set to `false` for debug information

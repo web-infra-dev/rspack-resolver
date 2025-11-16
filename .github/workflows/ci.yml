@@ -157,11 +157,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: taiki-e/checkout-action@v1
+      - name: Pnpm Setup
+        uses: ./.github/actions/pnpm
       - uses: Boshen/setup-rust@main
         with:
           components: rustfmt
           restore-cache: false
       - run: cargo fmt --all -- --check
+      - run: pnpm run prettier:ci
+      - run: pnpm exec taplo format --check
 
   lint:
     name: Clippy
