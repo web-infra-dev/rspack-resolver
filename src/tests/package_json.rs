@@ -48,13 +48,20 @@ mod tests {
   }
 
   #[tokio::test]
-  #[ignore]
   async fn test_empty_string() {
     let mock_path = PathBuf::from("package.json");
     let json_with_bom = "    ".as_bytes().to_vec();
 
-    let parsed = PackageJson::parse(mock_path.clone(), mock_path.clone(), json_with_bom).unwrap();
+    let parse_error = PackageJson::parse(mock_path.clone(), mock_path.clone(), json_with_bom)
+      .err()
+      .unwrap();
 
-    assert_eq!(parsed.name.unwrap(), "example-package");
+    assert_eq!(
+      parse_error,
+      XParseError {
+        message: "eof".to_string(),
+        index: 0,
+      }
+    );
   }
 }
