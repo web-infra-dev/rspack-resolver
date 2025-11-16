@@ -12,9 +12,11 @@ include      = ["/src", "/examples", "/benches", "!/benches/pnpm-lock.yaml", "!/
 keywords     = ["node", "resolve", "cjs", "esm", "enhanced-resolve"]
 license      = "MIT"
 name         = "rspack_resolver"
+name         = "rspack_resolver"
 readme       = "README.md"
 repository   = "https://github.com/web-infra-dev/rspack-resolver"
 rust-version = "1.70"
+version      = "0.6.5"
 version      = "0.6.4"
 
 [lib]
