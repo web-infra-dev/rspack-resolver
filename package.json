@@ -11,18 +11,22 @@
     "test": "ava && node --test napi/tests/options.test.mjs",
     "prettier": "prettier --check .",
     "prettier:ci": "prettier --list-different .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@actions/core": "^1.11.1",
     "@continuous-auth/client": "^2.3.2",
     "@napi-rs/cli": "3.0.4",
     "@napi-rs/wasm-runtime": "^1.0.1",
+    "@taplo/cli": "^0.7.0",
     "@types/node": "^22.0.0",
     "ava": "^6.1.3",
     "commander": "^13.1.0",
     "emnapi": "^1.2.0",
     "enhanced-resolve": "^5.17.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
     "prettier": "^3.6.2",
     "semver": "^7.7.1",
     "typescript": "^5.5.3",
