@@ -108,7 +108,7 @@ pub struct PackageJson {
 }
 
 const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct XParseError {
   pub(crate) message: String,
   pub(crate) index: usize,
@@ -147,7 +147,7 @@ impl PackageJson {
       });
     }
 
-    let json_cell = JSONCell::try_new(json).map_err(|e| XParseError::from(e))?;
+    let json_cell = JSONCell::try_new(json).map_err(XParseError::from)?;
 
     let mut package_json = Self::default();
     if let Some(json_object) = json_cell.borrow_dependent().as_object() {
@@ -182,7 +182,7 @@ impl PackageJson {
   fn init_serde_json(&mut self, value: &JSONMap) {
     let mut json_map = serde_json::value::Map::with_capacity(9);
 
-    for (key, value) in value.iter() {
+    for (key, value) in value {
       if let Ok(v) = from_refborrowed_value(value) {
         json_map.insert(key.to_string(), v);
       }
