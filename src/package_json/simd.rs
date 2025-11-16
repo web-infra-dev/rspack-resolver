@@ -109,12 +109,12 @@ pub struct PackageJson {
 
 const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 #[derive(Debug, PartialEq, Eq)]
-pub struct XParseError {
+pub struct ParseError {
   pub(crate) message: String,
   pub(crate) index: usize,
 }
 
-impl XParseError {
+impl ParseError {
   pub fn index(&self) -> usize {
     self.index
   }
@@ -123,7 +123,7 @@ impl XParseError {
   }
 }
 
-impl From<SimdParseError> for XParseError {
+impl From<SimdParseError> for ParseError {
   fn from(value: SimdParseError) -> Self {
     Self {
       index: value.index(),
@@ -139,15 +139,15 @@ impl PackageJson {
     path: PathBuf,
     realpath: PathBuf,
     json: Vec<u8>,
-  ) -> Result<Self, XParseError> {
+  ) -> Result<Self, ParseError> {
     if json.starts_with(&BOM) {
-      return Err(XParseError {
+      return Err(ParseError {
         message: "BOM character found".to_string(),
         index: 0,
       });
     }
 
-    let json_cell = JSONCell::try_new(json).map_err(XParseError::from)?;
+    let json_cell = JSONCell::try_new(json).map_err(ParseError::from)?;
 
     let mut package_json = Self::default();
     if let Some(json_object) = json_cell.borrow_dependent().as_object() {

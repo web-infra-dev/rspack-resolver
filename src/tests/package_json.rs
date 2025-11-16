@@ -2,7 +2,7 @@
 mod tests {
   use std::path::PathBuf;
 
-  use crate::{package_json::XParseError, PackageJson};
+  use crate::{package_json::ParseError, PackageJson};
 
   #[tokio::test]
   async fn test_json_with_bom() {
@@ -13,7 +13,7 @@ mod tests {
 
     assert_eq!(
       result,
-      Some(XParseError {
+      Some(ParseError {
         message: "BOM character found".to_string(),
         index: 0
       })
@@ -39,7 +39,7 @@ mod tests {
 
     assert_eq!(
       parsed_err,
-      Some(XParseError {
+      Some(ParseError {
         message: "syntax".to_string(),
         // SIMD error message does not provide the accurate index
         index: 0
@@ -48,13 +48,20 @@ mod tests {
   }
 
   #[tokio::test]
-  #[ignore]
   async fn test_empty_string() {
     let mock_path = PathBuf::from("package.json");
     let json_with_bom = "    ".as_bytes().to_vec();
 
-    let parsed = PackageJson::parse(mock_path.clone(), mock_path.clone(), json_with_bom).unwrap();
+    let parse_error = PackageJson::parse(mock_path.clone(), mock_path.clone(), json_with_bom)
+      .err()
+      .unwrap();
 
-    assert_eq!(parsed.name.unwrap(), "example-package");
+    assert_eq!(
+      parse_error,
+      ParseError {
+        message: "eof".to_string(),
+        index: 0,
+      }
+    );
   }
 }
