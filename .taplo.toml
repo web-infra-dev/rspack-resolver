@@ -1,5 +1,6 @@
-include = ["Cargo.toml", "napi/Cargo.toml"]
+include = ["Cargo.toml", "napi/Cargo.toml", ".taplo.toml"]
 
 [formatting]
 align_entries = true
 column_width  = 120
+reorder_keys  = true
