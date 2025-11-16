@@ -20,7 +20,9 @@ pub type JSONMap<'a> = simd_json::borrowed::Object<'a>;
 use simd_json::serde::from_refborrowed_value;
 pub use simd_json::BorrowedValue as JSONValue;
 
-use crate::package_json::{ModuleType, SideEffects};
+use crate::{
+  package_json::{ModuleType, SideEffects},
+};
 
 pub struct JSONCell {
   value: BorrowedValue<'static>,

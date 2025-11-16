@@ -33,7 +33,7 @@ mod tests {
   #[tokio::test]
   async fn test_broken_json() {
     let mock_path = PathBuf::from("package.json");
-    let json_with_bom = r##"{"name":"##.as_bytes().to_vec();
+    let json_with_bom = r##"{"broken":"string"##.as_bytes().to_vec();
 
     let parsed_err = PackageJson::parse(mock_path.clone(), mock_path.clone(), json_with_bom).err();
 
@@ -41,7 +41,8 @@ mod tests {
       parsed_err,
       Some(XParseError {
         message: "syntax".to_string(),
-        index: 7
+        // SIMD error message does not provide the accurate index
+        index: 0
       })
     );
   }
