@@ -2,11 +2,10 @@ name: Pnpm
 
 description: Install pnpm
 
-
 inputs:
   node-version:
-    description: 'Version Spec of the version to use. Examples: 12.x, 10.15.1, >=10.15.0.'
-    default: '20'
+    description: "Version Spec of the version to use. Examples: 12.x, 10.15.1, >=10.15.0."
+    default: "20"
 
 runs:
   using: composite
