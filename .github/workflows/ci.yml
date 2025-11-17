@@ -3,7 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize]
+    types: [ opened, synchronize ]
     paths-ignore:
       - "**/*.md"
       - "!.github/workflows/ci.yml"
@@ -192,16 +192,21 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        include:
-          - os: windows-latest
-          - os: ubuntu-latest
-          - os: macos-14
+        os:
+          - windows-latest
+          - ubuntu-latest
+          - macos-14
+        node:
+          - 20
+          - 22
     runs-on: ${{ matrix.os }}
     env:
       RUST_BACKTRACE: 1
     steps:
       - uses: taiki-e/checkout-action@v1
       - uses: ./.github/actions/pnpm
+        with:
+          node-version: ${{ matrix.node }}
       - uses: Boshen/setup-rust@main
         with:
           cache-key: warm
