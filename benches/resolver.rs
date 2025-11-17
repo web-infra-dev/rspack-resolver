@@ -8,7 +8,7 @@ use std::{
 };
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use rspack_resolver::{ResolveOptions, Resolver};
+use rspack_resolver::{FileSystemOs, ResolveOptions, Resolver, ResolverGeneric};
 use serde_json::Value;
 use tokio::{
   runtime::{self, Builder},
@@ -89,6 +89,31 @@ fn rspack_resolver() -> rspack_resolver::Resolver {
       ("@@@".into(), vec![alias_value]),
     ],
     ..ResolveOptions::default()
+  })
+}
+
+fn resolver_with_many_extensions() -> rspack_resolver::Resolver {
+  Resolver::new(ResolveOptions {
+    extensions: vec![
+      ".bad0".to_string(),
+      ".bad1".to_string(),
+      ".bad2".to_string(),
+      ".bad4".to_string(),
+      ".bad6".to_string(),
+      ".bad5".to_string(),
+      ".bad6".to_string(),
+      ".bad7".to_string(),
+      ".bad8".to_string(),
+      ".bad9".to_string(),
+      ".mtsx".to_string(),
+      ".mts".to_string(),
+      ".mjs".to_string(),
+      ".tsx".to_string(),
+      ".ts".to_string(),
+      ".jsx".to_string(),
+      ".js".to_string(),
+    ],
+    ..Default::default()
   })
 }
 
@@ -185,33 +210,13 @@ fn bench_resolver(c: &mut Criterion) {
   );
 
   group.bench_with_input(
-    BenchmarkId::from_parameter("resolve with log extensions"),
+    BenchmarkId::from_parameter("[single-threaded]resolve with many extensions"),
     &data,
     |b, data| {
       let runner = runtime::Builder::new_current_thread()
         .build()
         .expect("failed to create tokio runtime");
-      let rspack_resolver = Resolver::new(ResolveOptions {
-        extensions: vec![
-          ".bad0".to_string(),
-          ".bad1".to_string(),
-          ".bad2".to_string(),
-          ".bad4".to_string(),
-          ".bad6".to_string(),
-          ".bad5".to_string(),
-          ".bad6".to_string(),
-          ".bad7".to_string(),
-          ".bad8".to_string(),
-          ".bad9".to_string(),
-          ".jsx".to_string(),
-          ".mtsx".to_string(),
-          ".tsx".to_string(),
-          ".ts".to_string(),
-          ".js".to_string(),
-          ".mjs".to_string(),
-        ],
-        ..Default::default()
-      });
+      let rspack_resolver = resolver_with_many_extensions();
 
       b.to_async(runner).iter_with_setup(
         || {
@@ -232,6 +237,34 @@ fn bench_resolver(c: &mut Criterion) {
     |b, data| {
       let runner = multi_rt();
       let rspack_resolver = Arc::new(rspack_resolver());
+
+      b.iter_with_setup(
+        || {
+          rspack_resolver.clear_cache();
+        },
+        |_| {
+          runner.block_on(async {
+            let mut join_set = JoinSet::new();
+            data.iter().for_each(|(path, request)| {
+              join_set.spawn(create_async_resolve_task(
+                rspack_resolver.clone(),
+                path.to_path_buf(),
+                request.to_string(),
+              ));
+            });
+            let _ = join_set.join_all().await;
+          });
+        },
+      );
+    },
+  );
+
+  group.bench_with_input(
+    BenchmarkId::from_parameter("[multi-threaded]resolve with many extensions"),
+    &data,
+    |b, data| {
+      let runner = multi_rt();
+      let rspack_resolver = Arc::new(resolver_with_many_extensions());
 
       b.iter_with_setup(
         || {
