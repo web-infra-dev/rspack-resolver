@@ -682,10 +682,10 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       return Ok(None);
     }
     let path = path.path().as_os_str();
-    let base_len = path.len();
     // 8 is wild guess for max extension length
     let mut path_with_extension_buffer = String::with_capacity(path.len() + 8);
     path_with_extension_buffer.push_str(&path.to_string_lossy());
+    let base_len = path_with_extension_buffer.len();
 
     for extension in extensions {
       path_with_extension_buffer.truncate(base_len);

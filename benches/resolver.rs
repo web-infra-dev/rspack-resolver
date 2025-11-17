@@ -8,7 +8,7 @@ use std::{
 };
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use rspack_resolver::{FileSystemOs, ResolveOptions, Resolver, ResolverGeneric};
+use rspack_resolver::{ResolveOptions, Resolver};
 use serde_json::Value;
 use tokio::{
   runtime::{self, Builder},
@@ -98,8 +98,8 @@ fn resolver_with_many_extensions() -> rspack_resolver::Resolver {
       ".bad0".to_string(),
       ".bad1".to_string(),
       ".bad2".to_string(),
+      ".bad3".to_string(),
       ".bad4".to_string(),
-      ".bad6".to_string(),
       ".bad5".to_string(),
       ".bad6".to_string(),
       ".bad7".to_string(),
@@ -113,6 +113,8 @@ fn resolver_with_many_extensions() -> rspack_resolver::Resolver {
       ".jsx".to_string(),
       ".js".to_string(),
     ],
+    imports_fields: vec![],
+    exports_fields: vec![],
     ..Default::default()
   })
 }
@@ -224,64 +226,10 @@ fn bench_resolver(c: &mut Criterion) {
         },
         |_| async {
           for (path, request) in data {
-            _ = rspack_resolver.resolve(path, request).await;
+            _ = rspack_resolver
+              .resolve(path, &format!("{}/bad", request))
+              .await;
           }
-        },
-      );
-    },
-  );
-
-  group.bench_with_input(
-    BenchmarkId::from_parameter("multi-thread"),
-    &data,
-    |b, data| {
-      let runner = multi_rt();
-      let rspack_resolver = Arc::new(rspack_resolver());
-
-      b.iter_with_setup(
-        || {
-          rspack_resolver.clear_cache();
-        },
-        |_| {
-          runner.block_on(async {
-            let mut join_set = JoinSet::new();
-            data.iter().for_each(|(path, request)| {
-              join_set.spawn(create_async_resolve_task(
-                rspack_resolver.clone(),
-                path.to_path_buf(),
-                request.to_string(),
-              ));
-            });
-            let _ = join_set.join_all().await;
-          });
-        },
-      );
-    },
-  );
-
-  group.bench_with_input(
-    BenchmarkId::from_parameter("[multi-threaded]resolve with many extensions"),
-    &data,
-    |b, data| {
-      let runner = multi_rt();
-      let rspack_resolver = Arc::new(resolver_with_many_extensions());
-
-      b.iter_with_setup(
-        || {
-          rspack_resolver.clear_cache();
-        },
-        |_| {
-          runner.block_on(async {
-            let mut join_set = JoinSet::new();
-            data.iter().for_each(|(path, request)| {
-              join_set.spawn(create_async_resolve_task(
-                rspack_resolver.clone(),
-                path.to_path_buf(),
-                request.to_string(),
-              ));
-            });
-            let _ = join_set.join_all().await;
-          });
         },
       );
     },
