@@ -185,7 +185,7 @@ jobs:
       - uses: Boshen/setup-rust@main
         with:
           components: rust-docs
-      - run: RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features
+      - run: RUSTDOCFLAGS='-D warnings --cfg docsrs' cargo doc --no-deps --all-features
 
   test:
     name: Test
