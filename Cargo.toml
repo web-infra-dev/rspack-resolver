@@ -91,7 +91,7 @@ json-strip-comments = "1.0.2"
 rustc-hash          = { version = "2.0.0", default-features = false, features = ["std"] }
 thiserror           = "2.0.17"
 
-pnp = { version = "0.12.4", optional = true }
+pnp = { version = "0.12.5", optional = true }
 
 async-trait       = "0.1.84"
 document-features = { version = "0.2.8", optional = true }

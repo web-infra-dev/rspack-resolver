@@ -331,16 +331,25 @@ impl CachedPathImpl {
                 return Err(ResolveError::from(io_err));
               }
             };
+            let serde_err = serde_json::from_str::<serde_json::Value>(&package_json_string).err();
 
-            let (line, column) = off_to_location(&package_json_string, parse_err.index());
+            if let Some(err) = serde_err {
+              Err(ResolveError::from_serde_json_error(
+                package_json_path,
+                &err,
+                Some(package_json_string),
+              ))
+            } else {
+              let (line, column) = off_to_location(&package_json_string, parse_err.index());
 
-            Err(ResolveError::JSON(JSONError {
-              path: package_json_path,
-              message: format!("Parsing error: {:?}", parse_err.error()),
-              line,
-              column,
-              content: Some(package_json_string),
-            }))
+              Err(ResolveError::JSON(JSONError {
+                path: package_json_path,
+                message: parse_err.error().to_string(),
+                line,
+                column,
+                content: Some(package_json_string),
+              }))
+            }
           }
         }
       })
