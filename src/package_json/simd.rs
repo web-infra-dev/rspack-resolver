@@ -135,11 +135,7 @@ impl From<SimdParseError> for ParseError {
 impl PackageJson {
   /// # Panics
   /// # Errors
-  pub(crate) fn parse(
-    path: PathBuf,
-    realpath: PathBuf,
-    json: Vec<u8>,
-  ) -> Result<Self, ParseError> {
+  pub(crate) fn parse(path: PathBuf, realpath: PathBuf, json: Vec<u8>) -> Result<Self, ParseError> {
     if json.starts_with(&BOM) {
       return Err(ParseError {
         message: "BOM character found".to_string(),
