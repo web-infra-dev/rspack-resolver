@@ -2,6 +2,11 @@ name: Pnpm
 
 description: Install pnpm
 
+inputs:
+  node-version:
+    description: "Version Spec of the version to use. Examples: 12.x, 10.15.1, >=10.15.0."
+    default: "20"
+
 runs:
   using: composite
   steps:
@@ -9,7 +14,7 @@ runs:
 
     - uses: actions/setup-node@v4
       with:
-        node-version-file: .node-version
+        node-version: ${{ inputs['node-version'] }}
         cache: pnpm
 
     - name: Enable corepack
