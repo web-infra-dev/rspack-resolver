@@ -236,6 +236,34 @@ fn bench_resolver(c: &mut Criterion) {
   );
 
   group.bench_with_input(
+    BenchmarkId::from_parameter("multi-thread"),
+    &data,
+    |b, data| {
+      let runner = multi_rt();
+      let rspack_resolver = Arc::new(rspack_resolver());
+
+      b.iter_with_setup(
+        || {
+          rspack_resolver.clear_cache();
+        },
+        |_| {
+          runner.block_on(async {
+            let mut join_set = JoinSet::new();
+            data.iter().for_each(|(path, request)| {
+              join_set.spawn(create_async_resolve_task(
+                rspack_resolver.clone(),
+                path.to_path_buf(),
+                request.to_string(),
+              ));
+            });
+            let _ = join_set.join_all().await;
+          });
+        },
+      );
+    },
+  );
+
+  group.bench_with_input(
     BenchmarkId::from_parameter("resolve from symlinks"),
     &symlinks_range,
     |b, data| {
