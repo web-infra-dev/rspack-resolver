@@ -27,7 +27,7 @@ jobs:
   cache: # Warm cache factory for all other CI jobs
     name: Check and Build
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
@@ -185,12 +185,12 @@ jobs:
       - uses: Boshen/setup-rust@main
         with:
           components: rust-docs
-      - run: RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features
+      - run: RUSTDOCFLAGS='-D warnings --cfg docsrs' cargo doc --no-deps --all-features
 
   test:
     name: Test
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os:
           - windows-latest
