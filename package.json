@@ -17,8 +17,8 @@
   "devDependencies": {
     "@actions/core": "^1.11.1",
     "@continuous-auth/client": "^2.3.2",
-    "@napi-rs/cli": "3.0.4",
-    "@napi-rs/wasm-runtime": "^1.0.1",
+    "@napi-rs/cli": "3.4.1",
+    "@napi-rs/wasm-runtime": "^1.0.7",
     "@taplo/cli": "^0.7.0",
     "@types/node": "^22.0.0",
     "ava": "^6.1.3",
