@@ -2,10 +2,13 @@ use std::{env, fs::read_to_string, sync::Arc};
 
 use rspack_resolver::Resolver;
 use serde_json::Value;
-use tokio::task::JoinSet;
+use tokio::runtime::Builder;
 
-#[tokio::main]
-async fn main() {
+fn main() {
+  unsafe {
+    sftrace_setup::setup();
+  }
+
   let cwd = env::current_dir().unwrap().join("benches");
 
   let pkg_content = read_to_string("./benches/package.json").unwrap();
@@ -21,20 +24,17 @@ async fn main() {
   let resolver = Resolver::new(Default::default());
   let resolver = Arc::new(resolver);
 
-  let mut join_set = JoinSet::new();
+  let tokio_runtime = Builder::new_multi_thread()
+    .max_blocking_threads(256)
+    .build()
+    .expect("failed to create tokio runtime");
 
-  for (path, name) in data {
-    let request = format!("{}", name);
-    let p = path.clone();
-    let r = request.clone();
-    let fut = async move {
-      let resolver = Resolver::default();
-      resolver.resolve(p, &r).await
-    };
-
-    join_set.spawn(fut);
-    // println!("{:?}", r);
-  }
-
-  _ = join_set.join_all().await;
+  tokio_runtime.block_on(async move {
+    for (path, name) in data {
+      let request = format!("{}", name);
+      let p = path.clone();
+      let r = request.clone();
+      let _ = resolver.resolve(p, &r).await;
+    }
+  });
 }

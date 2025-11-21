@@ -1,0 +1,3 @@
+rustflags = [
+    "-Zinstrument-xray=always"
+]

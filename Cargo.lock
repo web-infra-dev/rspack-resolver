@@ -905,6 +905,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
+ "sftrace-setup",
  "simd-json",
  "thiserror",
  "tokio",
@@ -994,6 +995,10 @@ dependencies = [
  "serde",
  "serde_core",
 ]
+
+[[package]]
+name = "sftrace-setup"
+version = "0.1.2"
 
 [[package]]
 name = "sharded-slab"

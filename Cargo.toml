@@ -17,6 +17,7 @@ repository   = "https://github.com/web-infra-dev/rspack-resolver"
 rust-version = "1.70"
 version      = "0.6.6"
 
+
 [lib]
 doctest = false
 
@@ -75,6 +76,10 @@ multiple_crate_versions = "allow"
 name = "resolver"
 
 [dependencies]
+
+sftrace-setup = { path = "/Users/bytedance/git/sftrace/setup" }
+
+
 dashmap = "6.1.0"
 serde = { version = "1.0.228", features = ["derive"] } # derive for Deserialize from package.json
 serde_json = { version = "1.0.145", features = [
@@ -137,10 +142,11 @@ panic         = "abort"   # Let it crash and force ourselves to write safe Rust.
 strip         = "symbols" # set to `false` for debug information
 
 [profile.profiling]
-codegen-units = 1
-debug         = false     # set to `true` for debug information
-inherits      = "release"
-lto           = "fat"
-opt-level     = 3
-panic         = "abort"
-strip         = false     # set to `false` for debug information
+codegen-units   = 1
+debug           = "limited"
+inherits        = "release"
+lto             = "thin"
+opt-level       = 3
+panic           = "abort"
+split-debuginfo = "off"
+strip           = false     # set to `false` for debug information
