@@ -130,6 +130,16 @@ impl Default for FileSystemOs {
   }
 }
 
+impl FileSystemOs {
+  pub fn new(options: FileSystemOptions) -> Self {
+    Self {
+      options,
+      #[cfg(feature = "yarn_pnp")]
+      pnp_lru: LruZipCache::new(50, pnp::fs::open_zip_via_read_p),
+    }
+  }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 #[async_trait::async_trait]
 impl FileSystem for FileSystemOs {
