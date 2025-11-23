@@ -78,7 +78,7 @@ use rustc_hash::FxHashSet;
 pub use crate::{
   builtins::NODEJS_BUILTINS,
   error::{JSONError, ResolveError, SpecifierError},
-  file_system::{FileMetadata, FileSystem, FileSystemOs},
+  file_system::{FileMetadata, FileSystem, FileSystemOptions, FileSystemOs},
   options::{
     Alias, AliasValue, EnforceExtension, ResolveOptions, Restriction, TsconfigOptions,
     TsconfigReferences,

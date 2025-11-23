@@ -8,7 +8,7 @@ use std::{
 };
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use rspack_resolver::{ResolveOptions, Resolver};
+use rspack_resolver::{FileSystemOptions, FileSystemOs, ResolveOptions, Resolver};
 use serde_json::Value;
 use tokio::{
   runtime::{self, Builder},
@@ -53,43 +53,54 @@ fn create_symlinks() -> io::Result<PathBuf> {
   Ok(temp_path)
 }
 
-fn rspack_resolver() -> rspack_resolver::Resolver {
+fn rspack_resolver(enable_pnp: bool) -> rspack_resolver::Resolver {
   use rspack_resolver::{AliasValue, ResolveOptions, Resolver};
   let alias_value = AliasValue::from("./");
-  Resolver::new(ResolveOptions {
-    extensions: vec![".ts".into(), ".js".into(), ".mjs".into()],
-    condition_names: vec!["import".into(), "webpack".into(), "require".into()],
-    alias_fields: vec![vec!["browser".into()]],
-    extension_alias: vec![(".js".into(), vec![".ts".into(), ".js".into()])],
-    // Real projects LOVE setting these many aliases.
-    // I saw them with my own eyes.
-    alias: vec![
-      ("/absolute/path".into(), vec![alias_value.clone()]),
-      ("aaa".into(), vec![alias_value.clone()]),
-      ("bbb".into(), vec![alias_value.clone()]),
-      ("ccc".into(), vec![alias_value.clone()]),
-      ("ddd".into(), vec![alias_value.clone()]),
-      ("eee".into(), vec![alias_value.clone()]),
-      ("fff".into(), vec![alias_value.clone()]),
-      ("ggg".into(), vec![alias_value.clone()]),
-      ("hhh".into(), vec![alias_value.clone()]),
-      ("iii".into(), vec![alias_value.clone()]),
-      ("jjj".into(), vec![alias_value.clone()]),
-      ("kkk".into(), vec![alias_value.clone()]),
-      ("lll".into(), vec![alias_value.clone()]),
-      ("mmm".into(), vec![alias_value.clone()]),
-      ("nnn".into(), vec![alias_value.clone()]),
-      ("ooo".into(), vec![alias_value.clone()]),
-      ("ppp".into(), vec![alias_value.clone()]),
-      ("qqq".into(), vec![alias_value.clone()]),
-      ("rrr".into(), vec![alias_value.clone()]),
-      ("sss".into(), vec![alias_value.clone()]),
-      ("@".into(), vec![alias_value.clone()]),
-      ("@@".into(), vec![alias_value.clone()]),
-      ("@@@".into(), vec![alias_value]),
-    ],
-    ..ResolveOptions::default()
-  })
+
+  let fs = FileSystemOs::new(FileSystemOptions {
+    #[cfg(feature = "yarn_pnp")]
+    enable_pnp,
+  });
+
+  Resolver::new_with_file_system(
+    fs,
+    ResolveOptions {
+      #[cfg(feature = "yarn_pnp")]
+      enable_pnp,
+      extensions: vec![".ts".into(), ".js".into(), ".mjs".into()],
+      condition_names: vec!["import".into(), "webpack".into(), "require".into()],
+      alias_fields: vec![vec!["browser".into()]],
+      extension_alias: vec![(".js".into(), vec![".ts".into(), ".js".into()])],
+      // Real projects LOVE setting these many aliases.
+      // I saw them with my own eyes.
+      alias: vec![
+        ("/absolute/path".into(), vec![alias_value.clone()]),
+        ("aaa".into(), vec![alias_value.clone()]),
+        ("bbb".into(), vec![alias_value.clone()]),
+        ("ccc".into(), vec![alias_value.clone()]),
+        ("ddd".into(), vec![alias_value.clone()]),
+        ("eee".into(), vec![alias_value.clone()]),
+        ("fff".into(), vec![alias_value.clone()]),
+        ("ggg".into(), vec![alias_value.clone()]),
+        ("hhh".into(), vec![alias_value.clone()]),
+        ("iii".into(), vec![alias_value.clone()]),
+        ("jjj".into(), vec![alias_value.clone()]),
+        ("kkk".into(), vec![alias_value.clone()]),
+        ("lll".into(), vec![alias_value.clone()]),
+        ("mmm".into(), vec![alias_value.clone()]),
+        ("nnn".into(), vec![alias_value.clone()]),
+        ("ooo".into(), vec![alias_value.clone()]),
+        ("ppp".into(), vec![alias_value.clone()]),
+        ("qqq".into(), vec![alias_value.clone()]),
+        ("rrr".into(), vec![alias_value.clone()]),
+        ("sss".into(), vec![alias_value.clone()]),
+        ("@".into(), vec![alias_value.clone()]),
+        ("@@".into(), vec![alias_value.clone()]),
+        ("@@@".into(), vec![alias_value]),
+      ],
+      ..ResolveOptions::default()
+    },
+  )
 }
 
 fn resolver_with_many_extensions() -> rspack_resolver::Resolver {
@@ -115,6 +126,7 @@ fn resolver_with_many_extensions() -> rspack_resolver::Resolver {
     ],
     imports_fields: vec![],
     exports_fields: vec![],
+    enable_pnp: false,
     ..Default::default()
   })
 }
@@ -145,7 +157,7 @@ fn bench_resolver(c: &mut Criterion) {
   // check validity
   runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
         for (path, request) in &data {
-            let r = rspack_resolver().resolve(path, request).await;
+            let r = rspack_resolver(false).resolve(path, request).await;
             if !r.is_ok() {
                 panic!("resolve failed {path:?} {request},\n\nplease run `pnpm install --ignore-workspace` in `/benches` before running the benchmarks");
             }
@@ -164,7 +176,7 @@ fn bench_resolver(c: &mut Criterion) {
     .block_on(async {
       for i in symlinks_range.clone() {
         assert!(
-          rspack_resolver()
+          rspack_resolver(false)
             .resolve(&symlink_test_dir, &format!("./file{i}"))
             .await
             .is_ok(),
@@ -196,7 +208,7 @@ fn bench_resolver(c: &mut Criterion) {
       let runner = runtime::Builder::new_current_thread()
         .build()
         .expect("failed to create tokio runtime");
-      let rspack_resolver = rspack_resolver();
+      let rspack_resolver = rspack_resolver(false);
 
       b.to_async(runner).iter_with_setup(
         || {
@@ -240,7 +252,7 @@ fn bench_resolver(c: &mut Criterion) {
     &data,
     |b, data| {
       let runner = multi_rt();
-      let rspack_resolver = Arc::new(rspack_resolver());
+      let rspack_resolver = Arc::new(rspack_resolver(false));
 
       b.iter_with_setup(
         || {
@@ -268,7 +280,7 @@ fn bench_resolver(c: &mut Criterion) {
     &symlinks_range,
     |b, data| {
       let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
-      let rspack_resolver = rspack_resolver();
+      let rspack_resolver = rspack_resolver(false);
 
       b.to_async(runner).iter_with_setup(
         || {
@@ -294,7 +306,7 @@ fn bench_resolver(c: &mut Criterion) {
     &symlinks_range,
     |b, data| {
       let runner = multi_rt();
-      let rspack_resolver = Arc::new(rspack_resolver());
+      let rspack_resolver = Arc::new(rspack_resolver(false));
 
       let symlink_test_dir = symlink_test_dir.clone();
 
@@ -321,7 +333,7 @@ fn bench_resolver(c: &mut Criterion) {
     &root_range,
     |b, data| {
       let runner = runtime::Runtime::new().expect("failed to create tokio runtime");
-      let rspack_resolver = Arc::new(rspack_resolver());
+      let rspack_resolver = Arc::new(rspack_resolver(true));
 
       b.to_async(runner).iter_with_setup(
         || {

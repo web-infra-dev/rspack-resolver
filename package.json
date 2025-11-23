@@ -30,7 +30,7 @@
     "prettier": "^3.6.2",
     "semver": "^7.7.1",
     "typescript": "^5.5.3",
-    "zx": "^8.5.2"
+    "zx": "^8.8.5"
   },
   "ava": {
     "files": ["napi/__test__/*.spec.mjs"],
