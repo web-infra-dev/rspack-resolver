@@ -65,6 +65,7 @@ fn rspack_resolver(enable_pnp: bool) -> rspack_resolver::Resolver {
   Resolver::new_with_file_system(
     fs,
     ResolveOptions {
+      #[cfg(feature = "yarn_pnp")]
       enable_pnp,
       extensions: vec![".ts".into(), ".js".into(), ".mjs".into()],
       condition_names: vec!["import".into(), "webpack".into(), "require".into()],
