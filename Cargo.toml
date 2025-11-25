@@ -103,7 +103,7 @@ tokio = { version = "1.48.0", default-features = false, features = ["sync", "rt-
 tokio = { version = "1.48.0", default-features = false, features = ["sync", "rt", "macros"] }
 
 [dev-dependencies]
-criterion2     = { version = "2.0.0", default-features = false, features = ["async_tokio"] }
+criterion2     = { version = "3.0.0", default-features = false, features = ["async_tokio"] }
 normalize-path = { version = "0.2.1" }
 rayon          = { version = "1.11.0" }
 regex          = "1.12.2"
