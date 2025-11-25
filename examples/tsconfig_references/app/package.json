@@ -9,7 +9,7 @@
   "keywords": [],
   "author": "pshu",
   "license": "MIT",
-  "packageManager": "pnpm@10.6.2",
+  "packageManager": "pnpm@10.23.0",
   "devDependencies": {
     "tsconfig-paths-webpack-plugin": "^4.2.0",
     "typescript": "^5.8.3",

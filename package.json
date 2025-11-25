@@ -36,7 +36,7 @@
     "files": ["napi/__test__/*.spec.mjs"],
     "cache": false
   },
-  "packageManager": "pnpm@9.11.0",
+  "packageManager": "pnpm@9.15.9",
   "repository": {
     "type": "git",
     "url": "git+https://web-infra-dev/rspack-resolver.git"
