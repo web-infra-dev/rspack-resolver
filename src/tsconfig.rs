@@ -1,13 +1,14 @@
 use std::{hash::BuildHasherDefault, sync::Arc};
 
 use camino::{Utf8Path, Utf8PathBuf};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use rustc_hash::FxHasher;
 use serde::Deserialize;
 
 use crate::path::PathUtil;
 
 pub type CompilerOptionsPathsMap = IndexMap<String, Vec<String>, BuildHasherDefault<FxHasher>>;
+pub type FileDependencies = IndexSet<Utf8PathBuf, BuildHasherDefault<FxHasher>>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -31,7 +32,7 @@ pub struct TsConfig {
   pub(crate) path: Utf8PathBuf,
 
   #[serde(skip)]
-  pub(crate) file_dependencies: Vec<Utf8PathBuf>,
+  pub(crate) file_dependencies: FileDependencies,
 
   #[serde(default)]
   pub extends: Option<ExtendsField>,
@@ -42,6 +43,10 @@ pub struct TsConfig {
   /// Bubbled up project references with a reference to their tsconfig.
   #[serde(default)]
   pub references: Vec<ProjectReference>,
+
+  /// Flattened transitive project references in resolution order.
+  #[serde(skip)]
+  pub(crate) flattened_references: Vec<Arc<Self>>,
 }
 
 /// Compiler Options
@@ -82,13 +87,13 @@ impl TsConfig {
       let mut tsconfig: Self = serde_json::from_str("{}")?;
       tsconfig.root = root;
       tsconfig.path = path.to_path_buf();
-      tsconfig.file_dependencies.push(path.to_path_buf());
+      tsconfig.file_dependencies.insert(path.to_path_buf());
       return Ok(tsconfig);
     }
     let mut tsconfig: Self = serde_json::from_str(json)?;
     tsconfig.root = root;
     tsconfig.path = path.to_path_buf();
-    tsconfig.file_dependencies.push(path.to_path_buf());
+    tsconfig.file_dependencies.insert(path.to_path_buf());
     let directory = tsconfig.directory().to_path_buf();
     if let Some(base_url) = &tsconfig.compiler_options.base_url {
       // keep the `${configDir}` template variable in the baseUrl
@@ -163,31 +168,12 @@ impl TsConfig {
   }
 
   pub fn resolve(&self, path: &Utf8Path, specifier: &str) -> Vec<Utf8PathBuf> {
-    if let Some(matched) = self.find_reference_paths(path, specifier) {
-      return matched;
+    for tsconfig in &self.flattened_references {
+      if path.starts_with(tsconfig.base_path()) {
+        return tsconfig.resolve_path_alias(specifier);
+      }
     }
     self.resolve_path_alias(specifier)
-  }
-
-  // Walks `references` recursively, returning the nearest reference whose
-  // `base_path` contains `path`. Used to honor transitive project references
-  // (A → B → C): a file inside C should resolve via C's own `paths` even
-  // when the entry tsconfig is A and only B is listed directly in A's
-  // references. Matches `tsc`'s "nearest tsconfig wins" semantics.
-  fn find_reference_paths(&self, path: &Utf8Path, specifier: &str) -> Option<Vec<Utf8PathBuf>> {
-    for tsconfig in self
-      .references
-      .iter()
-      .filter_map(|reference| reference.tsconfig.as_ref())
-    {
-      if let Some(nested) = tsconfig.find_reference_paths(path, specifier) {
-        return Some(nested);
-      }
-      if path.starts_with(tsconfig.base_path()) {
-        return Some(tsconfig.resolve_path_alias(specifier));
-      }
-    }
-    None
   }
 
   // Copied from parcel
