@@ -1,6 +1,6 @@
 {
   "name": "@rspack/resolver-binding-darwin-arm64",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "cpu": [
     "arm64"
   ],
