@@ -92,7 +92,7 @@ json-strip-comments = "3.1.1"
 rustc-hash          = { version = "2.1.2", default-features = false, features = ["std"] }
 thiserror           = "2.0.18"
 
-pnp = { version = "0.12.9", optional = true }
+pnp = { version = "0.12.11", optional = true }
 
 arc-swap          = { version = "1.9.1", optional = true }
 async-trait       = "0.1.89"
