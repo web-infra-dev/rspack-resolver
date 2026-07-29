@@ -766,23 +766,13 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   fn check_restrictions(&self, path: &Utf8Path) -> bool {
-    // https://github.com/webpack/enhanced-resolve/blob/a998c7d218b7a9ec2461fc4fddd1ad5dd7687485/lib/RestrictionsPlugin.js#L19-L24
-    fn is_inside(path: &Path, parent: &Path) -> bool {
-      if !path.starts_with(parent) {
-        return false;
-      }
-      if path.as_os_str().len() == parent.as_os_str().len() {
-        return true;
-      }
-      path
-        .strip_prefix(parent)
-        .is_ok_and(|p| p == Path::new("./"))
-    }
     let path = path.as_std_path();
     for restriction in &self.options.restrictions {
       match restriction {
+        // `starts_with` is component-aware, so `/a/src-other` is not inside `/a/src`, which matches
+        // https://github.com/webpack/enhanced-resolve/blob/a998c7d218b7a9ec2461fc4fddd1ad5dd7687485/lib/RestrictionsPlugin.js#L19-L24
         Restriction::Path(restricted_path) => {
-          if !is_inside(path, restricted_path) {
+          if !path.starts_with(restricted_path) {
             return false;
           }
         }
