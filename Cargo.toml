@@ -91,6 +91,10 @@ indexmap            = { version = "2.14.0", features = ["serde"] }
 json-strip-comments = "3.1.1"
 rustc-hash          = { version = "2.1.2", default-features = false, features = ["std"] }
 thiserror           = "2.0.18"
+# Global string interner. MUST stay byte-identical to rspack's workspace
+# declaration — a version split creates a second interner static and silently
+# destroys the "one copy per path" guarantee that `UstrPath` exists for.
+ustr = { package = "ustr-fxhash", version = "1.0.1", default-features = false }
 
 pnp = { version = "0.12.9", optional = true }
 

@@ -862,6 +862,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
+name = "parking_lot"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
+dependencies = [
+ "lock_api",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "parking_lot_core"
 version = "0.9.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1051,6 +1061,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "ustr-fxhash",
  "vfs",
 ]
 
@@ -1325,6 +1336,18 @@ name = "unicode-segmentation"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
+
+[[package]]
+name = "ustr-fxhash"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4d2224cabd887261556e0d3a483a7e9f87dcbaab3b820df7d748305a8d5cbc8"
+dependencies = [
+ "byteorder",
+ "lazy_static",
+ "parking_lot",
+ "rustc-hash",
+]
 
 [[package]]
 name = "value-trait"

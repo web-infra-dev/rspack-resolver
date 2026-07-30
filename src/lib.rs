@@ -60,6 +60,7 @@ mod resolution;
 mod resolver_path;
 mod specifier;
 mod tsconfig;
+mod ustr_path;
 
 #[cfg(test)]
 mod tests;
@@ -97,6 +98,7 @@ pub use crate::{
   package_json::{JSONValue, ModuleType, PackageJson},
   resolution::Resolution,
   resolver_path::ResolverPath,
+  ustr_path::{IdentityHasher, UstrPath, UstrPathSet},
 };
 
 type ResolveResult = Result<Option<CachedPath>, ResolveError>;

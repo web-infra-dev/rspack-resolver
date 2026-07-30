@@ -1,0 +1,205 @@
+use std::{
+  collections::HashSet,
+  fmt,
+  hash::{BuildHasherDefault, Hash, Hasher},
+  ops::Deref,
+  path::Path,
+};
+
+use camino::Utf8Path;
+use ustr::Ustr;
+
+/// A globally interned UTF-8 path.
+///
+/// 8 bytes, `Copy`, and `'static`: every distinct path string exists exactly
+/// once process-wide, so the same path handed to many consumers costs one
+/// pointer each instead of one heap allocation each.
+///
+/// Equality degenerates to a pointer comparison (interning guarantees one
+/// pointer per string) and hashing to a single `u64` load from the interner
+/// entry header, so `UstrPathSet` lookups cost one `write_u64`.
+///
+/// The interner is shared with rspack — both crates depend on the same
+/// `ustr-fxhash` version, hence the same static — so a path interned here is
+/// already interned for rspack.
+///
+/// # Lifetime
+///
+/// Interned strings are **never freed**. See `CLAUDE_USTR_PATH_DESIGN.md` §4.3.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct UstrPath(Ustr);
+
+impl UstrPath {
+  /// Intern `path` and return a handle to it.
+  #[inline]
+  pub fn new(path: &str) -> Self {
+    Self(Ustr::from(path))
+  }
+
+  #[inline]
+  pub fn as_str(&self) -> &'static str {
+    self.0.as_str()
+  }
+
+  #[inline]
+  pub fn as_utf8_path(&self) -> &'static Utf8Path {
+    Utf8Path::new(self.0.as_str())
+  }
+
+  #[inline]
+  pub fn as_std_path(&self) -> &'static Path {
+    Path::new(self.0.as_str())
+  }
+
+  /// The `FxHash` of the path bytes, precomputed by the interner.
+  ///
+  /// Reading it is a single load from the entry header (`char_ptr - 16`).
+  #[inline]
+  pub fn precomputed_hash(&self) -> u64 {
+    self.0.precomputed_hash()
+  }
+}
+
+impl Hash for UstrPath {
+  #[inline]
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    state.write_u64(self.0.precomputed_hash());
+  }
+}
+
+impl Deref for UstrPath {
+  type Target = Utf8Path;
+
+  #[inline]
+  fn deref(&self) -> &Self::Target {
+    self.as_utf8_path()
+  }
+}
+
+impl AsRef<Utf8Path> for UstrPath {
+  #[inline]
+  fn as_ref(&self) -> &Utf8Path {
+    self.as_utf8_path()
+  }
+}
+
+impl AsRef<Path> for UstrPath {
+  #[inline]
+  fn as_ref(&self) -> &Path {
+    self.as_std_path()
+  }
+}
+
+impl AsRef<str> for UstrPath {
+  #[inline]
+  fn as_ref(&self) -> &str {
+    self.as_str()
+  }
+}
+
+impl fmt::Debug for UstrPath {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    self.as_utf8_path().fmt(f)
+  }
+}
+
+impl fmt::Display for UstrPath {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str(self.as_str())
+  }
+}
+
+/// A `HashSet<UstrPath>` keyed by the interner's precomputed hash.
+///
+/// Uses `ustr::IdentityHasher` rather than the private `IdentityHasher` in
+/// `crate::cache` so rspack's `ArcPathSet` is the same concrete type and can
+/// take these sets by `mem::take` instead of re-bucketing them.
+pub type UstrPathSet = HashSet<UstrPath, BuildHasherDefault<ustr::IdentityHasher>>;
+
+/// Re-exported so downstream crates can spell the same concrete set type
+/// without taking a direct `ustr` dependency (and without risking a version
+/// split — see the note on the `ustr` dependency in `Cargo.toml`).
+pub use ustr::IdentityHasher;
+
+#[cfg(test)]
+mod tests {
+  use std::{
+    collections::HashSet,
+    hash::{Hash, Hasher},
+  };
+
+  use camino::Utf8Path;
+
+  use super::*;
+
+  #[test]
+  fn same_string_is_same_pointer() {
+    let a = UstrPath::new("/a/b/c.js");
+    let b = UstrPath::new("/a/b/c.js");
+    assert_eq!(a.as_str().as_ptr(), b.as_str().as_ptr());
+    assert_eq!(a, b);
+  }
+
+  #[test]
+  fn different_strings_are_not_equal() {
+    assert_ne!(UstrPath::new("/a/b"), UstrPath::new("/a/c"));
+  }
+
+  #[test]
+  fn hash_is_the_precomputed_hash() {
+    let p = UstrPath::new("/x/y");
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    p.hash(&mut hasher);
+    // The value written into the hasher is the precomputed one, not a
+    // re-hash of the bytes.
+    let mut expected = std::collections::hash_map::DefaultHasher::new();
+    expected.write_u64(p.precomputed_hash());
+    assert_eq!(hasher.finish(), expected.finish());
+  }
+
+  #[test]
+  fn works_in_an_identity_hashed_set() {
+    let mut set: UstrPathSet = HashSet::default();
+    set.insert(UstrPath::new("/a/b"));
+    assert!(set.contains(&UstrPath::new("/a/b")));
+    assert!(!set.contains(&UstrPath::new("/a/c")));
+  }
+
+  #[test]
+  fn derefs_to_utf8_path() {
+    let p = UstrPath::new("/a/b/c.js");
+    assert_eq!(p.file_name(), Some("c.js"));
+    assert_eq!(p.parent(), Some(Utf8Path::new("/a/b")));
+    assert_eq!(p.extension(), Some("js"));
+    assert_eq!(p.join("d.ts"), Utf8Path::new("/a/b/c.js/d.ts"));
+  }
+
+  #[test]
+  fn debug_prints_the_path_not_the_ustr_wrapper() {
+    let p = UstrPath::new("/a/b");
+    assert_eq!(format!("{p:?}"), "\"/a/b\"");
+    assert_eq!(format!("{p}"), "/a/b");
+  }
+
+  #[test]
+  fn as_ref_targets_compile_and_agree() {
+    let p = UstrPath::new("/a/b");
+    let as_utf8: &Utf8Path = p.as_ref();
+    let as_std: &std::path::Path = p.as_ref();
+    let as_str: &str = p.as_ref();
+    assert_eq!(as_utf8.as_str(), as_str);
+    assert_eq!(as_std, std::path::Path::new("/a/b"));
+  }
+
+  #[test]
+  fn identity_hasher_receives_eight_bytes() {
+    // `ustr::IdentityHasher::write` silently produces a 0 hash unless it gets
+    // exactly 8 bytes. `UstrPath::hash` goes through the default `write_u64`,
+    // which forwards `u64::to_ne_bytes()` — exactly 8. Guard that invariant so
+    // a future change to `Hash` cannot silently collapse every key to bucket 0.
+    let mut hasher = ustr::IdentityHasher::default();
+    UstrPath::new("/some/long/path/that/is/not/eight/bytes").hash(&mut hasher);
+    assert_ne!(hasher.finish(), 0);
+  }
+}
