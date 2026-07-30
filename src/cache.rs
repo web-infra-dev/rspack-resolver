@@ -222,10 +222,10 @@ impl CachedPathImpl {
 
   pub async fn is_file<Fs: Send + Sync + FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
     if let Some(meta) = self.meta(fs).await {
-      ctx.add_file_dependency(self.to_ustr_path());
+      ctx.add_file_dependency(self);
       meta.is_file
     } else {
-      ctx.add_missing_dependency(self.to_ustr_path());
+      ctx.add_missing_dependency(self);
       false
     }
   }
@@ -233,7 +233,7 @@ impl CachedPathImpl {
   pub async fn is_dir<Fs: Send + Sync + FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
     self.meta(fs).await.map_or_else(
       || {
-        ctx.add_missing_dependency(self.to_ustr_path());
+        ctx.add_missing_dependency(self);
         false
       },
       |meta| meta.is_dir,
@@ -311,7 +311,7 @@ impl CachedPathImpl {
       // Replay ctx tracking from the cold path: module_directory -> is_dir calls
       // ctx.add_missing_dependency when node_modules doesn't exist on disk.
       if nm.is_none() {
-        ctx.add_missing_dependency(self.path.join("node_modules"));
+        ctx.add_missing_dependency(&self.path.join("node_modules"));
       }
       return nm.clone();
     }
@@ -368,10 +368,10 @@ impl CachedPathImpl {
     if let Some(pkg) = self.package_json.get() {
       // Preserve ctx dependency tracking on cache hit.
       match pkg {
-        Some(package_json) => ctx.add_file_dependency(package_json.path.to_ustr_path()),
+        Some(package_json) => ctx.add_file_dependency(&package_json.path),
         None => {
           if ctx.missing_dependencies.is_some() {
-            ctx.add_missing_dependency(self.package_json_dep_path());
+            ctx.add_missing_dependency(&self.package_json_dep_path());
           }
         }
       }
@@ -433,17 +433,17 @@ impl CachedPathImpl {
     // https://github.com/webpack/enhanced-resolve/blob/58464fc7cb56673c9aa849e68e6300239601e615/lib/DescriptionFileUtils.js#L68-L82
     match &result {
       Ok(Some(package_json)) => {
-        ctx.add_file_dependency(package_json.path.to_ustr_path());
+        ctx.add_file_dependency(&package_json.path);
       }
       Ok(None) => {
         // Avoid an allocation by making this lazy
         if ctx.missing_dependencies.is_some() {
-          ctx.add_missing_dependency(self.package_json_dep_path());
+          ctx.add_missing_dependency(&self.package_json_dep_path());
         }
       }
       Err(_) => {
         if ctx.file_dependencies.is_some() {
-          ctx.add_file_dependency(self.path.join("package.json"));
+          ctx.add_file_dependency(&self.path.join("package.json"));
         }
       }
     }
@@ -516,4 +516,26 @@ fn hash_utf8_path(path: &Utf8Path) -> u64 {
   #[cfg(not(unix))]
   path.as_std_path().hash(&mut hasher);
   hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn hash_utf8_path_matches_the_platform_contract() {
+    let path = Utf8Path::new("/a/b/c.js");
+    let mut expected = FxHasher::default();
+    #[cfg(unix)]
+    expected.write(path.as_str().as_bytes());
+    #[cfg(not(unix))]
+    path.as_std_path().hash(&mut expected);
+    assert_eq!(hash_utf8_path(path), expected.finish());
+
+    // Equal paths hash equally — the invariant `CachedPath`'s DashSet depends on.
+    assert_eq!(
+      hash_utf8_path(Utf8Path::new("/x/y")),
+      hash_utf8_path(&Utf8PathBuf::from("/x/y"))
+    );
+  }
 }

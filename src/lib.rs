@@ -756,7 +756,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         .realpath(&self.cache.fs)
         .await
         .map(|path| {
-          ctx.add_file_dependency(path.to_ustr_path());
+          ctx.add_file_dependency(path.as_path());
           path
         })
         .map_err(ResolveError::from)
@@ -1057,7 +1057,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       return Ok(None);
     };
     let (manifest_path, manifest) = pnp_data.as_ref();
-    ctx.add_file_dependency(manifest_path.to_ustr_path());
+    ctx.add_file_dependency(manifest_path);
 
     let mut path = cached_path.to_path_buf();
     path.push("");
@@ -1500,7 +1500,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       )
       .await?;
     for dependency in &tsconfig.file_dependencies {
-      ctx.add_file_dependency(dependency.to_ustr_path());
+      ctx.add_file_dependency(dependency.as_path());
     }
     let paths = tsconfig.resolve(cached_path.path(), specifier);
     for path in paths {

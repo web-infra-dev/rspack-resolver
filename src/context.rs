@@ -62,20 +62,19 @@ impl ResolveContext {
     self.missing_dependencies.replace(vec![]);
   }
 
-  // Accepts anything path-shaped. The interning only runs inside the `Some`
-  // branch, so `resolve()` calls without a context still pay zero.
-  // `ToUstrPath::to_ustr_path` only ever borrows `dep`, so clippy sees the
-  // by-value `P` as needless; kept by value anyway so callers can pass owned
-  // or borrowed path types through the same generic call site.
-  #[allow(clippy::needless_pass_by_value)]
-  pub fn add_file_dependency<P: ToUstrPath>(&mut self, dep: P) {
+  // Accepts anything path-shaped, by reference. Taking `&P` (not `P`) matters:
+  // interning is a global-lock + hashtable probe with a permanent allocation on
+  // miss, so it must only happen inside the `Some` branch — a by-value `dep`
+  // would be evaluated (and interned) before the `if let` ever runs, silently
+  // paying that cost on every call even when `resolve()` was invoked without a
+  // context and these fields are `None`.
+  pub fn add_file_dependency<P: ToUstrPath + ?Sized>(&mut self, dep: &P) {
     if let Some(deps) = &mut self.file_dependencies {
       deps.push(dep.to_ustr_path());
     }
   }
 
-  #[allow(clippy::needless_pass_by_value)]
-  pub fn add_missing_dependency<P: ToUstrPath>(&mut self, dep: P) {
+  pub fn add_missing_dependency<P: ToUstrPath + ?Sized>(&mut self, dep: &P) {
     if let Some(deps) = &mut self.missing_dependencies {
       deps.push(dep.to_ustr_path());
     }
