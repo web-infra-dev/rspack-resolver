@@ -36,15 +36,20 @@ const fn is_sep(c: u8) -> bool {
 }
 
 /// Rewrite `s` into canonical Windows form: `\` separators, no repeated
-/// separators, no trailing separator (roots excepted).
+/// separators, no trailing separator (roots excepted), and an uppercase
+/// drive letter — matching the folding std's `Path` applies via
+/// `Prefix::Disk` before comparing paths in `Hash`/`Eq`.
 ///
 /// Returns `None` when `s` is already canonical — the common case — so the
 /// caller interns the original `&str` without allocating.
 ///
 /// Paths beginning with two separators (UNC and verbatim, e.g. `\\?\C:\x` or
-/// `\\server\share`) pass through unchanged: std's `Path` disables separator
-/// normalization behind a verbatim prefix, and the `dunce` dependency already
-/// keeps the resolver off UNC paths.
+/// `\\server\share`) pass through untouched, including the verbatim disk
+/// prefix's drive-letter case: std folds that case too (`VerbatimDisk` goes
+/// through the same `parse_drive`), so leaving it alone here is a known,
+/// accepted divergence from `Path`'s `Hash`/`Eq` for verbatim paths — the
+/// `dunce` dependency already keeps the resolver off UNC/verbatim paths, so
+/// this code path isn't reached in practice.
 ///
 /// Platform-independent on purpose. camino's `Utf8Path::components()` picks its
 /// separator set at compile time, so it cannot express Windows semantics on a
@@ -65,7 +70,10 @@ fn normalize_windows_separators(s: &str) -> Option<String> {
     return None;
   }
 
-  let mut needs_rewrite = false;
+  // A lowercase drive letter (`c:\...`) is not canonical on its own — std
+  // folds it to uppercase (`Prefix::Disk`) before comparing paths — even
+  // when every separator is already fine.
+  let mut needs_rewrite = bytes.len() >= 2 && bytes[0].is_ascii_lowercase() && bytes[1] == b':';
   let mut prev_was_sep = false;
   for (i, &c) in bytes.iter().enumerate() {
     if is_sep(c) {
@@ -84,14 +92,18 @@ fn normalize_windows_separators(s: &str) -> Option<String> {
     return None;
   }
 
+  let fold_drive = bytes.len() >= 2 && bytes[1] == b':';
   let mut out = String::with_capacity(s.len());
   let mut prev_was_sep = false;
-  for ch in s.chars() {
+  for (i, ch) in s.chars().enumerate() {
     if ch == '/' || ch == '\\' {
       if !prev_was_sep {
         out.push('\\');
       }
       prev_was_sep = true;
+    } else if i == 0 && fold_drive && ch.is_ascii_lowercase() {
+      out.push(ch.to_ascii_uppercase());
+      prev_was_sep = false;
     } else {
       out.push(ch);
       prev_was_sep = false;
@@ -347,11 +359,41 @@ mod tests {
     );
   }
 
+  #[test]
+  fn lowercase_drive_letter_is_folded_to_uppercase() {
+    assert_eq!(
+      normalize_windows_separators(r"c:\a\b").as_deref(),
+      Some(r"C:\a\b")
+    );
+    assert_eq!(
+      normalize_windows_separators("c:/a/b").as_deref(),
+      Some(r"C:\a\b")
+    );
+    assert_eq!(
+      normalize_windows_separators(r"c:\").as_deref(),
+      Some(r"C:\")
+    );
+    // Already uppercase and otherwise canonical: still no rewrite.
+    assert_eq!(normalize_windows_separators(r"C:\a\b"), None);
+  }
+
+  #[test]
+  fn case_is_folded_only_on_the_drive_letter() {
+    assert_eq!(
+      normalize_windows_separators(r"c:\Foo\BAR.ts").as_deref(),
+      Some(r"C:\Foo\BAR.ts")
+    );
+    // No drive letter at all — nothing to fold.
+    assert_eq!(normalize_windows_separators(r"relative\Path"), None);
+  }
+
   #[cfg(windows)]
   #[test]
   fn equivalent_windows_spellings_intern_to_one_pointer() {
     let canonical = UstrPath::new(r"C:\a\b");
-    for spelling in [r"C:\a\b", "C:/a/b", r"C:/a\b", r"C:\a\\b", r"C:\a\b\"] {
+    for spelling in [
+      r"C:\a\b", "C:/a/b", r"C:/a\b", r"C:\a\\b", r"C:\a\b\", "c:/a/b", r"c:\a\b",
+    ] {
       let p = UstrPath::new(spelling);
       assert_eq!(
         p.as_str().as_ptr(),
