@@ -6,7 +6,7 @@ use std::{
 
 use camino::Utf8Path;
 
-use crate::PathUtil;
+use crate::path::PathUtil;
 
 /// Module Resolution Options
 ///
@@ -398,7 +398,6 @@ impl ResolveOptions {
         self.enforce_extension = EnforceExtension::Disabled;
       }
     }
-    // Restrictions never change, so normalize them here instead of on every check.
     for restriction in &mut self.restrictions {
       if let Restriction::Path(path) = restriction {
         if let Some(path_utf8) = Utf8Path::from_path(path) {

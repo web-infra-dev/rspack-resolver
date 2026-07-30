@@ -769,10 +769,8 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     let path = path.as_std_path();
     for restriction in &self.options.restrictions {
       match restriction {
-        // `starts_with` is component-aware, so `/a/src-other` is not inside `/a/src`, which matches
-        // https://github.com/webpack/enhanced-resolve/blob/a998c7d218b7a9ec2461fc4fddd1ad5dd7687485/lib/RestrictionsPlugin.js#L19-L24
         Restriction::Path(restricted_path) => {
-          if !path.starts_with(restricted_path) {
+          if restricted_path.as_os_str().is_empty() || !path.starts_with(restricted_path) {
             return false;
           }
         }

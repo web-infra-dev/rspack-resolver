@@ -198,6 +198,17 @@ mod path_boundaries {
   }
 
   #[tokio::test]
+  async fn empty_restriction() {
+    assert!(!resolves("", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
+  }
+
+  #[tokio::test]
+  async fn restriction_collapsing_to_nothing() {
+    assert!(!resolves(".", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
+    assert!(!resolves("foo/..", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
+  }
+
+  #[tokio::test]
   async fn file_inside_a_restriction_differing_in_case() {
     assert!(!resolves("/A/B/C", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
   }
