@@ -57,23 +57,27 @@ impl<Fs: Send + Sync + FileSystem> Cache<Fs> {
     data
   }
 
+  /// `path` must already be interned by the caller. `config_file` is constant
+  /// per resolver but this is re-entered several times per resolve, so
+  /// interning here on every hit would serialize every thread on the same
+  /// `ustr` bin mutex for a hash that never changes; see `ResolverGeneric`'s
+  /// `tsconfig_config_file` field, computed once at construction.
   pub async fn tsconfig<F, Fut>(
     &self,
     root: bool,
-    path: &Utf8Path,
+    path: UstrPath,
     callback: F, // callback for modifying tsconfig with `extends`
   ) -> Result<Arc<TsConfig>, ResolveError>
   where
     F: FnOnce(TsConfig) -> Fut + Send,
     Fut: Send + Future<Output = Result<TsConfig, ResolveError>>,
   {
-    let key = path.to_ustr_path();
-    if let Some(tsconfig_ref) = self.tsconfigs.get(&key) {
+    if let Some(tsconfig_ref) = self.tsconfigs.get(&path) {
       return Ok(Arc::clone(tsconfig_ref.value()));
     }
     let meta = self.fs.metadata(path.as_std_path()).await.ok();
     let tsconfig_path = if meta.is_some_and(|m| m.is_file) {
-      Cow::Borrowed(path)
+      Cow::Borrowed(path.as_utf8_path())
     } else if meta.is_some_and(|m| m.is_dir) {
       Cow::Owned(path.join("tsconfig.json"))
     } else {
@@ -96,7 +100,7 @@ impl<Fs: Send + Sync + FileSystem> Cache<Fs> {
       })?;
     tsconfig = callback(tsconfig).await?;
     let tsconfig = Arc::new(tsconfig.build());
-    self.tsconfigs.insert(key, Arc::clone(&tsconfig));
+    self.tsconfigs.insert(path, Arc::clone(&tsconfig));
     Ok(tsconfig)
   }
 }

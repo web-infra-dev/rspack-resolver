@@ -122,6 +122,11 @@ pub struct ResolverGeneric<Fs> {
   alias_trie: AliasTrie,
   /// Pre-built byte-trie over `options.fallback` keys.
   fallback_trie: AliasTrie,
+  /// `options.tsconfig.config_file` interned once at construction, since it is
+  /// constant per resolver but looked up on every `require_without_parse` entry
+  /// into `load_tsconfig_paths`. Interning it per-call would serialize every
+  /// thread on the same `ustr` bin mutex for a hash that never changes.
+  tsconfig_config_file: Option<UstrPath>,
   #[cfg(feature = "yarn_pnp")]
   pnp_manifest: Arc<arc_swap::ArcSwapOption<(UstrPath, pnp::Manifest)>>,
   /// Paths that have been searched and confirmed to have no `.pnp.cjs` reachable by filesystem walk.
@@ -148,11 +153,16 @@ impl<Fs: Send + Sync + FileSystem + Default> ResolverGeneric<Fs> {
     let options = options.sanitize();
     let alias_trie = AliasTrie::build(&options.alias);
     let fallback_trie = AliasTrie::build(&options.fallback);
+    let tsconfig_config_file = options
+      .tsconfig
+      .as_ref()
+      .map(|t| t.config_file.to_ustr_path());
     Self {
       options,
       cache: Arc::new(Cache::new(Fs::default())),
       alias_trie,
       fallback_trie,
+      tsconfig_config_file,
       #[cfg(feature = "yarn_pnp")]
       pnp_manifest: Arc::new(arc_swap::ArcSwapOption::empty()),
       #[cfg(feature = "yarn_pnp")]
@@ -167,11 +177,16 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     let options = options.sanitize();
     let alias_trie = AliasTrie::build(&options.alias);
     let fallback_trie = AliasTrie::build(&options.fallback);
+    let tsconfig_config_file = options
+      .tsconfig
+      .as_ref()
+      .map(|t| t.config_file.to_ustr_path());
     Self {
       options,
       cache: Arc::new(Cache::new(file_system)),
       alias_trie,
       fallback_trie,
+      tsconfig_config_file,
       #[cfg(feature = "yarn_pnp")]
       pnp_manifest: Arc::new(arc_swap::ArcSwapOption::empty()),
       #[cfg(feature = "yarn_pnp")]
@@ -186,11 +201,16 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     let options = options.sanitize();
     let alias_trie = AliasTrie::build(&options.alias);
     let fallback_trie = AliasTrie::build(&options.fallback);
+    let tsconfig_config_file = options
+      .tsconfig
+      .as_ref()
+      .map(|t| t.config_file.to_ustr_path());
     Self {
       options,
       cache: Arc::clone(&self.cache),
       alias_trie,
       fallback_trie,
+      tsconfig_config_file,
       #[cfg(feature = "yarn_pnp")]
       pnp_manifest: Arc::clone(&self.pnp_manifest),
       #[cfg(feature = "yarn_pnp")]
@@ -1489,10 +1509,13 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     let Some(tsconfig_options) = &self.options.tsconfig else {
       return Ok(None);
     };
+    let config_file = self
+      .tsconfig_config_file
+      .expect("computed alongside options.tsconfig at construction");
     let tsconfig = self
       .load_tsconfig(
         /* root */ true,
-        Utf8Path::from_path(&tsconfig_options.config_file).expect("path should be UTF-8"),
+        config_file,
         &tsconfig_options.references,
       )
       .await?;
@@ -1513,7 +1536,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   fn load_tsconfig<'a>(
     &'a self,
     root: bool,
-    path: &'a Utf8Path,
+    path: UstrPath,
     references: &'a TsconfigReferences,
   ) -> BoxFuture<'a, Result<Arc<TsConfig>, ResolveError>> {
     let fut = async move {
@@ -1586,7 +1609,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
           .cache
           .tsconfig(
             /* root */ true,
-            &reference_tsconfig_path,
+            reference_tsconfig_path.to_ustr_path(),
             |mut reference_tsconfig| {
               let current_path = current_path.clone();
               async move {
@@ -1663,7 +1686,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       let extended_tsconfig = self
         .load_tsconfig(
           /* root */ false,
-          &extended_tsconfig_path,
+          extended_tsconfig_path.to_ustr_path(),
           &TsconfigReferences::Disabled,
         )
         .await?;
