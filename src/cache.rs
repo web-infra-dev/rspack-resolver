@@ -161,6 +161,13 @@ pub struct CachedPathImpl {
   canonicalized: OnceLock<Option<Utf8PathBuf>>,
   node_modules: OnceLock<Option<CachedPath>>,
   package_json: OnceLock<Option<Arc<PackageJson>>>,
+  /// Memoized interned form of `self.path`. Without it every `is_file` /
+  /// `is_dir` dependency push would re-enter the interner (bin lock + probe).
+  dep_path: std::sync::OnceLock<UstrPath>,
+  /// Memoized `<self.path>/node_modules`. `cached_node_modules` replays a
+  /// missing-dependency push on every cache hit where `node_modules` is
+  /// absent, which is most directory levels during an upward walk.
+  node_modules_dep_path: std::sync::OnceLock<UstrPath>,
   /// Memoized `<self.path>/package.json` for the `missing_dependencies` push
   /// that fires on every `package_json` cache-hit `None` (~97% of
   /// `package_json` calls in dep-tracking workloads).
@@ -170,7 +177,7 @@ pub struct CachedPathImpl {
 impl ToUstrPath for CachedPathImpl {
   #[inline]
   fn to_ustr_path(&self) -> UstrPath {
-    self.path.to_ustr_path()
+    self.dep_path()
   }
 }
 
@@ -184,8 +191,20 @@ impl CachedPathImpl {
       canonicalized: OnceLock::new(),
       node_modules: OnceLock::new(),
       package_json: OnceLock::new(),
+      dep_path: std::sync::OnceLock::new(),
+      node_modules_dep_path: std::sync::OnceLock::new(),
       package_json_dep_path: std::sync::OnceLock::new(),
     }
+  }
+
+  fn dep_path(&self) -> UstrPath {
+    *self.dep_path.get_or_init(|| self.path.to_ustr_path())
+  }
+
+  fn node_modules_dep_path(&self) -> UstrPath {
+    *self
+      .node_modules_dep_path
+      .get_or_init(|| self.path.join("node_modules").to_ustr_path())
   }
 
   /// Without this cache, each `None` cache-hit on `package_json` would
@@ -310,8 +329,8 @@ impl CachedPathImpl {
     if let Some(nm) = self.node_modules.get() {
       // Replay ctx tracking from the cold path: module_directory -> is_dir calls
       // ctx.add_missing_dependency when node_modules doesn't exist on disk.
-      if nm.is_none() {
-        ctx.add_missing_dependency(&self.path.join("node_modules"));
+      if nm.is_none() && ctx.missing_dependencies.is_some() {
+        ctx.add_missing_dependency(&self.node_modules_dep_path());
       }
       return nm.clone();
     }
@@ -443,7 +462,7 @@ impl CachedPathImpl {
       }
       Err(_) => {
         if ctx.file_dependencies.is_some() {
-          ctx.add_file_dependency(&self.path.join("package.json"));
+          ctx.add_file_dependency(&self.package_json_dep_path());
         }
       }
     }
@@ -521,6 +540,35 @@ fn hash_utf8_path(path: &Utf8Path) -> u64 {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::FileSystemOs;
+
+  #[tokio::test]
+  async fn repeated_dep_conversions_reuse_one_memoized_handle() {
+    let cache = Cache::new(FileSystemOs::default());
+    let cached = cache.value(Utf8Path::new("/a/b/c.js"));
+
+    let first = cached.to_ustr_path();
+    let second = cached.to_ustr_path();
+    assert_eq!(first.as_str().as_ptr(), second.as_str().as_ptr());
+    // Memoized: the second call must not have gone through the interner at all.
+    assert!(cached.dep_path.get().is_some());
+  }
+
+  #[tokio::test]
+  async fn node_modules_and_package_json_dep_paths_are_memoized() {
+    let cache = Cache::new(FileSystemOs::default());
+    let cached = cache.value(Utf8Path::new("/a/b"));
+
+    assert_eq!(cached.node_modules_dep_path().as_str(), "/a/b/node_modules");
+    assert_eq!(cached.package_json_dep_path().as_str(), "/a/b/package.json");
+
+    assert!(cached.node_modules_dep_path.get().is_some());
+    assert!(cached.package_json_dep_path.get().is_some());
+    assert_eq!(
+      cached.node_modules_dep_path().as_str().as_ptr(),
+      cached.node_modules_dep_path().as_str().as_ptr()
+    );
+  }
 
   #[test]
   fn hash_utf8_path_matches_the_platform_contract() {
