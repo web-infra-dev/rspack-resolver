@@ -40,6 +40,12 @@ async fn repeated_resolves_share_one_pointer_per_dependency() {
       .collect();
     snapshot.sort_by(|a, b| a.0.cmp(&b.0));
 
+    assert!(
+      !snapshot.is_empty(),
+      "the fixture must produce at least one file dependency, \
+       otherwise this test passes without proving anything"
+    );
+
     match &first {
       None => first = Some(snapshot),
       Some(baseline) => assert_eq!(
