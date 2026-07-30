@@ -3,10 +3,10 @@ use std::{
   fmt,
   hash::{BuildHasherDefault, Hash, Hasher},
   ops::Deref,
-  path::Path,
+  path::{Path, PathBuf},
 };
 
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use ustr::Ustr;
 
 /// A globally interned UTF-8 path.
@@ -218,6 +218,85 @@ pub type UstrPathSet = HashSet<UstrPath, BuildHasherDefault<ustr::IdentityHasher
 /// split — see the note on the `ustr` dependency in `Cargo.toml`).
 pub use ustr::IdentityHasher;
 
+/// Convert any path-shaped value into an interned [`UstrPath`].
+///
+/// The two `std::path` implementations panic on non-UTF-8 input, matching what
+/// the resolver already does at every `Path -> Utf8Path` boundary (see the
+/// `expect("path should be UTF-8")` calls in `lib.rs` and `cache.rs`).
+pub trait ToUstrPath {
+  fn to_ustr_path(&self) -> UstrPath;
+}
+
+impl ToUstrPath for str {
+  #[inline]
+  fn to_ustr_path(&self) -> UstrPath {
+    UstrPath::new(self)
+  }
+}
+
+impl ToUstrPath for String {
+  #[inline]
+  fn to_ustr_path(&self) -> UstrPath {
+    UstrPath::new(self)
+  }
+}
+
+impl ToUstrPath for Utf8Path {
+  #[inline]
+  fn to_ustr_path(&self) -> UstrPath {
+    UstrPath::new(self.as_str())
+  }
+}
+
+impl ToUstrPath for Utf8PathBuf {
+  #[inline]
+  fn to_ustr_path(&self) -> UstrPath {
+    UstrPath::new(self.as_str())
+  }
+}
+
+impl ToUstrPath for Path {
+  #[inline]
+  fn to_ustr_path(&self) -> UstrPath {
+    UstrPath::new(self.to_str().expect("path should be UTF-8"))
+  }
+}
+
+impl ToUstrPath for PathBuf {
+  #[inline]
+  fn to_ustr_path(&self) -> UstrPath {
+    self.as_path().to_ustr_path()
+  }
+}
+
+impl ToUstrPath for UstrPath {
+  #[inline]
+  fn to_ustr_path(&self) -> UstrPath {
+    *self
+  }
+}
+
+impl<T: ?Sized + ToUstrPath> From<&T> for UstrPath {
+  #[inline]
+  fn from(value: &T) -> Self {
+    value.to_ustr_path()
+  }
+}
+
+impl From<Utf8PathBuf> for UstrPath {
+  #[inline]
+  fn from(value: Utf8PathBuf) -> Self {
+    value.to_ustr_path()
+  }
+}
+
+impl From<PathBuf> for UstrPath {
+  #[inline]
+  fn from(value: PathBuf) -> Self {
+    value.to_ustr_path()
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use std::{
@@ -401,5 +480,41 @@ mod tests {
         "spelling {spelling:?} should intern to the canonical pointer"
       );
     }
+  }
+
+  #[test]
+  fn to_ustr_path_accepts_every_path_flavor() {
+    use camino::Utf8PathBuf;
+
+    let expected = UstrPath::new("/a/b");
+    assert_eq!("/a/b".to_ustr_path(), expected);
+    assert_eq!(String::from("/a/b").to_ustr_path(), expected);
+    assert_eq!(Utf8Path::new("/a/b").to_ustr_path(), expected);
+    assert_eq!(Utf8PathBuf::from("/a/b").to_ustr_path(), expected);
+    assert_eq!(std::path::Path::new("/a/b").to_ustr_path(), expected);
+    assert_eq!(std::path::PathBuf::from("/a/b").to_ustr_path(), expected);
+    assert_eq!(expected.to_ustr_path(), expected);
+  }
+
+  #[test]
+  fn from_impls_match_to_ustr_path() {
+    use camino::Utf8PathBuf;
+
+    let expected = UstrPath::new("/a/b");
+    assert_eq!(UstrPath::from("/a/b"), expected);
+    assert_eq!(UstrPath::from(Utf8Path::new("/a/b")), expected);
+    assert_eq!(UstrPath::from(Utf8PathBuf::from("/a/b")), expected);
+    assert_eq!(UstrPath::from(std::path::Path::new("/a/b")), expected);
+    assert_eq!(UstrPath::from(std::path::PathBuf::from("/a/b")), expected);
+  }
+
+  #[test]
+  #[should_panic(expected = "path should be UTF-8")]
+  #[cfg(unix)]
+  fn non_utf8_std_path_panics_like_the_rest_of_the_resolver() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
+    let bad = std::path::Path::new(OsStr::from_bytes(b"/a/\xff/b"));
+    let _ = bad.to_ustr_path();
   }
 }

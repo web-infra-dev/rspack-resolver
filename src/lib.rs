@@ -98,7 +98,7 @@ pub use crate::{
   package_json::{JSONValue, ModuleType, PackageJson},
   resolution::Resolution,
   resolver_path::ResolverPath,
-  ustr_path::{IdentityHasher, UstrPath, UstrPathSet},
+  ustr_path::{IdentityHasher, ToUstrPath, UstrPath, UstrPathSet},
 };
 
 type ResolveResult = Result<Option<CachedPath>, ResolveError>;
