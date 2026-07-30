@@ -119,11 +119,17 @@ impl PartialEq for CachedPath {
     // Compare through std `Path`, not camino's `Utf8Path`. std `Path`/`Components`
     // equality has a raw-byte `memcmp` fast path (its own comment: "for hashmap
     // lookups"), whereas camino's `Utf8Path` always walks components with no fast
-    // path — that regressed this hottest cache-lookup equality. `as_std_path()`
-    // also preserves the per-platform semantics that match `hash_path`
-    // (byte-wise on Unix; component-wise on Windows, so `pack1/foo` and
-    // `pack1\foo` stay the same entry). A plain `as_str()` byte compare would be
-    // inconsistent with the component-wise hash on Windows and break dedup there.
+    // path — that regressed this hottest cache-lookup equality.
+    //
+    // Note this is *not* fully consistent with `hash_utf8_path` on Unix: this
+    // equality is component-wise (via std `Path`), so e.g. `/a/b` and `/a/b/`
+    // compare equal, while `hash_utf8_path` hashes the raw bytes and gives them
+    // different hashes on Unix. That gap predates this branch (the old
+    // `hash_path` had the same mismatch). It cannot produce a wrong lookup
+    // result — differing hashes just land in different `DashSet` buckets, so
+    // this `PartialEq` is never consulted for them — the only cost is a
+    // duplicate `CachedPath` entry (and duplicate metadata probe) for paths
+    // that differ only in trailing or repeated separators.
     self.0.path.as_std_path() == other.0.path.as_std_path()
   }
 }
@@ -488,8 +494,10 @@ impl Hash for dyn CacheKey + '_ {
 
 impl PartialEq for dyn CacheKey + '_ {
   fn eq(&self, other: &Self) -> bool {
-    // std `Path` equality (memcmp fast path + per-platform semantics matching
-    // `hash_path`); see `CachedPath`'s `PartialEq` for the full rationale.
+    // std `Path` equality (memcmp fast path); not fully consistent with
+    // `hash_utf8_path` on Unix — see `CachedPath`'s `PartialEq` for the full
+    // rationale and its benign consequence (duplicate cache entries, never a
+    // wrong lookup).
     self.tuple().1.as_std_path() == other.tuple().1.as_std_path()
   }
 }
@@ -532,6 +540,14 @@ impl Hasher for IdentityHasher {
 /// expensive on this, the hottest lookup in the crate. On other platforms it
 /// goes through `Path` so `pack1/foo` and `pack1\foo` stay one entry, matching
 /// `CachedPath`'s `PartialEq`.
+///
+/// On Unix this bulk byte hash is *not* equivalent to `CachedPath`'s
+/// `PartialEq`, which compares component-wise through std `Path`: paths that
+/// differ only by a trailing or repeated separator (e.g. `/a/b` vs `/a/b/`)
+/// are `PartialEq`-equal but hash differently here. That only costs a
+/// duplicate `CachedPath` entry for such paths — it can never produce a wrong
+/// lookup result, since mismatched hashes simply land in different buckets
+/// and `PartialEq` is never consulted for them.
 #[inline]
 fn hash_utf8_path(path: &Utf8Path) -> u64 {
   let mut hasher = FxHasher::default();

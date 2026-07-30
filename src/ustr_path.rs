@@ -225,6 +225,18 @@ pub type UstrPathSet = HashSet<UstrPath, BuildHasherDefault<ustr::IdentityHasher
 /// Re-exported so downstream crates can spell the same concrete set type
 /// without taking a direct `ustr` dependency (and without risking a version
 /// split — see the note on the `ustr` dependency in `Cargo.toml`).
+///
+/// This is deliberately the upstream `ustr` type, not a local newtype: rspack
+/// spells its `ArcPathSet` with this exact type, and only that type identity
+/// lets rspack `mem::take` our dependency sets instead of re-bucketing every
+/// element into its own hasher. Do not replace it with a local hasher.
+///
+/// Upstream marks it `#[doc(hidden)]` (it is an implementation detail of
+/// `ustr-fxhash`), so it is not semver-protected there — a patch release could
+/// rename or remove it without notice. The pinned `ustr` version in
+/// `Cargo.toml` is what actually protects this re-export; bumping that
+/// dependency must re-verify `IdentityHasher` still exists and still behaves
+/// like an identity hash.
 pub use ustr::IdentityHasher;
 
 /// Convert any path-shaped value into an interned [`UstrPath`].
