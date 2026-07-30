@@ -30,10 +30,94 @@ use ustr::Ustr;
 #[repr(transparent)]
 pub struct UstrPath(Ustr);
 
+#[inline]
+const fn is_sep(c: u8) -> bool {
+  c == b'/' || c == b'\\'
+}
+
+/// Rewrite `s` into canonical Windows form: `\` separators, no repeated
+/// separators, no trailing separator (roots excepted).
+///
+/// Returns `None` when `s` is already canonical — the common case — so the
+/// caller interns the original `&str` without allocating.
+///
+/// Paths beginning with two separators (UNC and verbatim, e.g. `\\?\C:\x` or
+/// `\\server\share`) pass through unchanged: std's `Path` disables separator
+/// normalization behind a verbatim prefix, and the `dunce` dependency already
+/// keeps the resolver off UNC paths.
+///
+/// Platform-independent on purpose. camino's `Utf8Path::components()` picks its
+/// separator set at compile time, so it cannot express Windows semantics on a
+/// unix host — this would otherwise be untestable off Windows.
+// Referenced by `UstrPath::new` only on Windows, but compiled and tested
+// everywhere so the normalization rules stay verifiable on a unix host. Also
+// excluded under `cfg(test)`: the test module below calls it directly, so on
+// a non-Windows test build it is not actually dead and the expectation would
+// go unfulfilled.
+#[cfg_attr(
+  not(any(windows, test)),
+  expect(dead_code, reason = "windows-only caller; tested on all platforms")
+)]
+fn normalize_windows_separators(s: &str) -> Option<String> {
+  let bytes = s.as_bytes();
+
+  if bytes.len() >= 2 && is_sep(bytes[0]) && is_sep(bytes[1]) {
+    return None;
+  }
+
+  let mut needs_rewrite = false;
+  let mut prev_was_sep = false;
+  for (i, &c) in bytes.iter().enumerate() {
+    if is_sep(c) {
+      // A trailing separator only counts as canonical when it is the root
+      // itself (`\`) or a drive root (`C:\`).
+      if c == b'/' || prev_was_sep || (i + 1 == bytes.len() && i > 0 && bytes[i - 1] != b':') {
+        needs_rewrite = true;
+        break;
+      }
+      prev_was_sep = true;
+    } else {
+      prev_was_sep = false;
+    }
+  }
+  if !needs_rewrite {
+    return None;
+  }
+
+  let mut out = String::with_capacity(s.len());
+  let mut prev_was_sep = false;
+  for ch in s.chars() {
+    if ch == '/' || ch == '\\' {
+      if !prev_was_sep {
+        out.push('\\');
+      }
+      prev_was_sep = true;
+    } else {
+      out.push(ch);
+      prev_was_sep = false;
+    }
+  }
+
+  if out.len() > 1 && out.ends_with('\\') && !out.ends_with(":\\") {
+    out.pop();
+  }
+
+  Some(out)
+}
+
 impl UstrPath {
   /// Intern `path` and return a handle to it.
+  ///
+  /// On Windows the path is first rewritten into canonical form so that every
+  /// spelling of the same path (`C:/a/b`, `C:\a\b`, `C:\a\\b`, `C:\a\b\`)
+  /// interns to one pointer — preserving the dedup semantics `Path`'s
+  /// component-wise `Hash`/`Eq` used to provide.
   #[inline]
   pub fn new(path: &str) -> Self {
+    #[cfg(windows)]
+    if let Some(normalized) = normalize_windows_separators(path) {
+      return Self(Ustr::from(&normalized));
+    }
     Self(Ustr::from(path))
   }
 
@@ -201,5 +285,79 @@ mod tests {
     let mut hasher = ustr::IdentityHasher::default();
     UstrPath::new("/some/long/path/that/is/not/eight/bytes").hash(&mut hasher);
     assert_ne!(hasher.finish(), 0);
+  }
+
+  #[test]
+  fn already_canonical_windows_paths_need_no_rewrite() {
+    assert_eq!(normalize_windows_separators(r"C:\a\b"), None);
+    assert_eq!(normalize_windows_separators(r"C:\"), None);
+    assert_eq!(normalize_windows_separators(r"\"), None);
+    assert_eq!(normalize_windows_separators("a"), None);
+  }
+
+  #[test]
+  fn forward_slashes_become_backslashes() {
+    assert_eq!(
+      normalize_windows_separators("C:/a/b").as_deref(),
+      Some(r"C:\a\b")
+    );
+    assert_eq!(
+      normalize_windows_separators(r"C:/a\b").as_deref(),
+      Some(r"C:\a\b")
+    );
+  }
+
+  #[test]
+  fn repeated_separators_collapse() {
+    assert_eq!(
+      normalize_windows_separators(r"C:\a\\b").as_deref(),
+      Some(r"C:\a\b")
+    );
+    assert_eq!(
+      normalize_windows_separators("C://a//b").as_deref(),
+      Some(r"C:\a\b")
+    );
+  }
+
+  #[test]
+  fn trailing_separator_is_dropped_but_roots_survive() {
+    assert_eq!(
+      normalize_windows_separators(r"C:\a\b\").as_deref(),
+      Some(r"C:\a\b")
+    );
+    assert_eq!(normalize_windows_separators("C:/").as_deref(), Some(r"C:\"));
+    assert_eq!(normalize_windows_separators(r"C:\"), None);
+  }
+
+  #[test]
+  fn unc_and_verbatim_paths_pass_through_untouched() {
+    // std disables separator normalization for verbatim prefixes, and `dunce`
+    // already keeps the resolver off UNC paths — leaving both alone is both
+    // correct and the conservative choice.
+    assert_eq!(normalize_windows_separators(r"\\?\C:\a/b"), None);
+    assert_eq!(normalize_windows_separators("//?/C:/a/b"), None);
+    assert_eq!(normalize_windows_separators(r"\\server\share\a"), None);
+  }
+
+  #[test]
+  fn non_ascii_segments_survive_normalization() {
+    assert_eq!(
+      normalize_windows_separators("C:/项目/源码").as_deref(),
+      Some(r"C:\项目\源码")
+    );
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn equivalent_windows_spellings_intern_to_one_pointer() {
+    let canonical = UstrPath::new(r"C:\a\b");
+    for spelling in [r"C:\a\b", "C:/a/b", r"C:/a\b", r"C:\a\\b", r"C:\a\b\"] {
+      let p = UstrPath::new(spelling);
+      assert_eq!(
+        p.as_str().as_ptr(),
+        canonical.as_str().as_ptr(),
+        "spelling {spelling:?} should intern to the canonical pointer"
+      );
+    }
   }
 }
