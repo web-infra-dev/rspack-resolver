@@ -186,10 +186,10 @@ mod tests {
   fn as_ref_targets_compile_and_agree() {
     let p = UstrPath::new("/a/b");
     let as_utf8: &Utf8Path = p.as_ref();
-    let as_std: &std::path::Path = p.as_ref();
-    let as_str: &str = p.as_ref();
-    assert_eq!(as_utf8.as_str(), as_str);
-    assert_eq!(as_std, std::path::Path::new("/a/b"));
+    let std_path: &std::path::Path = p.as_ref();
+    let str_ref: &str = p.as_ref();
+    assert_eq!(as_utf8.as_str(), str_ref);
+    assert_eq!(std_path, std::path::Path::new("/a/b"));
   }
 
   #[test]
