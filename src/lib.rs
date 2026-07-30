@@ -123,7 +123,7 @@ pub struct ResolverGeneric<Fs> {
   /// Pre-built byte-trie over `options.fallback` keys.
   fallback_trie: AliasTrie,
   #[cfg(feature = "yarn_pnp")]
-  pnp_manifest: Arc<arc_swap::ArcSwapOption<(PathBuf, pnp::Manifest)>>,
+  pnp_manifest: Arc<arc_swap::ArcSwapOption<(UstrPath, pnp::Manifest)>>,
   /// Paths that have been searched and confirmed to have no `.pnp.cjs` reachable by filesystem walk.
   #[cfg(feature = "yarn_pnp")]
   pnp_no_manifest_cache: Arc<DashSet<CachedPath>>,
@@ -1003,7 +1003,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
   #[cfg(feature = "yarn_pnp")]
   #[cfg_attr(feature = "enable_instrument", tracing::instrument(level=tracing::Level::DEBUG, skip_all, fields(path = cached_path.path().as_str())))]
-  fn find_pnp_manifest(&self, cached_path: &CachedPath) -> Option<Arc<(PathBuf, pnp::Manifest)>> {
+  fn find_pnp_manifest(&self, cached_path: &CachedPath) -> Option<Arc<(UstrPath, pnp::Manifest)>> {
     // 1. Already have a manifest → return it (covers global cache paths too)
     if let Some(manifest) = self.pnp_manifest.load_full() {
       return Some(manifest);
@@ -1032,7 +1032,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     tracing::debug!("use manifest path: {:?}", manifest_path);
 
     let manifest = pnp::load_pnp_manifest(&manifest_path).ok()?;
-    let manifest = Arc::new((manifest_path, manifest));
+    let manifest = Arc::new((manifest_path.to_ustr_path(), manifest));
 
     let previous = self
       .pnp_manifest
