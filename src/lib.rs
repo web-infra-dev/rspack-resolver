@@ -1497,7 +1497,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       )
       .await?;
     for dependency in &tsconfig.file_dependencies {
-      ctx.add_file_dependency(dependency.as_path());
+      ctx.add_file_dependency(dependency);
     }
     let paths = tsconfig.resolve(cached_path.path(), specifier);
     for path in paths {
@@ -1617,7 +1617,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
           .await?;
         tsconfig
           .file_dependencies
-          .extend(reference_tsconfig.file_dependencies.iter().cloned());
+          .extend(reference_tsconfig.file_dependencies.iter().copied());
         for nested in &reference_tsconfig.flattened_references {
           if flattened_reference_paths.insert(nested.path.clone()) {
             tsconfig.flattened_references.push(Arc::clone(nested));

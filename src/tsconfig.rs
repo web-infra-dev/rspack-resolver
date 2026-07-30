@@ -5,10 +5,13 @@ use indexmap::{IndexMap, IndexSet};
 use rustc_hash::FxHasher;
 use serde::Deserialize;
 
-use crate::path::PathUtil;
+use crate::{
+  path::PathUtil,
+  ustr_path::{ToUstrPath, UstrPath},
+};
 
 pub type CompilerOptionsPathsMap = IndexMap<String, Vec<String>, BuildHasherDefault<FxHasher>>;
-pub type FileDependencies = IndexSet<Utf8PathBuf, BuildHasherDefault<FxHasher>>;
+pub type FileDependencies = IndexSet<UstrPath, BuildHasherDefault<ustr::IdentityHasher>>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -87,13 +90,13 @@ impl TsConfig {
       let mut tsconfig: Self = serde_json::from_str("{}")?;
       tsconfig.root = root;
       tsconfig.path = path.to_path_buf();
-      tsconfig.file_dependencies.insert(path.to_path_buf());
+      tsconfig.file_dependencies.insert(path.to_ustr_path());
       return Ok(tsconfig);
     }
     let mut tsconfig: Self = serde_json::from_str(json)?;
     tsconfig.root = root;
     tsconfig.path = path.to_path_buf();
-    tsconfig.file_dependencies.insert(path.to_path_buf());
+    tsconfig.file_dependencies.insert(path.to_ustr_path());
     let directory = tsconfig.directory().to_path_buf();
     if let Some(base_url) = &tsconfig.compiler_options.base_url {
       // keep the `${configDir}` template variable in the baseUrl
@@ -164,7 +167,7 @@ impl TsConfig {
     }
     self
       .file_dependencies
-      .extend(other_config.file_dependencies.iter().cloned());
+      .extend(other_config.file_dependencies.iter().copied());
   }
 
   pub fn resolve(&self, path: &Utf8Path, specifier: &str) -> Vec<Utf8PathBuf> {

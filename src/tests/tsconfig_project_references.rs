@@ -83,6 +83,45 @@ async fn tsconfig_file_as_file_dependencies() {
 }
 
 #[tokio::test]
+async fn tsconfig_dependency_is_one_interned_pointer_across_resolves() {
+  let f = super::fixture_root().join("tsconfig/cases/project_references");
+
+  let resolver = Resolver::new(ResolveOptions {
+    tsconfig: Some(TsconfigOptions {
+      config_file: f.join("app"),
+      references: TsconfigReferences::Auto,
+    }),
+    ..ResolveOptions::default()
+  });
+
+  let shared_tsconfig = f.join("app/tsconfig.json");
+  let expected = UstrPath::from(&shared_tsconfig);
+
+  let mut pointers = vec![];
+  for (dir, request) in [
+    (f.join("project_b/src"), "@/index.ts"),
+    (f.join("project_a"), "@/index.ts"),
+  ] {
+    let mut ctx = ResolveContext::default();
+    resolver
+      .resolve_with_context(&dir, request, &mut ctx)
+      .await
+      .expect("should resolve");
+    let dep = ctx
+      .file_dependencies
+      .get(&expected)
+      .expect("app/tsconfig.json must be a file dependency");
+    pointers.push(dep.as_str().as_ptr());
+  }
+
+  assert!(
+    pointers.windows(2).all(|w| w[0] == w[1]),
+    "the same tsconfig.json must be one interned pointer across resolves, \
+     not one heap copy per resolve"
+  );
+}
+
+#[tokio::test]
 async fn disabled() {
   let f = super::fixture_root().join("tsconfig/cases/project_references");
 
