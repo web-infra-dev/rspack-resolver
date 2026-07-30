@@ -1,6 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{error::ResolveError, resolver_path::ResolverPath};
+use crate::{
+  error::ResolveError,
+  ustr_path::{ToUstrPath, UstrPath},
+};
 
 #[derive(Debug, Default, Clone)]
 pub struct ResolveContext(ResolveContextImpl);
@@ -14,10 +17,10 @@ pub struct ResolveContextImpl {
   pub fragment: Option<String>,
 
   /// Files that were found on file system
-  pub file_dependencies: Option<Vec<ResolverPath>>,
+  pub file_dependencies: Option<Vec<UstrPath>>,
 
   /// Files that were not found on file system
-  pub missing_dependencies: Option<Vec<ResolverPath>>,
+  pub missing_dependencies: Option<Vec<UstrPath>>,
 
   /// The current resolving alias for bailing recursion alias.
   pub resolving_alias: Option<String>,
@@ -59,19 +62,22 @@ impl ResolveContext {
     self.missing_dependencies.replace(vec![]);
   }
 
-  // Accepts anything convertible to `ResolverPath`. The conversion (which
-  // includes the `Arc<Path>` allocation for `&Path` / `PathBuf` callers, or
-  // hash reuse for `&CachedPathImpl`) only runs inside the `Some` branch, so
-  // `resolve()` calls without a context still pay zero.
-  pub fn add_file_dependency<P: Into<ResolverPath>>(&mut self, dep: P) {
+  // Accepts anything path-shaped. The interning only runs inside the `Some`
+  // branch, so `resolve()` calls without a context still pay zero.
+  // `ToUstrPath::to_ustr_path` only ever borrows `dep`, so clippy sees the
+  // by-value `P` as needless; kept by value anyway so callers can pass owned
+  // or borrowed path types through the same generic call site.
+  #[allow(clippy::needless_pass_by_value)]
+  pub fn add_file_dependency<P: ToUstrPath>(&mut self, dep: P) {
     if let Some(deps) = &mut self.file_dependencies {
-      deps.push(dep.into());
+      deps.push(dep.to_ustr_path());
     }
   }
 
-  pub fn add_missing_dependency<P: Into<ResolverPath>>(&mut self, dep: P) {
+  #[allow(clippy::needless_pass_by_value)]
+  pub fn add_missing_dependency<P: ToUstrPath>(&mut self, dep: P) {
     if let Some(deps) = &mut self.missing_dependencies {
-      deps.push(dep.into());
+      deps.push(dep.to_ustr_path());
     }
   }
 

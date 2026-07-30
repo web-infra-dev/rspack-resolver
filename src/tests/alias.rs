@@ -237,13 +237,21 @@ async fn alias_is_full_path() {
   }
 
   for path in ctx.file_dependencies {
-    assert_eq!(path.as_path(), path.normalize(), "{path:?}");
-    check_slash(&path);
+    assert_eq!(
+      path.as_std_path(),
+      path.as_std_path().normalize(),
+      "{path:?}"
+    );
+    check_slash(path.as_std_path());
   }
 
   for path in ctx.missing_dependencies {
-    assert_eq!(path.as_path(), path.normalize(), "{path:?}");
-    check_slash(&path);
+    assert_eq!(
+      path.as_std_path(),
+      path.as_std_path().normalize(),
+      "{path:?}"
+    );
+    check_slash(path.as_std_path());
     if let Some(path) = path.parent() {
       assert!(!path.is_file(), "{path:?} must not be a file");
     }

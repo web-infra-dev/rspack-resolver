@@ -18,7 +18,7 @@ use tokio::sync::OnceCell as OnceLock;
 use crate::{
   context::ResolveContext as Ctx,
   package_json::{off_to_location, PackageJson},
-  resolver_path::{hash_path, ResolverPath},
+  ustr_path::{ToUstrPath, UstrPath},
   FileMetadata, FileSystem, JSONError, ResolveError, ResolveOptions, TsConfig,
 };
 
@@ -44,7 +44,7 @@ impl<Fs: Send + Sync + FileSystem> Cache<Fs> {
   }
 
   pub fn value(&self, path: &Utf8Path) -> CachedPath {
-    let hash = hash_path(path.as_std_path());
+    let hash = hash_utf8_path(path);
     if let Some(cache_entry) = self.paths.get((hash, path).borrow() as &dyn CacheKey) {
       return cache_entry.clone();
     }
@@ -161,18 +161,16 @@ pub struct CachedPathImpl {
   canonicalized: OnceLock<Option<Utf8PathBuf>>,
   node_modules: OnceLock<Option<CachedPath>>,
   package_json: OnceLock<Option<Arc<PackageJson>>>,
-  /// Memoized `<self.path>/package.json` `ResolverPath` for the
-  /// `missing_dependencies` push that fires on every `package_json` cache-hit
-  /// `None` (~97% of `package_json` calls in dep-tracking workloads).
-  package_json_dep_path: std::sync::OnceLock<ResolverPath>,
+  /// Memoized `<self.path>/package.json` for the `missing_dependencies` push
+  /// that fires on every `package_json` cache-hit `None` (~97% of
+  /// `package_json` calls in dep-tracking workloads).
+  package_json_dep_path: std::sync::OnceLock<UstrPath>,
 }
 
-impl From<&CachedPathImpl> for ResolverPath {
-  /// Reuse the cache-side `FxHash` (already computed in `Cache::value`); the
-  /// only remaining work is one `Arc::from(&Path)` to materialize the shared
-  /// path buffer for the `ResolveContext` sink.
-  fn from(cached: &CachedPathImpl) -> Self {
-    Self::from_parts(cached.hash, Arc::from(cached.path.as_std_path()))
+impl ToUstrPath for CachedPathImpl {
+  #[inline]
+  fn to_ustr_path(&self) -> UstrPath {
+    self.path.to_ustr_path()
   }
 }
 
@@ -192,11 +190,10 @@ impl CachedPathImpl {
 
   /// Without this cache, each `None` cache-hit on `package_json` would
   /// re-`join` + re-allocate the `Arc<Path>` + re-hash on every push.
-  fn package_json_dep_path(&self) -> ResolverPath {
-    self
+  fn package_json_dep_path(&self) -> UstrPath {
+    *self
       .package_json_dep_path
-      .get_or_init(|| self.path.join("package.json").into())
-      .clone()
+      .get_or_init(|| self.path.join("package.json").to_ustr_path())
   }
 
   pub fn path(&self) -> &Utf8Path {
@@ -225,10 +222,10 @@ impl CachedPathImpl {
 
   pub async fn is_file<Fs: Send + Sync + FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
     if let Some(meta) = self.meta(fs).await {
-      ctx.add_file_dependency(self);
+      ctx.add_file_dependency(self.to_ustr_path());
       meta.is_file
     } else {
-      ctx.add_missing_dependency(self);
+      ctx.add_missing_dependency(self.to_ustr_path());
       false
     }
   }
@@ -236,7 +233,7 @@ impl CachedPathImpl {
   pub async fn is_dir<Fs: Send + Sync + FileSystem>(&self, fs: &Fs, ctx: &mut Ctx) -> bool {
     self.meta(fs).await.map_or_else(
       || {
-        ctx.add_missing_dependency(self);
+        ctx.add_missing_dependency(self.to_ustr_path());
         false
       },
       |meta| meta.is_dir,
@@ -371,7 +368,7 @@ impl CachedPathImpl {
     if let Some(pkg) = self.package_json.get() {
       // Preserve ctx dependency tracking on cache hit.
       match pkg {
-        Some(package_json) => ctx.add_file_dependency(&package_json.path),
+        Some(package_json) => ctx.add_file_dependency(package_json.path.to_ustr_path()),
         None => {
           if ctx.missing_dependencies.is_some() {
             ctx.add_missing_dependency(self.package_json_dep_path());
@@ -436,7 +433,7 @@ impl CachedPathImpl {
     // https://github.com/webpack/enhanced-resolve/blob/58464fc7cb56673c9aa849e68e6300239601e615/lib/DescriptionFileUtils.js#L68-L82
     match &result {
       Ok(Some(package_json)) => {
-        ctx.add_file_dependency(&package_json.path);
+        ctx.add_file_dependency(package_json.path.to_ustr_path());
       }
       Ok(None) => {
         // Avoid an allocation by making this lazy
@@ -502,4 +499,21 @@ impl Hasher for IdentityHasher {
   fn finish(&self) -> u64 {
     self.0
   }
+}
+
+/// Hash a path for the `CachedPath` `DashSet` key.
+///
+/// Bulk-writes the raw bytes on unix — the std `Path::hash` impl walks
+/// components (utf8 split + per-segment write), which is materially more
+/// expensive on this, the hottest lookup in the crate. On other platforms it
+/// goes through `Path` so `pack1/foo` and `pack1\foo` stay one entry, matching
+/// `CachedPath`'s `PartialEq`.
+#[inline]
+fn hash_utf8_path(path: &Utf8Path) -> u64 {
+  let mut hasher = FxHasher::default();
+  #[cfg(unix)]
+  hasher.write(path.as_str().as_bytes());
+  #[cfg(not(unix))]
+  path.as_std_path().hash(&mut hasher);
+  hasher.finish()
 }

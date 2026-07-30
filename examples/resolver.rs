@@ -40,10 +40,10 @@ async fn main() {
   };
 
   let mut sorted_file_deps = ctx.file_dependencies.iter().collect::<Vec<_>>();
-  sorted_file_deps.sort_by_key(|p| p.as_path());
+  sorted_file_deps.sort_by_key(|p| p.as_std_path());
   println!("file_deps: {:#?}", sorted_file_deps);
 
   let mut sorted_missing = ctx.missing_dependencies.iter().collect::<Vec<_>>();
-  sorted_missing.sort_by_key(|p| p.as_path());
+  sorted_missing.sort_by_key(|p| p.as_std_path());
   println!("missing_deps: {:#?}", sorted_missing);
 }

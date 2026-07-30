@@ -57,7 +57,6 @@ mod options;
 mod package_json;
 mod path;
 mod resolution;
-mod resolver_path;
 mod specifier;
 mod tsconfig;
 mod ustr_path;
@@ -97,7 +96,6 @@ pub use crate::{
   },
   package_json::{JSONValue, ModuleType, PackageJson},
   resolution::Resolution,
-  resolver_path::ResolverPath,
   ustr_path::{IdentityHasher, ToUstrPath, UstrPath, UstrPathSet},
 };
 
@@ -107,10 +105,10 @@ type ResolveResult = Result<Option<CachedPath>, ResolveError>;
 #[derive(Debug, Default, Clone)]
 pub struct ResolveContext {
   /// Files that were found on file system
-  pub file_dependencies: FxHashSet<ResolverPath>,
+  pub file_dependencies: UstrPathSet,
 
   /// Dependencies that were not found on file system
-  pub missing_dependencies: FxHashSet<ResolverPath>,
+  pub missing_dependencies: UstrPathSet,
 }
 
 /// Resolver with the current operating system as the file system
@@ -758,7 +756,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         .realpath(&self.cache.fs)
         .await
         .map(|path| {
-          ctx.add_file_dependency(path.as_path());
+          ctx.add_file_dependency(path.to_ustr_path());
           path
         })
         .map_err(ResolveError::from)
@@ -1059,7 +1057,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       return Ok(None);
     };
     let (manifest_path, manifest) = pnp_data.as_ref();
-    ctx.add_file_dependency(manifest_path);
+    ctx.add_file_dependency(manifest_path.to_ustr_path());
 
     let mut path = cached_path.to_path_buf();
     path.push("");
@@ -1502,7 +1500,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       )
       .await?;
     for dependency in &tsconfig.file_dependencies {
-      ctx.add_file_dependency(dependency.as_path());
+      ctx.add_file_dependency(dependency.to_ustr_path());
     }
     let paths = tsconfig.resolve(cached_path.path(), specifier);
     for path in paths {
