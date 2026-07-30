@@ -750,18 +750,18 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     &self,
     cached_path: &CachedPath,
     ctx: &mut Ctx,
-  ) -> Result<Utf8PathBuf, ResolveError> {
+  ) -> Result<UstrPath, ResolveError> {
     if self.options.symlinks {
       cached_path
         .realpath(&self.cache.fs)
         .await
         .map(|path| {
-          ctx.add_file_dependency(path.as_path());
+          ctx.add_file_dependency(&path);
           path
         })
         .map_err(ResolveError::from)
     } else {
-      Ok(cached_path.to_path_buf())
+      Ok(cached_path.to_ustr_path())
     }
   }
 

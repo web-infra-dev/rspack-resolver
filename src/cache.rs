@@ -158,7 +158,7 @@ pub struct CachedPathImpl {
   path: Box<Utf8Path>,
   parent: Option<CachedPath>,
   meta: OnceLock<Option<FileMetadata>>,
-  canonicalized: OnceLock<Option<Utf8PathBuf>>,
+  canonicalized: OnceLock<Option<UstrPath>>,
   node_modules: OnceLock<Option<CachedPath>>,
   package_json: OnceLock<Option<Arc<PackageJson>>>,
   /// Memoized interned form of `self.path`. Without it every `is_file` /
@@ -259,11 +259,12 @@ impl CachedPathImpl {
     )
   }
 
-  pub async fn realpath<Fs: FileSystem + Send + Sync>(&self, fs: &Fs) -> io::Result<Utf8PathBuf> {
+  pub async fn realpath<Fs: FileSystem + Send + Sync>(&self, fs: &Fs) -> io::Result<UstrPath> {
     // Cache hit: avoid the heap-allocated `Box::pin` for the cache-miss state machine
-    // by returning before delegating to the boxed recursive helper.
+    // by returning before delegating to the boxed recursive helper. Both arms are now
+    // a `Copy` — neither allocates.
     if let Some(cached) = self.canonicalized.get() {
-      return Ok(cached.clone().unwrap_or_else(|| self.path.to_path_buf()));
+      return Ok(cached.unwrap_or_else(|| self.dep_path()));
     }
     self.realpath_uncached(fs).await
   }
@@ -271,7 +272,7 @@ impl CachedPathImpl {
   fn realpath_uncached<'a, Fs: FileSystem + Send + Sync>(
     &'a self,
     fs: &'a Fs,
-  ) -> BoxFuture<'a, io::Result<Utf8PathBuf>> {
+  ) -> BoxFuture<'a, io::Result<UstrPath>> {
     Box::pin(async move {
       self
         .canonicalized
@@ -284,10 +285,12 @@ impl CachedPathImpl {
             return fs
               .canonicalize(self.path.as_std_path())
               .await
-              .map(|path| Some(Utf8PathBuf::from_path_buf(path).expect("path should be UTF-8")));
+              .map(|path| Some(path.to_ustr_path()));
           }
           if let Some(parent) = self.parent() {
-            let mut real_path = parent.realpath(fs).await?;
+            // Reuse the parent's realpath as a mutable buffer for the final
+            // component instead of rebuilding the whole path.
+            let mut real_path = parent.realpath(fs).await?.to_path_buf();
             // Unnormalized paths (e.g. from alias values or absolute specifiers) can
             // end in `..`, where `file_name()` returns `None` and would silently drop
             // the component; POSIX semantics pop it after the parent is resolved.
@@ -298,13 +301,13 @@ impl CachedPathImpl {
               }
               _ => {}
             }
-            return Ok(Some(real_path));
+            return Ok(Some(real_path.to_ustr_path()));
           }
           Ok(None)
         })
         .await
-        .cloned()
-        .map(|r| r.unwrap_or_else(|| self.path.to_path_buf()))
+        .copied()
+        .map(|r| r.unwrap_or_else(|| self.dep_path()))
     })
   }
 

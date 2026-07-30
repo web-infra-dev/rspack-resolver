@@ -4,14 +4,12 @@ use std::{
   sync::Arc,
 };
 
-use camino::Utf8PathBuf;
-
-use crate::package_json::PackageJson;
+use crate::{package_json::PackageJson, ustr_path::UstrPath};
 
 /// The final path resolution with optional `?query` and `#fragment`
 #[derive(Clone)]
 pub struct Resolution {
-  pub(crate) path: Utf8PathBuf,
+  pub(crate) path: UstrPath,
 
   /// path query `?query`, contains `?`.
   pub(crate) query: Option<String>,
@@ -46,9 +44,17 @@ impl Resolution {
     self.path.as_std_path()
   }
 
+  /// Returns the interned path without query and fragment.
+  ///
+  /// Zero-copy: hand this to a downstream store instead of `path()` to avoid
+  /// re-allocating and re-hashing the string.
+  pub fn ustr_path(&self) -> UstrPath {
+    self.path
+  }
+
   /// Returns the path without query and fragment
   pub fn into_path_buf(self) -> PathBuf {
-    self.path.into_std_path_buf()
+    self.path.as_std_path().to_path_buf()
   }
 
   /// Returns the path query `?query`, contains the leading `?`
@@ -68,7 +74,7 @@ impl Resolution {
 
   /// Returns the full path with query and fragment
   pub fn full_path(&self) -> PathBuf {
-    let mut path = self.path.clone().into_string();
+    let mut path = self.path.as_str().to_owned();
     if let Some(query) = &self.query {
       path.push_str(query);
     }
@@ -91,5 +97,23 @@ async fn test() {
   assert_eq!(resolution.query(), Some("?query"));
   assert_eq!(resolution.fragment(), Some("#fragment"));
   assert_eq!(resolution.full_path(), PathBuf::from("foo?query#fragment"));
+  assert_eq!(resolution.into_path_buf(), PathBuf::from("foo"));
+}
+
+#[tokio::test]
+async fn ustr_path_accessor_is_the_same_pointer_as_the_stored_path() {
+  let resolution = Resolution {
+    path: "foo".into(),
+    query: None,
+    fragment: None,
+    package_json: None,
+  };
+  assert_eq!(resolution.ustr_path().as_str(), "foo");
+  assert_eq!(
+    resolution.ustr_path().as_str().as_ptr(),
+    UstrPath::new("foo").as_str().as_ptr()
+  );
+  // The legacy accessors keep their signatures.
+  assert_eq!(resolution.path(), Path::new("foo"));
   assert_eq!(resolution.into_path_buf(), PathBuf::from("foo"));
 }
