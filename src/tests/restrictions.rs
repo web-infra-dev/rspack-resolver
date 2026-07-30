@@ -142,7 +142,7 @@ async fn should_try_to_find_alternative_4() {
 /// Ported from enhanced-resolve `restrictions > path boundaries`
 /// <https://github.com/webpack/enhanced-resolve/commit/d8693b6>
 ///
-/// `MemoryFS` always separates with `/`, so these run off windows only.
+/// `MemoryFS` always separates with `/`, so these run on non-Windows only.
 #[cfg(not(target_os = "windows"))]
 mod path_boundaries {
   use std::path::PathBuf;
