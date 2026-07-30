@@ -157,6 +157,15 @@ impl UstrPath {
   }
 }
 
+impl Default for UstrPath {
+  /// The empty path. `Ustr::default()` interns `""`, so this is a handle to a
+  /// real interned entry rather than a dangling one.
+  #[inline]
+  fn default() -> Self {
+    Self(Ustr::default())
+  }
+}
+
 impl Hash for UstrPath {
   #[inline]
   fn hash<H: Hasher>(&self, state: &mut H) {
@@ -307,6 +316,11 @@ mod tests {
   use camino::Utf8Path;
 
   use super::*;
+
+  #[test]
+  fn default_is_the_empty_path() {
+    assert_eq!(UstrPath::default().as_str(), "");
+  }
 
   #[test]
   fn same_string_is_same_pointer() {

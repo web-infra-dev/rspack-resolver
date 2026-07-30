@@ -1184,8 +1184,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       // 5. let MATCH = PACKAGE_EXPORTS_RESOLVE(pathToFileURL(SCOPE),
       // "." + X.slice("name".length), `package.json` "exports", ["node", "require"])
       // defined in the ESM resolver.
-      let package_url =
-        Utf8Path::from_path(package_json.directory()).expect("path should be UTF-8");
+      let package_url = package_json.directory();
       // Note: The subpath is not prepended with a dot on purpose
       // because `package_exports_resolve` matches subpath without the leading dot.
       for exports in package_json.exports_fields(&self.options.exports_fields) {
@@ -1286,9 +1285,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     }
     ctx.with_resolving_alias(new_specifier.to_string());
     ctx.with_fully_specified(false);
-    let cached_path = self
-      .cache
-      .value(Utf8Path::from_path(package_json.directory()).expect("path should be UTF-8"));
+    let cached_path = self.cache.value(package_json.directory());
     self
       .require(&cached_path, new_specifier, ctx)
       .await
@@ -1938,7 +1935,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         if specifier == "#" {
           return Err(ResolveError::InvalidModuleSpecifier(
             specifier.to_string(),
-            package_json.path.clone(),
+            package_json.path.as_std_path().to_path_buf(),
           ));
         }
       }
@@ -1946,7 +1943,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         .package_imports_exports_resolve(
           specifier,
           imports,
-          Utf8Path::from_path(package_json.directory()).expect("path should be UTF-8"),
+          package_json.directory(),
           /* is_imports */ true,
           &self.options.condition_names,
           ctx,
@@ -1962,7 +1959,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     if has_imports {
       Err(ResolveError::PackageImportNotDefined(
         specifier.to_string(),
-        package_json.path.clone(),
+        package_json.path.as_std_path().to_path_buf(),
       ))
     } else {
       Ok(None)

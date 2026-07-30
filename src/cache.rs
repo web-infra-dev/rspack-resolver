@@ -405,13 +405,13 @@ impl CachedPathImpl {
           return Ok(None);
         };
         let real_path = if options.symlinks {
-          self.realpath(fs).await?.join("package.json")
+          self.realpath(fs).await?.join("package.json").to_ustr_path()
         } else {
-          package_json_path.clone()
+          package_json_path.to_ustr_path()
         };
         match PackageJson::parse(
-          package_json_path.clone().into(),
-          real_path.into(),
+          package_json_path.to_ustr_path(),
+          real_path,
           package_json_string,
         ) {
           Ok(v) => Ok(Some(Arc::new(v))),
@@ -428,7 +428,7 @@ impl CachedPathImpl {
 
             if let Some(err) = serde_err {
               Err(ResolveError::from_serde_json_error(
-                package_json_path.into(),
+                package_json_path.as_std_path().to_path_buf(),
                 &err,
                 Some(package_json_string),
               ))
@@ -436,7 +436,7 @@ impl CachedPathImpl {
               let (line, column) = off_to_location(&package_json_string, parse_err.index());
 
               Err(ResolveError::JSON(JSONError {
-                path: package_json_path.into(),
+                path: package_json_path.as_std_path().to_path_buf(),
                 message: parse_err.error().to_string(),
                 line,
                 column,

@@ -5,7 +5,6 @@
 use std::{
   fmt::{Debug, Formatter},
   marker::PhantomData,
-  path::{Path, PathBuf},
 };
 
 use camino::Utf8Path;
@@ -17,7 +16,7 @@ use simd_json::{
   to_borrowed_value, BorrowedValue, Error as SimdParseError, ObjectHasher,
 };
 
-use crate::{path::PathUtil, ResolveError};
+use crate::{path::PathUtil, ResolveError, UstrPath};
 
 pub type JSONMap<'a> = simd_json::borrowed::Object<'a>;
 
@@ -135,10 +134,10 @@ impl Default for JSONCell {
 #[derive(Debug, Default)]
 pub struct PackageJson {
   /// Path to `package.json`. Contains the `package.json` filename.
-  pub path: PathBuf,
+  pub path: UstrPath,
 
   /// Realpath to `package.json`. Contains the `package.json` filename.
-  pub realpath: PathBuf,
+  pub realpath: UstrPath,
 
   /// The "name" field defines your package's name.
   /// The "name" field can be used in addition to the "exports" field to self-reference a package using its name.
@@ -190,7 +189,11 @@ impl From<SimdParseError> for ParseError {
 impl PackageJson {
   /// # Panics
   /// # Errors
-  pub(crate) fn parse(path: PathBuf, realpath: PathBuf, json: Vec<u8>) -> Result<Self, ParseError> {
+  pub(crate) fn parse(
+    path: UstrPath,
+    realpath: UstrPath,
+    json: Vec<u8>,
+  ) -> Result<Self, ParseError> {
     if json.starts_with(&BOM) {
       return Err(ParseError {
         message: "BOM character found".to_string(),
@@ -276,7 +279,7 @@ impl PackageJson {
   /// # Panics
   ///
   /// * When the package.json path is misconfigured.
-  pub fn directory(&self) -> &Path {
+  pub fn directory(&self) -> &Utf8Path {
     debug_assert!(self
       .realpath
       .file_name()
@@ -373,7 +376,7 @@ impl PackageJson {
           return Self::alias_value(path, value);
         }
       } else {
-        let dir = Utf8Path::from_path(self.path.parent().unwrap()).expect("path should be UTF-8");
+        let dir = self.path.parent().unwrap();
         for (key, value) in object {
           let joined = dir.normalize_with(key.to_string());
           if joined == path {

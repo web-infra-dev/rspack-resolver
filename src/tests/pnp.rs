@@ -150,12 +150,7 @@ async fn pnp_resolve_description_file() {
   let r = resolver.resolve(&fixture, &full_path).await.unwrap();
 
   assert_eq!(
-    r.package_json
-      .unwrap()
-      .path
-      .to_str()
-      .expect("path should be UTF-8")
-      .to_string(),
+    r.package_json.unwrap().path.as_str().to_string(),
     Utf8Path::from_path(&fixture)
       .expect("path should be UTF-8")
       .join(".yarn/cache/preact-npm-10.25.4-2dd2c0aa44-33a009d614.zip/node_modules/preact")
