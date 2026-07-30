@@ -226,14 +226,3 @@ jobs:
             git status --short
             exit 1
           fi
-
-  napi-deps-check:
-    name: napi deps check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
-      - uses: ./.github/actions/pnpm
-      - name: Regenerate npm dirs and verify lockfile stays frozen
-        run: |
-          pnpm napi create-npm-dirs --package-json-path npm/package.json --npm-dir bindings
-          pnpm install --frozen-lockfile

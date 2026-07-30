@@ -103,8 +103,8 @@ jobs:
 
       - name: Move artifacts
         run: |
-          pnpm napi create-npm-dirs --package-json-path npm/package.json --npm-dir bindings
-          pnpm napi artifacts       --package-json-path npm/package.json --npm-dir bindings --build-output-dir napi
+          pnpm napi version   --package-json-path npm/package.json --npm-dir bindings
+          pnpm napi artifacts --package-json-path npm/package.json --npm-dir bindings --build-output-dir napi
 
       - name: Show binding packages
         run: ls -R bindings
