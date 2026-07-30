@@ -4,3 +4,5 @@ packages:
   - "fixtures/pnpm"
   - "fixtures/pnpm-workspace/**"
   - "bindings/**"
+catalog:
+  "@napi-rs/wasm-runtime": "1.1.6"
