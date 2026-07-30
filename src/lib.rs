@@ -770,7 +770,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     for restriction in &self.options.restrictions {
       match restriction {
         Restriction::Path(restricted_path) => {
-          if restricted_path.as_os_str().is_empty() || !path.starts_with(restricted_path) {
+          if !path.starts_with(restricted_path) {
             return false;
           }
         }

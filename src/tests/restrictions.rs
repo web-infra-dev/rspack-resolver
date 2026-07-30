@@ -198,13 +198,14 @@ mod path_boundaries {
   }
 
   #[tokio::test]
-  async fn empty_restriction() {
-    assert!(!resolves("", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
+  async fn empty_restriction_matches_every_path() {
+    assert!(resolves("", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
   }
 
   #[tokio::test]
-  async fn restriction_collapsing_to_nothing() {
+  async fn relative_restriction_matches_no_absolute_path() {
     assert!(!resolves(".", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
+    assert!(!resolves("..", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
     assert!(!resolves("foo/..", "/a/b/c", "./index.js", "/a/b/c/index.js").await);
   }
 

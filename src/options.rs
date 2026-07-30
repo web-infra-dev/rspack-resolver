@@ -400,8 +400,9 @@ impl ResolveOptions {
     }
     for restriction in &mut self.restrictions {
       if let Restriction::Path(path) = restriction {
-        if let Some(path_utf8) = Utf8Path::from_path(path) {
-          *path = path_utf8.normalize().into_std_path_buf();
+        let normalized = Utf8Path::from_path(path).map(PathUtil::normalize);
+        if let Some(normalized) = normalized.filter(|p| !p.as_str().is_empty()) {
+          *path = normalized.into_std_path_buf();
         }
       }
     }
