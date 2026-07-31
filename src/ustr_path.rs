@@ -30,6 +30,10 @@ use ustr::Ustr;
 #[repr(transparent)]
 pub struct UstrPath(Ustr);
 
+#[cfg_attr(
+  not(test),
+  expect(dead_code, reason = "only used by the currently unwired normalizer")
+)]
 #[inline]
 const fn is_sep(c: u8) -> bool {
   c == b'/' || c == b'\\'
@@ -54,14 +58,17 @@ const fn is_sep(c: u8) -> bool {
 /// Platform-independent on purpose. camino's `Utf8Path::components()` picks its
 /// separator set at compile time, so it cannot express Windows semantics on a
 /// unix host — this would otherwise be untestable off Windows.
-// Referenced by `UstrPath::new` only on Windows, but compiled and tested
-// everywhere so the normalization rules stay verifiable on a unix host. Also
-// excluded under `cfg(test)`: the test module below calls it directly, so on
-// a non-Windows test build it is not actually dead and the expectation would
-// go unfulfilled.
+// NOT CURRENTLY WIRED UP. `UstrPath::new` used to call this on Windows, but
+// `UstrPath` also carries strings that are not canonical filesystem paths —
+// rspack stores caller-supplied dependency specifiers such as
+// `addBuildDependency("./build.txt")` in path sets — and rewriting those
+// changed values observable through the public JS API (`./build.txt` came back
+// as `.\build.txt`). Correctness of the stored string wins over dedup for now;
+// the function and its tests are kept so re-enabling it behind a separate
+// canonicalizing constructor stays cheap.
 #[cfg_attr(
-  not(any(windows, test)),
-  expect(dead_code, reason = "windows-only caller; tested on all platforms")
+  not(test),
+  expect(dead_code, reason = "kept for reference; see comment above")
 )]
 fn normalize_windows_separators(s: &str) -> Option<String> {
   let bytes = s.as_bytes();
@@ -118,18 +125,14 @@ fn normalize_windows_separators(s: &str) -> Option<String> {
 }
 
 impl UstrPath {
-  /// Intern `path` and return a handle to it.
+  /// Intern `path` verbatim and return a handle to it.
   ///
-  /// On Windows the path is first rewritten into canonical form so that every
-  /// spelling of the same path (`C:/a/b`, `C:\a\b`, `C:\a\\b`, `C:\a\b\`)
-  /// interns to one pointer — preserving the dedup semantics `Path`'s
-  /// component-wise `Hash`/`Eq` used to provide.
+  /// The string is stored exactly as given. On Windows this means distinct
+  /// spellings of one path (`C:/a/b` vs `C:\a\b`) intern to distinct handles,
+  /// so they compare unequal where `Path`'s component-wise `Hash`/`Eq` would
+  /// have folded them — see the note on `normalize_windows_separators`.
   #[inline]
   pub fn new(path: &str) -> Self {
-    #[cfg(windows)]
-    if let Some(normalized) = normalize_windows_separators(path) {
-      return Self(Ustr::from(&normalized));
-    }
     Self(Ustr::from(path))
   }
 
