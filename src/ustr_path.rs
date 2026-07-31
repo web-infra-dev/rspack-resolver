@@ -7,6 +7,8 @@ use std::{
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
+#[cfg(windows)]
+use rustc_hash::FxHasher;
 use ustr::Ustr;
 
 /// A globally interned UTF-8 path.
@@ -15,9 +17,14 @@ use ustr::Ustr;
 /// once process-wide, so the same path handed to many consumers costs one
 /// pointer each instead of one heap allocation each.
 ///
-/// Equality degenerates to a pointer comparison (interning guarantees one
-/// pointer per string) and hashing to a single `u64` load from the interner
+/// On unix, equality degenerates to a pointer comparison (interning guarantees
+/// one pointer per string) and hashing to a single `u64` load from the interner
 /// entry header, so `UstrPathSet` lookups cost one `write_u64`.
+///
+/// On Windows both fall back to `Path`'s component semantics when the pointers
+/// differ, so the spellings `Path` treats as one path stay one key. Paths are
+/// stored verbatim, so that folding lives in the comparison rather than in what
+/// gets interned.
 ///
 /// The interner is shared with rspack — both crates depend on the same
 /// `ustr-fxhash` version, hence the same static — so a path interned here is
@@ -26,14 +33,10 @@ use ustr::Ustr;
 /// # Lifetime
 ///
 /// Interned strings are **never freed**. See `CLAUDE_USTR_PATH_DESIGN.md` §4.3.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct UstrPath(Ustr);
 
-#[cfg_attr(
-  not(test),
-  expect(dead_code, reason = "only used by the currently unwired normalizer")
-)]
 #[inline]
 const fn is_sep(c: u8) -> bool {
   c == b'/' || c == b'\\'
@@ -127,10 +130,15 @@ fn normalize_windows_separators(s: &str) -> Option<String> {
 impl UstrPath {
   /// Intern `path` verbatim and return a handle to it.
   ///
-  /// The string is stored exactly as given. On Windows this means distinct
-  /// spellings of one path (`C:/a/b` vs `C:\a\b`) intern to distinct handles,
-  /// so they compare unequal where `Path`'s component-wise `Hash`/`Eq` would
-  /// have folded them — see the note on `normalize_windows_separators`.
+  /// The string is stored exactly as given — rspack puts caller-supplied
+  /// specifiers such as `addBuildDependency("./build.txt")` into path sets and
+  /// reads them back through the JS API, so rewriting them here would change
+  /// observable values. See the note on `normalize_windows_separators`.
+  ///
+  /// On Windows this means distinct spellings of one path (`C:/a/b` vs
+  /// `C:\a\b`) intern to distinct handles. They still compare and hash equal —
+  /// `PartialEq`/`Hash` fold them via `Path`'s component semantics rather than
+  /// the stored bytes — so using them as set or map keys still dedups.
   #[inline]
   pub fn new(path: &str) -> Self {
     Self(Ustr::from(path))
@@ -169,10 +177,56 @@ impl Default for UstrPath {
   }
 }
 
+impl PartialEq for UstrPath {
+  /// Interning makes the pointer check exhaustive for byte-identical strings,
+  /// which on unix is the whole story — `hash_utf8_path` has always compared
+  /// resolver paths byte-wise there.
+  ///
+  /// Windows additionally folds spellings: `Path`'s `Eq` walks components, so
+  /// `C:/a/b`, `C:\a\b`, `C:\a\\b`, `C:\a\b\` and `c:\a\b` are all one path.
+  /// Since [`UstrPath::new`] stores the string verbatim, those spellings are
+  /// distinct handles, and only the component walk can tell they are equal.
+  #[inline]
+  fn eq(&self, other: &Self) -> bool {
+    if self.0 == other.0 {
+      return true;
+    }
+    #[cfg(windows)]
+    {
+      self.as_std_path() == other.as_std_path()
+    }
+    #[cfg(not(windows))]
+    {
+      false
+    }
+  }
+}
+
+impl Eq for UstrPath {}
+
 impl Hash for UstrPath {
+  /// Kept in lockstep with [`PartialEq`] so `a == b` implies equal hashes.
+  ///
+  /// Both branches end in a single `write_u64`. That is load-bearing, not
+  /// stylistic: `UstrPathSet` is keyed by `ustr::IdentityHasher`, whose `write`
+  /// only reads a value when handed exactly 8 bytes and **silently yields 0**
+  /// otherwise. Forwarding `Path::hash` directly would feed it component-sized
+  /// writes, collapsing every key into bucket 0 without any error.
   #[inline]
   fn hash<H: Hasher>(&self, state: &mut H) {
-    state.write_u64(self.0.precomputed_hash());
+    #[cfg(windows)]
+    {
+      // Fold the component walk down to one u64 first. Unlike unix, this
+      // cannot reuse the interner's precomputed byte hash: two spellings that
+      // compare equal must hash equally, and their bytes differ.
+      let mut hasher = FxHasher::default();
+      self.as_std_path().hash(&mut hasher);
+      state.write_u64(hasher.finish());
+    }
+    #[cfg(not(windows))]
+    {
+      state.write_u64(self.0.precomputed_hash());
+    }
   }
 }
 
@@ -348,6 +402,72 @@ mod tests {
   #[test]
   fn different_strings_are_not_equal() {
     assert_ne!(UstrPath::new("/a/b"), UstrPath::new("/a/c"));
+  }
+
+  /// `UstrPathSet` is keyed by `ustr::IdentityHasher`, so this is the hash that
+  /// actually decides bucketing. Folding it through that hasher — rather than a
+  /// generic one — is what proves `Hash` still delivers exactly 8 bytes: the
+  /// identity hasher silently yields 0 for any other width.
+  fn set_hash(p: UstrPath) -> u64 {
+    let mut hasher = ustr::IdentityHasher::default();
+    p.hash(&mut hasher);
+    hasher.finish()
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn windows_spellings_of_one_path_are_equal_and_hash_alike() {
+    // Stored verbatim, so these are genuinely distinct interned handles —
+    // the folding has to come from `PartialEq`/`Hash`, not from interning.
+    let canonical = UstrPath::new(r"C:\a\b");
+    for spelling in ["C:/a/b", r"C:/a\b", r"C:\a\\b", r"C:\a\b\", r"c:\a\b"] {
+      let p = UstrPath::new(spelling);
+      assert_ne!(
+        p.as_str(),
+        canonical.as_str(),
+        "{spelling:?} must be stored verbatim, not rewritten"
+      );
+      assert_eq!(p, canonical, "{spelling:?} should compare equal");
+      assert_eq!(
+        set_hash(p),
+        set_hash(canonical),
+        "{spelling:?} hashes differently, which would break set bucketing"
+      );
+    }
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn windows_distinct_paths_stay_distinct() {
+    assert_ne!(UstrPath::new(r"C:\a\b"), UstrPath::new(r"C:\a\c"));
+    assert_ne!(UstrPath::new(r"C:\a\b"), UstrPath::new(r"D:\a\b"));
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn windows_equal_paths_are_one_key_in_a_set() {
+    let mut set: UstrPathSet = HashSet::default();
+    set.insert(UstrPath::new(r"C:\a\b"));
+    assert!(set.contains(&UstrPath::new("C:/a/b")));
+    assert!(set.contains(&UstrPath::new(r"c:\a\b")));
+    set.insert(UstrPath::new("C:/a/b"));
+    assert_eq!(set.len(), 1, "equal spellings must collapse to one entry");
+  }
+
+  #[test]
+  fn hash_delivers_eight_bytes_to_the_identity_hasher() {
+    // Guards both branches of `Hash`: a regression that forwarded
+    // `Path::hash` straight through would write component-sized chunks, and
+    // `IdentityHasher` would silently return 0 rather than fail.
+    assert_ne!(set_hash(UstrPath::new("/some/long/path/segment.js")), 0);
+  }
+
+  #[test]
+  fn equal_paths_always_hash_equal() {
+    let a = UstrPath::new("/a/b");
+    let b = UstrPath::new("/a/b");
+    assert_eq!(a, b);
+    assert_eq!(set_hash(a), set_hash(b));
   }
 
   #[test]
