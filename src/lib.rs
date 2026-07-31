@@ -295,6 +295,9 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       .value(Utf8Path::from_path(path).expect("path should be UTF-8"));
     let cached_path = self.require(&cached_path, specifier, ctx).await?;
     let path = self.load_realpath(&cached_path, ctx).await?;
+    if !self.options.restrictions.is_empty() && !self.check_restrictions(&path.normalize()) {
+      return Err(ResolveError::NotFound(specifier.to_string()));
+    }
 
     let package_json = cached_path
       .find_package_json(&self.cache.fs, &self.options, ctx)
