@@ -312,7 +312,12 @@ mod escaping_the_restriction {
     _ = fs::remove_dir_all(&root);
     fs::create_dir_all(root.join("allowed")).ok()?;
     fs::create_dir_all(root.join("outside")).ok()?;
-    let root = root.canonicalize().ok()?;
+    // `/var` is a symlink on macOS, so the restriction has to name the real
+    // directory. Windows answers with a `\\?\` path, where `join` collapses the
+    // `..` these tests are about and the resolver cannot take it as a specifier.
+    let canonical = root.canonicalize().ok()?;
+    let canonical = canonical.to_str()?;
+    let root = PathBuf::from(canonical.strip_prefix(r"\\?\").unwrap_or(canonical));
     fs::write(root.join("outside/secret.js"), "").ok()?;
     fs::write(root.join("allowed/real.js"), "").ok()?;
     symlink(root.join("outside/secret.js"), root.join("allowed/link.js")).ok()?;
