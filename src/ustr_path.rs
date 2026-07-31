@@ -378,9 +378,15 @@ mod tests {
 
   #[test]
   fn debug_prints_the_path_not_the_ustr_wrapper() {
+    // The point of this test is that `Debug`/`Display` render the path rather
+    // than `Ustr`'s own `u!("...")` wrapper. The separator is incidental — on
+    // Windows `UstrPath::new` canonicalizes `/a/b` to `\a\b`, so the expected
+    // text has to follow the platform or the assertion tests normalization by
+    // accident instead of formatting.
+    let canonical = if cfg!(windows) { r"\a\b" } else { "/a/b" };
     let p = UstrPath::new("/a/b");
-    assert_eq!(format!("{p:?}"), "\"/a/b\"");
-    assert_eq!(format!("{p}"), "/a/b");
+    assert_eq!(format!("{p:?}"), format!("{canonical:?}"));
+    assert_eq!(format!("{p}"), canonical);
   }
 
   #[test]

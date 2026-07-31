@@ -580,8 +580,24 @@ mod tests {
     let cache = Cache::new(FileSystemOs::default());
     let cached = cache.value(Utf8Path::new("/a/b"));
 
-    assert_eq!(cached.node_modules_dep_path().as_str(), "/a/b/node_modules");
-    assert_eq!(cached.package_json_dep_path().as_str(), "/a/b/package.json");
+    // Spelled out per platform rather than rebuilt with `join().to_ustr_path()`
+    // — deriving the expectation the same way the code does would only prove
+    // the memo agrees with itself. On Windows `UstrPath::new` canonicalizes
+    // separators to `\`, so a bare `"/a/b/node_modules"` literal fails there
+    // while the code is behaving exactly as designed.
+    let (expected_node_modules, expected_package_json) = if cfg!(windows) {
+      (r"\a\b\node_modules", r"\a\b\package.json")
+    } else {
+      ("/a/b/node_modules", "/a/b/package.json")
+    };
+    assert_eq!(
+      cached.node_modules_dep_path().as_str(),
+      expected_node_modules
+    );
+    assert_eq!(
+      cached.package_json_dep_path().as_str(),
+      expected_package_json
+    );
 
     assert!(cached.node_modules_dep_path.get().is_some());
     assert!(cached.package_json_dep_path.get().is_some());
