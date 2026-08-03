@@ -15,17 +15,26 @@
 //!
 //! # Concurrency
 //!
-//! Every mutation that can drive a refcount to zero, and every mutation that
-//! could raise one back from zero, happens while holding that entry's shard
-//! lock. [`Interned::clone`] is the one unlocked mutation, and it can do
-//! neither: its caller holds a handle, so the count it increments is at least
-//! one. Two consequences fall out, and they are what make the design safe
-//! without a resurrection protocol:
+//! Refcount changes are lock-free; only the table is locked. [`intern`] holds
+//! the shard lock while it looks up and increments, and a freed entry leaves
+//! the table under that same lock, so the two never overlap. Both
+//! [`Interned::clone`] and [`Interned::drop`] touch the count without any lock.
 //!
-//! - A count reaching zero means the dropping thread held the last handle, so
-//!   no concurrent `clone` of that entry is possible.
-//! - A concurrent [`intern`] of the same string needs the shard lock the
-//!   dropping thread is holding, so it cannot observe a dying entry.
+//! Dropping to zero is therefore a *claim* on the entry, not ownership of it.
+//! Between that decrement and the shard lock, two things can happen, and the
+//! drop path checks for both before freeing:
+//!
+//! - **Resurrection.** An `intern` of the same string finds the entry and
+//!   increments it back. The count then names exactly the handles that exist,
+//!   so the dropper simply walks away — hence the `count != 0` re-check under
+//!   the lock.
+//! - **A second claim.** The resurrected handle is itself dropped to zero, and
+//!   two threads now believe they must free. Removal happens under the lock, so
+//!   the loser finds the entry already absent — hence the lookup by address,
+//!   which must not dereference, before anything else.
+//!
+//! `clone` needs neither check: its caller holds a handle, so the count it
+//! increments is at least one and cannot be a resurrection.
 
 use std::{
   alloc::{self, Layout},
@@ -245,11 +254,15 @@ pub fn live_entries() -> usize {
 pub fn intern(s: &str, hash: u64) -> Interned {
   let mut table = shard(hash);
   if let Some(&EntryPtr(ptr)) = table.find(hash, |&EntryPtr(entry)| {
-    // SAFETY: entries stay in the table only while live.
+    // SAFETY: an entry is removed from the table before it is freed, and both
+    // happen under this lock, so everything reachable here is alive.
     unsafe { Entry::str(entry) == s }
   }) {
-    // Under the shard lock, so this cannot race a drop that is freeing it.
-    // SAFETY: the entry is live and in the table.
+    // The old value may be 0 — a dropper claimed this entry and is waiting for
+    // the lock. Resurrecting it is exactly right: it will see a non-zero count
+    // and leave the entry alone. Relaxed is enough because the lock we hold
+    // orders this against that check.
+    // SAFETY: the entry is in the table, so it is alive.
     unsafe { ptr.as_ref() }
       .count
       .fetch_add(1, Ordering::Relaxed);
@@ -257,7 +270,7 @@ pub fn intern(s: &str, hash: u64) -> Interned {
   }
   let ptr = Entry::alloc(s, hash);
   table.insert_unique(hash, EntryPtr(ptr), |&EntryPtr(entry)| {
-    // SAFETY: entries stay in the table only while live.
+    // SAFETY: reachable table entries are alive (see above).
     unsafe { entry.as_ref() }.hash
   });
   // The handle already owns the entry's first reference, so releasing the
@@ -281,26 +294,43 @@ impl Clone for Interned {
 
 impl Drop for Interned {
   fn drop(&mut self) {
+    // Read the hash while we still own a reference. Past the decrement below,
+    // `self.ptr` is only an address — dereferencing it is unsound until the
+    // shard lock re-establishes that the entry is still alive.
     let hash = self.hash();
-    // Taking the shard lock before the decrement is what removes the need for
-    // a resurrection protocol: an entry can only reach zero, and only be found
-    // again, under this lock.
-    let mut table = shard(hash);
     // SAFETY: `self` still holds a reference, so the entry is live.
     if unsafe { self.ptr.as_ref() }
       .count
       .fetch_sub(1, Ordering::AcqRel)
       != 1
     {
+      // The overwhelming majority of drops land here — a temporary handle
+      // going away while the cache still holds the path. Keeping this path
+      // lock-free is what stops the shards from serializing resolver threads.
       return;
     }
-    table
-      .find_entry(hash, |&EntryPtr(entry)| entry == self.ptr)
-      .expect("a live interned entry is always in its shard")
-      .remove();
+    let mut table = shard(hash);
+    // Address comparison only: a concurrent dropper may already have freed
+    // this entry, so it must not be dereferenced before it is found.
+    let Ok(entry) = table.find_entry(hash, |&EntryPtr(candidate)| candidate == self.ptr) else {
+      // Gone from the table, which only happens after another thread claimed
+      // the free. Nothing left to do — and nothing left to read.
+      return;
+    };
+    // Found under the lock, and entries are freed only after being removed
+    // under this same lock, so the entry is alive again for as long as we hold
+    // it.
+    // SAFETY: as above.
+    if unsafe { self.ptr.as_ref() }.count.load(Ordering::Acquire) != 0 {
+      // Resurrected: an `intern` found this entry between our decrement and
+      // our lock, and now owns it. Leaving it in place is correct — the count
+      // reflects exactly the handles that exist.
+      return;
+    }
+    entry.remove();
     drop(table);
-    // SAFETY: the count reached zero and the entry is out of the table, so no
-    // other handle or lookup can reach it.
+    // SAFETY: zero refcount and out of the table, so no handle can exist and
+    // no lookup can reach it.
     unsafe { Entry::dealloc(self.ptr) }
   }
 }
@@ -395,6 +425,47 @@ mod tests {
       "the freed entry must not have lingered"
     );
     let _ = address;
+  }
+
+  #[test]
+  fn concurrent_zero_crossings_are_sound() {
+    // Aimed squarely at the two windows the lock-free drop path opens:
+    // resurrection, and two threads both claiming the free. Every handle here
+    // is created and dropped immediately over a key space of two, so threads
+    // are almost always racing on an entry that is at or near zero — the state
+    // a version that freed unconditionally after `fetch_sub` would corrupt.
+    //
+    // Reads `as_str()` after the clone specifically so a use-after-free lands
+    // on the string bytes, where ASan or Miri will catch it.
+    let barrier = Arc::new(std::sync::Barrier::new(8));
+    let threads: Vec<_> = (0..8)
+      .map(|_| {
+        let barrier = Arc::clone(&barrier);
+        thread::spawn(move || {
+          barrier.wait();
+          for i in 0..5000 {
+            let key = format!("interner::zero-cross/{}", i % 2);
+            let handle = get(&key);
+            assert_eq!(handle.as_str(), key);
+            drop(handle);
+          }
+        })
+      })
+      .collect();
+    for thread in threads {
+      thread.join().expect("zero-crossing thread panicked");
+    }
+
+    // Every handle above is gone, so nothing may have leaked a live entry.
+    for i in 0..2 {
+      let key = format!("interner::zero-cross/{i}");
+      let fresh = get(&key);
+      assert_eq!(
+        fresh.refcount(),
+        1,
+        "{key} outlived every handle that referenced it"
+      );
+    }
   }
 
   #[test]
