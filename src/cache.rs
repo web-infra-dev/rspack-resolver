@@ -585,24 +585,18 @@ mod tests {
     let cache = Cache::new(FileSystemOs::default());
     let cached = cache.value(Utf8Path::new("/a/b"));
 
-    // Spelled out per platform rather than rebuilt with `join().to_ustr_path()`
-    // — deriving the expectation the same way the code does would only prove
-    // the memo agrees with itself. On Windows `UstrPath::new` canonicalizes
-    // separators to `\`, so a bare `"/a/b/node_modules"` literal fails there
-    // while the code is behaving exactly as designed.
-    let (expected_node_modules, expected_package_json) = if cfg!(windows) {
-      (r"\a\b\node_modules", r"\a\b\package.json")
-    } else {
-      ("/a/b/node_modules", "/a/b/package.json")
-    };
-    assert_eq!(
-      cached.node_modules_dep_path().as_str(),
-      expected_node_modules
-    );
-    assert_eq!(
-      cached.package_json_dep_path().as_str(),
-      expected_package_json
-    );
+    // Assert the structure, not the literal. Paths are interned verbatim, so
+    // the separator here is whatever `Utf8Path::join` picks: on Windows
+    // `/a/b` + `node_modules` is `/a/b\node_modules`, keeping the base's `/`
+    // and appending a `\`. Pinning that string would be testing camino, and
+    // it is exactly what broke this test before. What matters is that the memo
+    // yields `<self.path>/<name>`.
+    let node_modules = cached.node_modules_dep_path();
+    let package_json = cached.package_json_dep_path();
+    assert_eq!(node_modules.file_name(), Some("node_modules"));
+    assert_eq!(package_json.file_name(), Some("package.json"));
+    assert_eq!(node_modules.parent(), Some(Utf8Path::new("/a/b")));
+    assert_eq!(package_json.parent(), Some(Utf8Path::new("/a/b")));
 
     assert!(cached.node_modules_dep_path.get().is_some());
     assert!(cached.package_json_dep_path.get().is_some());

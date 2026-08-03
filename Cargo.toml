@@ -149,6 +149,12 @@ yarn_pnp = ["pnp", "arc-swap"]
 # For remove tracing calls in release build
 enable_instrument = []
 
+# `getrandom` carries no code reference — it exists only to turn on the
+# `wasm_js` backend feature for wasm32-unknown-unknown, so cargo-shear cannot
+# see it being used.
+[package.metadata.cargo-shear]
+ignored = ["getrandom"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
