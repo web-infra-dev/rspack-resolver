@@ -101,8 +101,5 @@ async fn report_interner_memory_usage() {
       .expect("should resolve");
   }
 
-  eprintln!(
-    "interner: {} live entries",
-    internment::ArcIntern::<str>::num_objects_interned()
-  );
+  eprintln!("interner: {} live entries", crate::interner::live_entries());
 }

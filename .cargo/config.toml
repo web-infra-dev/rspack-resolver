@@ -1,5 +1,0 @@
-# Names the getrandom backend for wasm32-unknown-unknown. Required alongside
-# the `wasm_js` feature (the feature alone is not enough). Scoped to that one
-# target, which this repo only builds as a CI check.
-[target.wasm32-unknown-unknown]
-rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

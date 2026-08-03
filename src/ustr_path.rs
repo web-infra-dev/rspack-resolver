@@ -7,25 +7,25 @@ use std::{
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
-use internment::ArcIntern;
 use rustc_hash::FxHasher;
+
+use crate::interner::{self, Interned};
 
 /// A globally interned UTF-8 path.
 ///
-/// 16 bytes: a refcounted handle into a process-wide interner, plus the
-/// precomputed hash. Every distinct path string is stored once no matter how
-/// many consumers hold it.
+/// One pointer wide. Every distinct path string is stored once no matter how
+/// many consumers hold it, so the same path handed to N downstream stores
+/// costs N pointers rather than N copies.
 ///
 /// Equality is a pointer comparison whenever the strings are byte-identical,
-/// and hashing is a single `u64` load, so `UstrPathSet` lookups cost one
-/// `write_u64`. On Windows, spellings that differ only in separators or drive
-/// case are distinct allocations, so both fall back to `Path`'s component
-/// semantics to keep them one key. Paths are stored verbatim — the folding
-/// lives in the comparison, not in what gets interned.
+/// and hashing is a single `u64` load from the entry header, so `UstrPathSet`
+/// lookups cost one `write_u64`. On Windows, spellings that differ only in
+/// separators or drive case are distinct entries, so both fall back to
+/// `Path`'s component semantics to keep them one key. Paths are stored
+/// verbatim — the folding lives in the comparison, not in what gets interned.
 ///
-/// The interner is shared with rspack: both crates depend on the same
-/// `internment` version, hence the same static, so a path interned here is
-/// already interned there.
+/// The interner is a static inside this crate, so rspack shares it by using
+/// this type rather than by agreeing on a third-party crate version.
 ///
 /// # Lifetime
 ///
@@ -35,16 +35,7 @@ use rustc_hash::FxHasher;
 /// climb monotonically in a dev server. The flip side is that `as_str()`
 /// borrows from `self` rather than being `'static`.
 #[derive(Clone)]
-pub struct UstrPath {
-  inner: ArcIntern<str>,
-  /// Precomputed so set lookups stay a single `write_u64`.
-  ///
-  /// Cannot be derived from `inner`'s address: on Windows two spellings of one
-  /// path are distinct allocations that must hash alike, and an address would
-  /// also be useless to `IdentityHasher` (pointers are aligned, so the low bits
-  /// that pick the bucket are always zero).
-  hash: u64,
-}
+pub struct UstrPath(Interned);
 
 /// Hash a path the way `PartialEq` compares it, so `a == b` implies equal
 /// hashes on every platform.
@@ -166,17 +157,14 @@ impl UstrPath {
   /// the stored bytes — so using them as set or map keys still dedups.
   #[inline]
   pub fn new(path: &str) -> Self {
-    Self {
-      inner: ArcIntern::from(path),
-      hash: hash_path_str(path),
-    }
+    Self(interner::intern(path, hash_path_str(path)))
   }
 
   /// Borrows from `self`, not `'static`: the entry is freed once the last
   /// handle drops.
   #[inline]
   pub fn as_str(&self) -> &str {
-    &self.inner
+    self.0.as_str()
   }
 
   #[inline]
@@ -189,20 +177,21 @@ impl UstrPath {
     Path::new(self.as_str())
   }
 
-  /// The hash used for set and map lookups, computed once at construction.
+  /// The hash used for set and map lookups, computed once at construction and
+  /// read back from the interner entry header.
   ///
   /// Matches [`PartialEq`] per platform: raw bytes on unix, `Path` components
   /// on Windows.
   #[inline]
   pub fn precomputed_hash(&self) -> u64 {
-    self.hash
+    self.0.hash()
   }
 
   /// How many handles currently share this interned string. Test/diagnostic
   /// use — the count is a snapshot and can change concurrently.
   #[cfg(test)]
   pub(crate) fn refcount(&self) -> usize {
-    self.inner.refcount()
+    self.0.refcount()
   }
 }
 
@@ -227,12 +216,13 @@ impl PartialEq for UstrPath {
   /// hashes components on Windows too.
   #[inline]
   fn eq(&self, other: &Self) -> bool {
-    if self.inner == other.inner {
+    if self.0.ptr_eq(&other.0) {
       return true;
     }
     #[cfg(windows)]
     {
-      self.hash == other.hash && self.as_std_path() == other.as_std_path()
+      self.precomputed_hash() == other.precomputed_hash()
+        && self.as_std_path() == other.as_std_path()
     }
     #[cfg(not(windows))]
     {
@@ -253,7 +243,7 @@ impl Hash for UstrPath {
   /// into one bucket with no error.
   #[inline]
   fn hash<H: Hasher>(&self, state: &mut H) {
-    state.write_u64(self.hash);
+    state.write_u64(self.precomputed_hash());
   }
 }
 
@@ -301,9 +291,9 @@ impl fmt::Display for UstrPath {
 
 /// A `HashSet<UstrPath>` keyed by the interner's precomputed hash.
 ///
-/// Uses `ustr::IdentityHasher` rather than the private `IdentityHasher` in
-/// `crate::cache` so rspack's `ArcPathSet` is the same concrete type and can
-/// take these sets by `mem::take` instead of re-bucketing them.
+/// Spelled with [`IdentityHasher`] rather than a set-local hasher so rspack's
+/// `ArcPathSet` is the same concrete type and can take these sets by
+/// `mem::take` instead of re-bucketing every element.
 pub type UstrPathSet = HashSet<UstrPath, BuildHasherDefault<IdentityHasher>>;
 
 /// Passes an already-computed hash straight through.
@@ -440,6 +430,18 @@ mod tests {
     assert_eq!(UstrPath::default().as_str(), "");
   }
 
+  /// The handle must stay one pointer wide. It is stored by the million
+  /// downstream — every dependency set, every `Vec<UstrPath>` — so widening it
+  /// (by caching the hash beside the pointer instead of in the interner entry,
+  /// say) shows up directly as `memcpy` in the resolver benchmarks.
+  #[test]
+  fn the_handle_is_one_pointer_wide() {
+    assert_eq!(
+      std::mem::size_of::<UstrPath>(),
+      std::mem::size_of::<usize>()
+    );
+  }
+
   #[test]
   fn same_string_is_same_pointer() {
     let a = UstrPath::new("/a/b/c.js");
@@ -453,7 +455,7 @@ mod tests {
     assert_ne!(UstrPath::new("/a/b"), UstrPath::new("/a/c"));
   }
 
-  /// `UstrPathSet` is keyed by `ustr::IdentityHasher`, so this is the hash that
+  /// `UstrPathSet` is keyed by [`IdentityHasher`], so this is the hash that
   /// actually decides bucketing. Folding it through that hasher — rather than a
   /// generic one — is what proves `Hash` still delivers exactly 8 bytes: the
   /// identity hasher silently yields 0 for any other width.
@@ -576,7 +578,7 @@ mod tests {
 
   #[test]
   fn identity_hasher_receives_eight_bytes() {
-    // `ustr::IdentityHasher::write` silently produces a 0 hash unless it gets
+    // `IdentityHasher::write` silently produces a 0 hash unless it gets
     // exactly 8 bytes. `UstrPath::hash` goes through the default `write_u64`,
     // which forwards `u64::to_ne_bytes()` — exactly 8. Guard that invariant so
     // a future change to `Hash` cannot silently collapse every key to bucket 0.

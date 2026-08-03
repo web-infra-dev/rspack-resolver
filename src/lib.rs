@@ -53,6 +53,7 @@ mod cache;
 mod context;
 mod error;
 mod file_system;
+mod interner;
 mod options;
 mod package_json;
 mod path;
