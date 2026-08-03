@@ -91,10 +91,13 @@ indexmap            = { version = "2.14.0", features = ["serde"] }
 json-strip-comments = "3.1.1"
 rustc-hash          = { version = "2.1.2", default-features = false, features = ["std"] }
 thiserror           = "2.0.18"
-# Global string interner. MUST stay byte-identical to rspack's workspace
-# declaration — a version split creates a second interner static and silently
-# destroys the "one copy per path" guarantee that `UstrPath` exists for.
-ustr = { package = "ustr-fxhash", version = "1.0.1", default-features = false }
+# Refcounted global string interner. Entries are dropped when the last handle
+# goes away, which is what lets a `Cache::clear()` actually return memory —
+# rspack clears the resolver cache on every rebuild, so a leak-forever interner
+# would make RSS climb monotonically in dev. MUST stay in lockstep with
+# rspack's declaration: a version split creates a second interner and silently
+# destroys the "one copy per path" guarantee this exists for.
+internment = { version = "0.8.6", default-features = false, features = ["arc"] }
 
 pnp = { version = "0.12.9", optional = true }
 
@@ -102,6 +105,14 @@ arc-swap          = { version = "1.9.1", optional = true }
 async-trait       = "0.1.89"
 document-features = { version = "0.2.12", optional = true }
 futures           = "0.3.32"
+
+# `internment`'s arc feature pulls ahash -> getrandom 0.3, which refuses to
+# build for wasm32-unknown-unknown unless a backend is named. That target is a
+# CI sanity check only — the shipped wasm artifact is wasm32-wasip1-threads,
+# which needs none of this — and the dependency exists solely for that target,
+# so native and wasi builds never see wasm-bindgen.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.52.3", default-features = false, features = ["sync", "rt-multi-thread", "macros"] }

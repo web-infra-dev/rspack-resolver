@@ -11,7 +11,8 @@ use crate::{
 };
 
 pub type CompilerOptionsPathsMap = IndexMap<String, Vec<String>, BuildHasherDefault<FxHasher>>;
-pub type FileDependencies = IndexSet<UstrPath, BuildHasherDefault<ustr::IdentityHasher>>;
+pub type FileDependencies =
+  IndexSet<UstrPath, BuildHasherDefault<crate::ustr_path::IdentityHasher>>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -167,7 +168,7 @@ impl TsConfig {
     }
     self
       .file_dependencies
-      .extend(other_config.file_dependencies.iter().copied());
+      .extend(other_config.file_dependencies.iter().cloned());
   }
 
   pub fn resolve(&self, path: &Utf8Path, specifier: &str) -> Vec<Utf8PathBuf> {

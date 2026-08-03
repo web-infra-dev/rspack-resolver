@@ -1511,6 +1511,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     };
     let config_file = self
       .tsconfig_config_file
+      .clone()
       .expect("computed alongside options.tsconfig at construction");
     let tsconfig = self
       .load_tsconfig(
@@ -1640,7 +1641,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
           .await?;
         tsconfig
           .file_dependencies
-          .extend(reference_tsconfig.file_dependencies.iter().copied());
+          .extend(reference_tsconfig.file_dependencies.iter().cloned());
         for nested in &reference_tsconfig.flattened_references {
           if flattened_reference_paths.insert(nested.path.clone()) {
             tsconfig.flattened_references.push(Arc::clone(nested));

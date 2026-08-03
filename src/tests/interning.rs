@@ -102,8 +102,7 @@ async fn report_interner_memory_usage() {
   }
 
   eprintln!(
-    "interner: {} entries, {} bytes allocated",
-    ustr::num_entries(),
-    ustr::total_allocated()
+    "interner: {} live entries",
+    internment::ArcIntern::<str>::num_objects_interned()
   );
 }

@@ -206,21 +206,26 @@ impl CachedPathImpl {
   }
 
   fn dep_path(&self) -> UstrPath {
-    *self.dep_path.get_or_init(|| self.path.to_ustr_path())
+    self
+      .dep_path
+      .get_or_init(|| self.path.to_ustr_path())
+      .clone()
   }
 
   fn node_modules_dep_path(&self) -> UstrPath {
-    *self
+    self
       .node_modules_dep_path
       .get_or_init(|| self.path.join("node_modules").to_ustr_path())
+      .clone()
   }
 
   /// Without this cache, each `None` cache-hit on `package_json` would
-  /// re-`join` + re-allocate the `Arc<Path>` + re-hash on every push.
+  /// re-`join` + re-intern on every push.
   fn package_json_dep_path(&self) -> UstrPath {
-    *self
+    self
       .package_json_dep_path
       .get_or_init(|| self.path.join("package.json").to_ustr_path())
+      .clone()
   }
 
   pub fn path(&self) -> &Utf8Path {
@@ -269,10 +274,10 @@ impl CachedPathImpl {
 
   pub async fn realpath<Fs: FileSystem + Send + Sync>(&self, fs: &Fs) -> io::Result<UstrPath> {
     // Cache hit: avoid the heap-allocated `Box::pin` for the cache-miss state machine
-    // by returning before delegating to the boxed recursive helper. Both arms are now
-    // a `Copy` — neither allocates.
+    // by returning before delegating to the boxed recursive helper. Both arms are a
+    // refcount bump — neither allocates or re-enters the interner.
     if let Some(cached) = self.canonicalized.get() {
-      return Ok(cached.unwrap_or_else(|| self.dep_path()));
+      return Ok(cached.clone().unwrap_or_else(|| self.dep_path()));
     }
     self.realpath_uncached(fs).await
   }
@@ -314,7 +319,7 @@ impl CachedPathImpl {
           Ok(None)
         })
         .await
-        .copied()
+        .cloned()
         .map(|r| r.unwrap_or_else(|| self.dep_path()))
     })
   }
@@ -604,6 +609,42 @@ mod tests {
     assert_eq!(
       cached.node_modules_dep_path().as_str().as_ptr(),
       cached.node_modules_dep_path().as_str().as_ptr()
+    );
+  }
+
+  /// The reason this crate uses a refcounted interner rather than a
+  /// leak-forever one.
+  ///
+  /// rspack calls `resolver_factory.clear_cache()` on every rebuild (via
+  /// `plugin_driver.clear_cache`), so a dev server rebuilds this cache
+  /// continuously. If interned paths outlived it, RSS would climb
+  /// monotonically and never come back down.
+  ///
+  /// Uses a path no other test resolves, and asserts on that one handle's
+  /// refcount. A global tally would be flaky: the interner is process-wide, so
+  /// a shared fixture path is held by every parallel test's cache at once.
+  #[tokio::test]
+  async fn clearing_the_cache_releases_interned_paths() {
+    let cache = Cache::new(FileSystemOs::default());
+    let unique = Utf8Path::new("/only/this/test/interns/this/exact/path.js");
+
+    let cached = cache.value(unique);
+    let handle = cached.to_ustr_path();
+    drop(cached);
+
+    assert!(
+      handle.refcount() >= 2,
+      "the cache should still hold this path, got refcount {}",
+      handle.refcount()
+    );
+
+    cache.clear();
+
+    assert_eq!(
+      handle.refcount(),
+      1,
+      "clear() must drop every handle the cache held; only this test's own \
+       handle should remain"
     );
   }
 

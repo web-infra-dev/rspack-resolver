@@ -49,7 +49,7 @@ impl Resolution {
   /// Zero-copy: hand this to a downstream store instead of `path()` to avoid
   /// re-allocating and re-hashing the string.
   pub fn ustr_path(&self) -> UstrPath {
-    self.path
+    self.path.clone()
   }
 
   /// Returns the path without query and fragment

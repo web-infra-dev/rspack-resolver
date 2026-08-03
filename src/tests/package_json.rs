@@ -7,7 +7,7 @@ mod tests {
     let mock_path = UstrPath::new("package.json");
     let json_with_bom = b"\xEF\xBB\xBF{\"name\": \"example-package\"}".to_vec();
 
-    let result = PackageJson::parse(mock_path, mock_path, json_with_bom).err();
+    let result = PackageJson::parse(mock_path.clone(), mock_path, json_with_bom).err();
 
     assert_eq!(
       result,
@@ -23,7 +23,7 @@ mod tests {
     let mock_path = UstrPath::new("package.json");
     let json_with_bom = r##"{"name": "example-package"}"##.as_bytes().to_vec();
 
-    let parsed = PackageJson::parse(mock_path, mock_path, json_with_bom).unwrap();
+    let parsed = PackageJson::parse(mock_path.clone(), mock_path, json_with_bom).unwrap();
 
     assert_eq!(parsed.name.unwrap(), "example-package");
   }
@@ -33,7 +33,7 @@ mod tests {
     let mock_path = UstrPath::new("package.json");
     let json_with_bom = r##"{"broken":"string"##.as_bytes().to_vec();
 
-    let parsed_err = PackageJson::parse(mock_path, mock_path, json_with_bom).err();
+    let parsed_err = PackageJson::parse(mock_path.clone(), mock_path, json_with_bom).err();
 
     assert_eq!(
       parsed_err,
@@ -50,7 +50,7 @@ mod tests {
     let mock_path = UstrPath::new("package.json");
     let json_with_bom = "    ".as_bytes().to_vec();
 
-    let parse_error = PackageJson::parse(mock_path, mock_path, json_with_bom)
+    let parse_error = PackageJson::parse(mock_path.clone(), mock_path, json_with_bom)
       .err()
       .unwrap();
 
