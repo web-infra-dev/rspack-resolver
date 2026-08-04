@@ -617,6 +617,9 @@ mod tests {
   /// Uses a path no other test resolves, and asserts on that one handle's
   /// refcount. A global tally would be flaky: the interner is process-wide, so
   /// a shared fixture path is held by every parallel test's cache at once.
+  ///
+  /// The interner's table owns a reference of its own, so the floor here is 2,
+  /// not 1 — the entry itself is reclaimed later, by a sweep.
   #[tokio::test]
   async fn clearing_the_cache_releases_interned_paths() {
     let cache = Cache::new(FileSystemOs::default());
@@ -626,19 +629,20 @@ mod tests {
     let handle = cached.to_ustr_path();
     drop(cached);
 
+    let held = handle.refcount();
     assert!(
-      handle.refcount() >= 2,
-      "the cache should still hold this path, got refcount {}",
-      handle.refcount()
+      held >= 3,
+      "the cache and this test should both hold this path on top of the \
+       interner's own reference, got refcount {held}"
     );
 
     cache.clear();
 
     assert_eq!(
       handle.refcount(),
-      1,
-      "clear() must drop every handle the cache held; only this test's own \
-       handle should remain"
+      2,
+      "clear() must drop every handle the cache held, leaving this test's \
+       handle and the interner's own reference"
     );
   }
 

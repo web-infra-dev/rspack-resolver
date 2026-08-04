@@ -1,4 +1,4 @@
-//! A refcounted, sharded global string interner.
+//! A refcounted, sharded global string interner that reclaims its own entries.
 //!
 //! Exists because the two obvious off-the-shelf choices each fail one half of
 //! what [`crate::UstrPath`] needs:
@@ -11,30 +11,43 @@
 //!   1004 Ir per intern against `ustr`'s 161.
 //!
 //! This one takes the hash as a parameter and keeps it in the entry header, so
-//! interning hashes the string exactly once and [`Interned::hash`] is a load.
+//! interning hashes the string exactly once and [`Interned::hash`] is a load
+//! rather than a rehash. That header is also why entries are hand-allocated
+//! instead of being `Arc<str>`: an `Arc<str>` is a fat pointer with nowhere to
+//! put the hash, which would push every stored path from 8 bytes to 24.
 //!
-//! # Concurrency
+//! # Reclamation
 //!
-//! Refcount changes are lock-free; only the table is locked. [`intern`] holds
-//! the shard lock while it looks up and increments, and a freed entry leaves
-//! the table under that same lock, so the two never overlap. Both
-//! [`Interned::clone`] and [`Interned::drop`] touch the count without any lock.
+//! **The table owns a reference.** An entry's count is one for the table plus
+//! one per live handle, so dropping a handle can never reach zero and never has
+//! to free anything — [`Interned::drop`] is a bare decrement, with no lock, no
+//! table lookup, and no race to lose.
 //!
-//! Dropping to zero is therefore a *claim* on the entry, not ownership of it.
-//! Between that decrement and the shard lock, two things can happen, and the
-//! drop path checks for both before freeing:
+//! Freeing happens in [`Shard::sweep`], which removes every entry whose count
+//! is back down to one. Sweeps are triggered by insertions, at a threshold that
+//! scales with the shard, so each insertion amortizes to a constant number of
+//! checks however large the table grows. Memory therefore comes back on a
+//! bounded delay rather than instantly, which is what a dev server needs: the
+//! table cannot grow without bound when paths are transient, and it holds
+//! exactly the live set when they are retained.
 //!
-//! - **Resurrection.** An `intern` of the same string finds the entry and
-//!   increments it back. The count then names exactly the handles that exist,
-//!   so the dropper simply walks away — hence the `count != 0` re-check under
-//!   the lock.
-//! - **A second claim.** The resurrected handle is itself dropped to zero, and
-//!   two threads now believe they must free. Removal happens under the lock, so
-//!   the loser finds the entry already absent — hence the lookup by address,
-//!   which must not dereference, before anything else.
+//! # Soundness
 //!
-//! `clone` needs neither check: its caller holds a handle, so the count it
-//! increments is at least one and cannot be a resurrection.
+//! Sweeping on `count == 1` rests on one invariant:
+//!
+//! > Every operation that takes a count from 1 to 2 happens under that shard's
+//! > lock.
+//!
+//! - The only way to obtain a handle to a table entry is [`Interner::intern`],
+//!   which holds at least the read lock while it clones.
+//! - A sweep holds the **write** lock, so no `intern` can be mid-clone.
+//! - [`Interned::clone`] takes no lock, but its caller already holds a handle,
+//!   so the count it raises is at least 2 — never a 1.
+//!
+//! A count of 1 observed under the write lock therefore means the table is the
+//! only owner and no one else can reach the entry. `Arc` reasons about its own
+//! count the same way; the relaxed load is ordered by the lock, since a clone
+//! that released the read lock happens-before the sweeper's write lock.
 
 use std::{
   alloc::{self, Layout},
@@ -42,7 +55,7 @@ use std::{
   slice, str,
   sync::{
     atomic::{AtomicUsize, Ordering},
-    Mutex, MutexGuard, PoisonError,
+    PoisonError, RwLock,
   },
 };
 
@@ -51,11 +64,11 @@ use hashbrown::HashTable;
 /// Interner entry: header followed by the string bytes in the same allocation.
 ///
 /// One allocation rather than a header plus a `Box<str>` because interning is
-/// allocation-bound — a refcounted interner re-allocates every entry that was
-/// freed since the last use, and doubling the allocation count per entry is
-/// directly visible in the resolver benchmarks.
+/// allocation-bound, and doubling the allocation count per entry is directly
+/// visible in the resolver benchmarks.
 #[repr(C)]
 struct Entry {
+  /// One for the table, plus one per live [`Interned`].
   count: AtomicUsize,
   /// The caller's hash of the string. Stored so the handle stays one pointer
   /// wide and [`Interned::hash`] costs a load instead of a re-hash.
@@ -84,8 +97,8 @@ impl Entry {
     (layout.pad_to_align(), offset)
   }
 
-  /// Allocate an entry holding `s`, with the refcount already at one for the
-  /// handle the caller is about to build.
+  /// Allocate an entry holding `s`, with the count already at two: one for the
+  /// table it is about to enter, one for the handle the caller gets back.
   fn alloc(s: &str, hash: u64) -> NonNull<Self> {
     let (layout, offset) = Self::layout(s.len());
     // SAFETY: `layout` has non-zero size — the header alone is non-empty.
@@ -100,7 +113,7 @@ impl Entry {
     // cannot overlap `s`, which lives in the caller's memory.
     unsafe {
       ptr.as_ptr().write(Self {
-        count: AtomicUsize::new(1),
+        count: AtomicUsize::new(2),
         hash,
         len: s.len(),
       });
@@ -116,7 +129,7 @@ impl Entry {
   /// # Safety
   ///
   /// `ptr` must come from [`Entry::alloc`], must not have been deallocated,
-  /// and must be unreachable — removed from the table with a zero refcount.
+  /// and must already be out of its shard with a count of one.
   unsafe fn dealloc(ptr: NonNull<Self>) {
     // SAFETY: the caller guarantees `ptr` is a live entry, so reading `len`
     // reproduces the layout it was allocated with.
@@ -128,7 +141,7 @@ impl Entry {
   /// # Safety
   ///
   /// `ptr` must point at a live entry, and the returned reference must not
-  /// outlive the handle that keeps it alive.
+  /// outlive the handle or table slot that keeps it alive.
   #[inline]
   unsafe fn str<'a>(ptr: NonNull<Self>) -> &'a str {
     // SAFETY: the caller guarantees `ptr` is live.
@@ -142,53 +155,253 @@ impl Entry {
   }
 }
 
-/// Enough shards that four resolver threads rarely collide, matching what
-/// `ustr` uses. Must stay a power of two — [`shard`] slices the index out of
-/// the hash's top bits.
-const SHARDS: usize = 64;
-const SHARD_BITS: u32 = SHARDS.trailing_zeros();
-const _: () = assert!(SHARDS.is_power_of_two());
-
 /// `NonNull` is neither `Send` nor `Sync`, so it cannot go in a `static`
 /// directly. Entries are: their bytes are immutable and `count` is atomic.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct EntryPtr(NonNull<Entry>);
 
 // SAFETY: see the type's doc comment — an entry is immutable apart from its
-// atomic refcount, and freeing one requires the shard lock.
+// atomic count, and freeing one requires the shard's write lock.
 unsafe impl Send for EntryPtr {}
 // SAFETY: as above.
 unsafe impl Sync for EntryPtr {}
 
-type Shard = Mutex<HashTable<EntryPtr>>;
+/// Enough shards that a build's worth of resolver threads rarely collide,
+/// matching what `ustr` uses. Must stay a power of two — [`shard_index`] slices
+/// the index out of the hash's top bits.
+const SHARDS: usize = 64;
+const SHARD_BITS: u32 = SHARDS.trailing_zeros();
+const _: () = assert!(SHARDS.is_power_of_two());
 
-/// The process-wide interner.
+/// Smallest table a shard bothers sweeping. Below this, walking the table costs
+/// more than the handful of entries it could reclaim.
+const MIN_SWEEP_THRESHOLD: usize = 64;
+
+struct Shard {
+  table: HashTable<EntryPtr>,
+  inserts_since_sweep: usize,
+}
+
+impl Shard {
+  const fn new() -> Self {
+    Self {
+      table: HashTable::new(),
+      inserts_since_sweep: 0,
+    }
+  }
+
+  /// Sweep once insertions since the last sweep reach half the table. Scaling
+  /// the threshold with the table is what keeps this amortized constant: a
+  /// sweep walks `len` entries and buys `len / 2` insertions, so the per-insert
+  /// cost stays flat however large the table grows.
+  fn threshold(&self) -> usize {
+    MIN_SWEEP_THRESHOLD.max(self.table.len() / 2)
+  }
+
+  /// Remove every entry no handle refers to, returning them for the caller to
+  /// free once the lock is released.
+  fn sweep(&mut self) -> Vec<EntryPtr> {
+    self.inserts_since_sweep = 0;
+    self
+      .table
+      .extract_if(|&mut EntryPtr(entry)| {
+        // SAFETY: entries leave the table only here, under the write lock, so
+        // everything still reachable is live.
+        unsafe { entry.as_ref() }.count.load(Ordering::Acquire) == 1
+      })
+      .collect()
+  }
+}
+
+/// A string interner. Distinct instances have distinct tables.
 ///
+/// The crate uses one global instance; this is a type rather than a set of free
+/// functions so that tests can work against an isolated interner instead of
+/// racing each other through process-wide state.
+pub struct Interner {
+  shards: [RwLock<Shard>; SHARDS],
+}
+
+impl Interner {
+  pub const fn new() -> Self {
+    Self {
+      shards: [const { RwLock::new(Shard::new()) }; SHARDS],
+    }
+  }
+
+  /// Intern `s`, whose hash the caller has already computed.
+  ///
+  /// `hash` must be a deterministic function of `s` alone; two calls with the
+  /// same string and different hashes would create two entries for it and break
+  /// the one-entry-per-string guarantee that [`Interned::ptr_eq`] relies on. It
+  /// is not otherwise constrained — [`crate::UstrPath`] deliberately passes a
+  /// hash that folds equivalent Windows spellings together, which only makes
+  /// those spellings share a shard and a bucket.
+  pub fn intern(&self, s: &str, hash: u64) -> Interned {
+    let lock = &self.shards[shard_index(hash)];
+
+    // Hit path: a read lock, so threads interning paths that are already known
+    // — the common case once a build is warm — never wait on each other.
+    {
+      let shard = lock.read().unwrap_or_else(PoisonError::into_inner);
+      if let Some(ptr) = find(&shard.table, s, hash) {
+        return ptr;
+      }
+    }
+
+    // Miss path. The read lock was released above, so re-check: another thread
+    // may have interned `s` in that window.
+    let mut shard = lock.write().unwrap_or_else(PoisonError::into_inner);
+    if let Some(ptr) = find(&shard.table, s, hash) {
+      return ptr;
+    }
+
+    let ptr = Entry::alloc(s, hash);
+    shard
+      .table
+      .insert_unique(hash, EntryPtr(ptr), |&EntryPtr(entry)| {
+        // SAFETY: reachable table entries are live.
+        unsafe { entry.as_ref() }.hash
+      });
+    shard.inserts_since_sweep += 1;
+    let doomed = if shard.inserts_since_sweep > shard.threshold() {
+      shard.sweep()
+    } else {
+      Vec::new()
+    };
+    drop(shard);
+
+    // Freeing outside the lock keeps the critical section to table work.
+    free_all(doomed);
+    Interned { ptr }
+  }
+
+  /// Reclaim every entry no handle refers to, across all shards.
+  ///
+  /// Sweeps are otherwise driven by insertions, so a shard that has gone quiet
+  /// keeps its dead entries indefinitely. Call this to collect them anyway.
+  ///
+  /// Test-gated only because nothing in the crate calls it yet. The natural
+  /// caller is `Cache::clear()` — rspack runs it on every rebuild — which would
+  /// turn the bounded-delay reclamation into immediate reclamation.
+  #[cfg(test)]
+  pub fn sweep(&self) {
+    for lock in &self.shards {
+      let doomed = lock.write().unwrap_or_else(PoisonError::into_inner).sweep();
+      free_all(doomed);
+    }
+  }
+
+  /// How many entries the interner holds. Diagnostic and test use — the count
+  /// includes entries that are dead but not yet swept.
+  #[cfg(test)]
+  pub fn len(&self) -> usize {
+    self
+      .shards
+      .iter()
+      .map(|lock| {
+        let shard = lock.read().unwrap_or_else(PoisonError::into_inner);
+        let len = shard.table.len();
+        drop(shard);
+        len
+      })
+      .sum()
+  }
+}
+
+impl Default for Interner {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+impl Drop for Interner {
+  /// Free what the table still owns. Without this, dropping an `Interner`
+  /// leaks every entry in it — the global one never drops, but tests build
+  /// their own, and a leak checker sees them.
+  ///
+  /// Entries a handle still refers to are deliberately leaked instead. An
+  /// [`Interned`] does not borrow from its `Interner`, so freeing those would
+  /// leave the holder with a dangling pointer; outliving the interner is a bug
+  /// at the call site, and leaking is the safe way to report it.
+  fn drop(&mut self) {
+    for lock in &mut self.shards {
+      let shard = lock.get_mut().unwrap_or_else(PoisonError::into_inner);
+      for EntryPtr(entry) in shard.table.drain() {
+        // SAFETY: `&mut self` means no other thread can reach these entries,
+        // and the count tells us whether any handle still can.
+        if unsafe { entry.as_ref() }.count.load(Ordering::Acquire) == 1 {
+          // SAFETY: table-only, and just drained out of the table.
+          unsafe { Entry::dealloc(entry) }
+        } else {
+          debug_assert!(
+            false,
+            "an Interned outlived its Interner; the handle is now dangling"
+          );
+        }
+      }
+    }
+  }
+}
+
+/// Look `s` up and take a reference to it. The caller must hold the shard lock.
+#[inline]
+fn find(table: &HashTable<EntryPtr>, s: &str, hash: u64) -> Option<Interned> {
+  let &EntryPtr(ptr) = table.find(hash, |&EntryPtr(entry)| {
+    // SAFETY: entries leave the table only under the write lock, which the
+    // caller's lock excludes, so everything reachable here is live.
+    unsafe { Entry::str(entry) == s }
+  })?;
+  // SAFETY: as above.
+  unsafe { ptr.as_ref() }
+    .count
+    .fetch_add(1, Ordering::Relaxed);
+  Some(Interned { ptr })
+}
+
+/// # Panics
+///
+/// Never; the entries come from a sweep, which only yields what it removed.
+fn free_all(doomed: Vec<EntryPtr>) {
+  for EntryPtr(entry) in doomed {
+    // SAFETY: a sweep yields only entries it removed from its table under the
+    // write lock, each with a count of one — the table's own reference.
+    unsafe { Entry::dealloc(entry) }
+  }
+}
+
 /// Sharded by the **top** bits of the hash: `hashbrown` indexes buckets with
 /// the low bits, so sharding on those would give every entry in a shard the
 /// same bucket index.
-static SHARD_TABLE: [Shard; SHARDS] = [const { Mutex::new(HashTable::new()) }; SHARDS];
+#[inline]
+fn shard_index(hash: u64) -> usize {
+  (hash >> (u64::BITS - SHARD_BITS)) as usize
+}
 
-fn shard(hash: u64) -> MutexGuard<'static, HashTable<EntryPtr>> {
-  let index = (hash >> (u64::BITS - SHARD_BITS)) as usize;
-  // A panic while holding a shard lock cannot leave the table inconsistent:
-  // the only calls made under it are hash-table operations and the allocator,
-  // neither of which unwinds partway through a mutation. Recovering beats
-  // poisoning every future intern of that shard.
-  SHARD_TABLE[index]
-    .lock()
-    .unwrap_or_else(PoisonError::into_inner)
+/// The process-wide interner.
+static GLOBAL: Interner = Interner::new();
+
+/// Intern `s` into the process-wide interner. See [`Interner::intern`].
+#[inline]
+pub fn intern(s: &str, hash: u64) -> Interned {
+  GLOBAL.intern(s, hash)
+}
+
+/// Entry count of the process-wide interner. See [`Interner::len`].
+#[cfg(test)]
+pub fn live_entries() -> usize {
+  GLOBAL.len()
 }
 
 /// A refcounted handle to a globally interned string.
 ///
-/// One pointer wide. Not `Copy`: the refcount has to be maintained.
+/// One pointer wide. Not `Copy`: the count has to be maintained.
 pub struct Interned {
   ptr: NonNull<Entry>,
 }
 
-// SAFETY: `Entry` is immutable apart from `count`, which is atomic, and every
-// operation that can free it happens under the shard lock (see module docs).
+// SAFETY: `Entry` is immutable apart from `count`, which is atomic, and an
+// entry is freed only under its shard's write lock (see module docs).
 unsafe impl Send for Interned {}
 // SAFETY: as above — sharing `&Interned` only exposes immutable string bytes.
 unsafe impl Sync for Interned {}
@@ -217,8 +430,8 @@ impl Interned {
     self.ptr == other.ptr
   }
 
-  /// How many handles currently share this entry. Test and diagnostic use —
-  /// the count is a snapshot and can change concurrently.
+  /// One for the table plus one per live handle. Test and diagnostic use — the
+  /// count is a snapshot and can change concurrently.
   #[cfg(test)]
   pub(crate) fn refcount(&self) -> usize {
     // SAFETY: `self` holds a reference, so the entry is live.
@@ -226,64 +439,11 @@ impl Interned {
   }
 }
 
-/// How many entries the interner currently holds, across all shards.
-///
-/// Diagnostic only, and inherently a snapshot: the interner is process-wide, so
-/// this counts every string every thread is holding, not just the caller's.
-#[cfg(test)]
-pub fn live_entries() -> usize {
-  SHARD_TABLE
-    .iter()
-    .map(|shard| {
-      let table = shard.lock().unwrap_or_else(PoisonError::into_inner);
-      let len = table.len();
-      drop(table);
-      len
-    })
-    .sum()
-}
-
-/// Intern `s`, whose hash the caller has already computed.
-///
-/// `hash` must be a deterministic function of `s` alone; two calls with the
-/// same string and different hashes would create two entries for it and break
-/// the one-entry-per-string guarantee that [`Interned::ptr_eq`] relies on. It
-/// is not otherwise constrained — [`crate::UstrPath`] deliberately passes a
-/// hash that folds equivalent Windows spellings together, which only makes
-/// those spellings share a shard and a bucket.
-pub fn intern(s: &str, hash: u64) -> Interned {
-  let mut table = shard(hash);
-  if let Some(&EntryPtr(ptr)) = table.find(hash, |&EntryPtr(entry)| {
-    // SAFETY: an entry is removed from the table before it is freed, and both
-    // happen under this lock, so everything reachable here is alive.
-    unsafe { Entry::str(entry) == s }
-  }) {
-    // The old value may be 0 — a dropper claimed this entry and is waiting for
-    // the lock. Resurrecting it is exactly right: it will see a non-zero count
-    // and leave the entry alone. Relaxed is enough because the lock we hold
-    // orders this against that check.
-    // SAFETY: the entry is in the table, so it is alive.
-    unsafe { ptr.as_ref() }
-      .count
-      .fetch_add(1, Ordering::Relaxed);
-    return Interned { ptr };
-  }
-  let ptr = Entry::alloc(s, hash);
-  table.insert_unique(hash, EntryPtr(ptr), |&EntryPtr(entry)| {
-    // SAFETY: reachable table entries are alive (see above).
-    unsafe { entry.as_ref() }.hash
-  });
-  // The handle already owns the entry's first reference, so releasing the
-  // shard before building it is safe and keeps the critical section minimal.
-  drop(table);
-  Interned { ptr }
-}
-
 impl Clone for Interned {
   #[inline]
   fn clone(&self) -> Self {
-    // No lock: `self` is a live handle, so the count is at least one both
-    // before and after. See the module's concurrency notes.
+    // No lock: the caller holds a handle, so this raises a count of at least
+    // two, never the 1 -> 2 transition a sweep must not miss.
     // SAFETY: `self` holds a reference, so the entry is live.
     unsafe { self.ptr.as_ref() }
       .count
@@ -293,45 +453,15 @@ impl Clone for Interned {
 }
 
 impl Drop for Interned {
+  #[inline]
   fn drop(&mut self) {
-    // Read the hash while we still own a reference. Past the decrement below,
-    // `self.ptr` is only an address — dereferencing it is unsound until the
-    // shard lock re-establishes that the entry is still alive.
-    let hash = self.hash();
-    // SAFETY: `self` still holds a reference, so the entry is live.
-    if unsafe { self.ptr.as_ref() }
+    // The table's own reference keeps this from reaching zero, so there is
+    // nothing to free and nothing to lock. `Release` pairs with the acquire the
+    // sweeper gets from the shard's write lock.
+    // SAFETY: `self` holds a reference, so the entry is live.
+    unsafe { self.ptr.as_ref() }
       .count
-      .fetch_sub(1, Ordering::AcqRel)
-      != 1
-    {
-      // The overwhelming majority of drops land here — a temporary handle
-      // going away while the cache still holds the path. Keeping this path
-      // lock-free is what stops the shards from serializing resolver threads.
-      return;
-    }
-    let mut table = shard(hash);
-    // Address comparison only: a concurrent dropper may already have freed
-    // this entry, so it must not be dereferenced before it is found.
-    let Ok(entry) = table.find_entry(hash, |&EntryPtr(candidate)| candidate == self.ptr) else {
-      // Gone from the table, which only happens after another thread claimed
-      // the free. Nothing left to do — and nothing left to read.
-      return;
-    };
-    // Found under the lock, and entries are freed only after being removed
-    // under this same lock, so the entry is alive again for as long as we hold
-    // it.
-    // SAFETY: as above.
-    if unsafe { self.ptr.as_ref() }.count.load(Ordering::Acquire) != 0 {
-      // Resurrected: an `intern` found this entry between our decrement and
-      // our lock, and now owns it. Leaving it in place is correct — the count
-      // reflects exactly the handles that exist.
-      return;
-    }
-    entry.remove();
-    drop(table);
-    // SAFETY: zero refcount and out of the table, so no handle can exist and
-    // no lookup can reach it.
-    unsafe { Entry::dealloc(self.ptr) }
+      .fetch_sub(1, Ordering::Release);
   }
 }
 
@@ -339,11 +469,8 @@ impl Drop for Interned {
 mod tests {
   use std::{sync::Arc, thread};
 
-  use super::{intern, Interned};
+  use super::{Interned, Interner};
 
-  /// The interner is process-wide and shared with every other test running in
-  /// parallel, so assertions here use strings no other test interns and only
-  /// ever check one entry's own state.
   fn h(s: &str) -> u64 {
     use std::hash::Hasher as _;
     let mut hasher = rustc_hash::FxHasher::default();
@@ -351,31 +478,36 @@ mod tests {
     hasher.finish()
   }
 
-  fn get(s: &str) -> Interned {
-    intern(s, h(s))
+  /// Tests use their own interner rather than the global one, so they cannot
+  /// perturb each other's counts through process-wide state.
+  fn get(interner: &Interner, s: &str) -> Interned {
+    interner.intern(s, h(s))
   }
 
   #[test]
   fn equal_strings_share_one_entry() {
-    let a = get("interner::equal_strings/a/b/c.js");
-    let b = get("interner::equal_strings/a/b/c.js");
+    let interner = Interner::new();
+    let a = get(&interner, "/a/b/c.js");
+    let b = get(&interner, "/a/b/c.js");
     assert!(a.ptr_eq(&b));
-    assert_eq!(a.as_str(), "interner::equal_strings/a/b/c.js");
+    assert_eq!(a.as_str(), "/a/b/c.js");
+    assert_eq!(interner.len(), 1);
   }
 
   #[test]
   fn different_strings_get_different_entries() {
-    let a = get("interner::different/a.js");
-    let b = get("interner::different/b.js");
-    assert!(!a.ptr_eq(&b));
+    let interner = Interner::new();
+    assert!(!get(&interner, "/a.js").ptr_eq(&get(&interner, "/b.js")));
+    assert_eq!(interner.len(), 2);
   }
 
   #[test]
   fn the_empty_string_round_trips() {
     // Zero-length payload is the one case where the entry is header-only.
-    let a = get("");
+    let interner = Interner::new();
+    let a = get(&interner, "");
     assert_eq!(a.as_str(), "");
-    assert!(a.ptr_eq(&get("")));
+    assert!(a.ptr_eq(&get(&interner, "")));
   }
 
   #[test]
@@ -383,118 +515,113 @@ mod tests {
     // The interner must not re-derive the hash: `UstrPath` relies on getting
     // back exactly what it computed, including a Windows-folded value that
     // does not match the stored bytes.
-    let interned = intern("interner::verbatim/x.js", 0xDEAD_BEEF_1234_5678);
-    assert_eq!(interned.hash(), 0xDEAD_BEEF_1234_5678);
+    let interner = Interner::new();
+    assert_eq!(
+      interner.intern("/x.js", 0xDEAD_BEEF_1234_5678).hash(),
+      0xDEAD_BEEF_1234_5678
+    );
   }
 
   #[test]
   fn colliding_hashes_stay_distinct_entries() {
     // Windows folding hands equal hashes to different strings on purpose, so
     // the table must disambiguate by bytes rather than trusting the hash.
-    let a = intern("interner::collide/one", 0x5555_5555_5555_5555);
-    let b = intern("interner::collide/two", 0x5555_5555_5555_5555);
+    let interner = Interner::new();
+    let a = interner.intern("/one", 0x5555_5555_5555_5555);
+    let b = interner.intern("/two", 0x5555_5555_5555_5555);
     assert!(!a.ptr_eq(&b));
-    assert_eq!(a.as_str(), "interner::collide/one");
-    assert_eq!(b.as_str(), "interner::collide/two");
+    assert_eq!(a.as_str(), "/one");
+    assert_eq!(b.as_str(), "/two");
   }
 
   #[test]
-  fn refcount_tracks_handles() {
-    let a = get("interner::refcount/a.js");
-    assert_eq!(a.refcount(), 1);
+  fn refcount_counts_the_table_plus_every_handle() {
+    let interner = Interner::new();
+    let a = get(&interner, "/a.js");
+    assert_eq!(a.refcount(), 2, "the table holds one reference of its own");
     let b = a.clone();
-    assert_eq!(a.refcount(), 2);
+    assert_eq!(a.refcount(), 3);
     drop(b);
-    assert_eq!(a.refcount(), 1);
+    assert_eq!(a.refcount(), 2);
   }
 
   #[test]
-  fn dropping_the_last_handle_frees_the_entry() {
-    let first = get("interner::freed/a.js");
-    let address = first.as_str().as_ptr();
-    drop(first);
+  fn sweeping_reclaims_entries_no_handle_refers_to() {
+    let interner = Interner::new();
+    drop(get(&interner, "/dead.js"));
+    let alive = get(&interner, "/alive.js");
+    assert_eq!(interner.len(), 2, "dropping a handle does not remove it");
 
-    // Re-interning after the entry was freed must produce a working handle.
-    // (It may or may not reuse `address` — the allocator decides — so the
-    // assertion is on the contents, not the pointer.)
-    let second = get("interner::freed/a.js");
-    assert_eq!(second.as_str(), "interner::freed/a.js");
+    interner.sweep();
+
+    assert_eq!(interner.len(), 1);
     assert_eq!(
-      second.refcount(),
-      1,
-      "the freed entry must not have lingered"
+      alive.as_str(),
+      "/alive.js",
+      "a held entry must survive the sweep"
     );
-    let _ = address;
   }
 
   #[test]
-  fn concurrent_zero_crossings_are_sound() {
-    // Aimed squarely at the two windows the lock-free drop path opens:
-    // resurrection, and two threads both claiming the free. Every handle here
-    // is created and dropped immediately over a key space of two, so threads
-    // are almost always racing on an entry that is at or near zero — the state
-    // a version that freed unconditionally after `fetch_sub` would corrupt.
-    //
-    // Reads `as_str()` after the clone specifically so a use-after-free lands
-    // on the string bytes, where ASan or Miri will catch it.
+  fn a_held_entry_survives_repeated_sweeps() {
+    let interner = Interner::new();
+    let held = get(&interner, "/held.js");
+    for _ in 0..10 {
+      interner.sweep();
+      assert!(held.ptr_eq(&get(&interner, "/held.js")));
+    }
+    assert_eq!(held.as_str(), "/held.js");
+  }
+
+  #[test]
+  fn one_shot_strings_do_not_grow_the_table_without_bound() {
+    // The property the insert-driven sweep exists for: a build that interns a
+    // hundred thousand paths and immediately discards them must not accumulate
+    // them. The bound is roughly SHARDS * MIN_SWEEP_THRESHOLD.
+    let interner = Interner::new();
+    for i in 0..100_000 {
+      drop(get(&interner, &format!("/transient/{i}.js")));
+    }
+    let len = interner.len();
+    assert!(len < 8_192, "table grew to {len}, which is not bounded");
+  }
+
+  #[test]
+  fn concurrent_intern_and_drop_is_sound() {
+    // Threads race interning and discarding a small key space while sweeps fire
+    // underneath them, driven by the one-shot strings. A sweep that freed an
+    // entry another thread had just cloned surfaces here under ASan or Miri.
+    let interner = Arc::new(Interner::new());
     let barrier = Arc::new(std::sync::Barrier::new(8));
     let threads: Vec<_> = (0..8)
-      .map(|_| {
+      .map(|t| {
+        let interner = Arc::clone(&interner);
         let barrier = Arc::clone(&barrier);
         thread::spawn(move || {
           barrier.wait();
           for i in 0..5000 {
-            let key = format!("interner::zero-cross/{}", i % 2);
-            let handle = get(&key);
-            assert_eq!(handle.as_str(), key);
+            let shared = format!("/shared/{}", i % 4);
+            let handle = get(&interner, &shared);
+            assert_eq!(handle.as_str(), shared);
+            let cloned = handle.clone();
             drop(handle);
-          }
-        })
-      })
-      .collect();
-    for thread in threads {
-      thread.join().expect("zero-crossing thread panicked");
-    }
+            assert_eq!(cloned.as_str(), shared);
 
-    // Every handle above is gone, so nothing may have leaked a live entry.
-    for i in 0..2 {
-      let key = format!("interner::zero-cross/{i}");
-      let fresh = get(&key);
-      assert_eq!(
-        fresh.refcount(),
-        1,
-        "{key} outlived every handle that referenced it"
-      );
-    }
-  }
-
-  #[test]
-  fn concurrent_intern_and_drop_of_one_string_is_sound() {
-    // Drives the race the shard lock exists for: threads repeatedly take the
-    // last handle to zero while others intern the same string. Under Miri or
-    // ASan a resurrection bug surfaces here; without them it still catches
-    // double-free and lost-entry bugs.
-    let barrier = Arc::new(std::sync::Barrier::new(8));
-    let threads: Vec<_> = (0..8)
-      .map(|t| {
-        let barrier = Arc::clone(&barrier);
-        thread::spawn(move || {
-          barrier.wait();
-          for i in 0..2000 {
-            let key = format!("interner::race/{}", i % 4);
-            let a = get(&key);
-            assert_eq!(a.as_str(), key);
-            let b = a.clone();
-            assert!(a.ptr_eq(&b));
-            drop(a);
-            assert_eq!(b.as_str(), key);
+            let once = format!("/once/{t}/{i}");
+            assert_eq!(get(&interner, &once).as_str(), once);
           }
-          t
         })
       })
       .collect();
     for thread in threads {
       thread.join().expect("interner race thread panicked");
     }
+
+    interner.sweep();
+    assert_eq!(
+      interner.len(),
+      0,
+      "every handle is gone, so a full sweep must empty the table"
+    );
   }
 }
