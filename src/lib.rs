@@ -295,6 +295,9 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       .value(Utf8Path::from_path(path).expect("path should be UTF-8"));
     let cached_path = self.require(&cached_path, specifier, ctx).await?;
     let path = self.load_realpath(&cached_path, ctx).await?;
+    if !self.options.restrictions.is_empty() && !self.check_restrictions(&path.normalize()) {
+      return Err(ResolveError::NotFound(specifier.to_string()));
+    }
 
     let package_json = cached_path
       .find_package_json(&self.cache.fs, &self.options, ctx)
@@ -766,23 +769,11 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   }
 
   fn check_restrictions(&self, path: &Utf8Path) -> bool {
-    // https://github.com/webpack/enhanced-resolve/blob/a998c7d218b7a9ec2461fc4fddd1ad5dd7687485/lib/RestrictionsPlugin.js#L19-L24
-    fn is_inside(path: &Path, parent: &Path) -> bool {
-      if !path.starts_with(parent) {
-        return false;
-      }
-      if path.as_os_str().len() == parent.as_os_str().len() {
-        return true;
-      }
-      path
-        .strip_prefix(parent)
-        .is_ok_and(|p| p == Path::new("./"))
-    }
     let path = path.as_std_path();
     for restriction in &self.options.restrictions {
       match restriction {
         Restriction::Path(restricted_path) => {
-          if !is_inside(path, restricted_path) {
+          if !path.starts_with(restricted_path) {
             return false;
           }
         }

@@ -4,6 +4,10 @@ use std::{
   sync::Arc,
 };
 
+use camino::Utf8Path;
+
+use crate::path::PathUtil;
+
 /// Module Resolution Options
 ///
 /// Options are directly ported from [enhanced-resolve](https://github.com/webpack/enhanced-resolve#resolver-options).
@@ -392,6 +396,14 @@ impl ResolveOptions {
         self.enforce_extension = EnforceExtension::Enabled;
       } else {
         self.enforce_extension = EnforceExtension::Disabled;
+      }
+    }
+    for restriction in &mut self.restrictions {
+      if let Restriction::Path(path) = restriction {
+        let normalized = Utf8Path::from_path(path).map(PathUtil::normalize);
+        if let Some(normalized) = normalized.filter(|p| !p.as_str().is_empty()) {
+          *path = normalized.into_std_path_buf();
+        }
       }
     }
     self
