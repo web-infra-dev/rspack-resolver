@@ -587,6 +587,46 @@ mod tests {
   }
 
   #[test]
+  fn the_insert_that_triggers_a_sweep_keeps_its_own_entry() {
+    // A sweep fires from inside the very call that inserted a new entry, and
+    // that entry has no handle yet — the caller's `Interned` is built after the
+    // sweep returns. What saves it is `Entry::alloc` starting the count at two:
+    // one for the table, one pre-paid for the handle about to be returned. Get
+    // that wrong and an insert would free the string it just returned.
+    let interner = Interner::new();
+    let mut before = 0;
+    let mut sweeps = 0;
+
+    for i in 0..20_000 {
+      let key = format!("/trigger/{i}.js");
+      let handle = get(&interner, &key);
+
+      // A shrinking table is the only externally visible sign that this
+      // particular insert swept.
+      let after = interner.len();
+      if after < before {
+        sweeps += 1;
+        assert_eq!(
+          handle.as_str(),
+          key,
+          "the insert that swept lost the entry it had just returned"
+        );
+        assert!(
+          get(&interner, &key).ptr_eq(&handle),
+          "the swept-through entry was evicted and re-allocated"
+        );
+      }
+      before = after;
+      drop(handle);
+    }
+
+    assert!(
+      sweeps > 0,
+      "no insert ever tripped a sweep, so this asserted nothing"
+    );
+  }
+
+  #[test]
   fn concurrent_intern_and_drop_is_sound() {
     // Threads race interning and discarding a small key space while sweeps fire
     // underneath them, driven by the one-shot strings. A sweep that freed an
