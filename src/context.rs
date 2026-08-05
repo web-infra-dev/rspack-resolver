@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
   error::ResolveError,
-  ustr_path::{ToUstrPath, UstrPath},
+  resolver_path::{ResolverPath, ToResolverPath},
 };
 
 #[derive(Debug, Default, Clone)]
@@ -17,10 +17,10 @@ pub struct ResolveContextImpl {
   pub fragment: Option<String>,
 
   /// Files that were found on file system
-  pub file_dependencies: Option<Vec<UstrPath>>,
+  pub file_dependencies: Option<Vec<ResolverPath>>,
 
   /// Files that were not found on file system
-  pub missing_dependencies: Option<Vec<UstrPath>>,
+  pub missing_dependencies: Option<Vec<ResolverPath>>,
 
   /// The current resolving alias for bailing recursion alias.
   pub resolving_alias: Option<String>,
@@ -68,15 +68,15 @@ impl ResolveContext {
   // would be evaluated (and interned) before the `if let` ever runs, silently
   // paying that cost on every call even when `resolve()` was invoked without a
   // context and these fields are `None`.
-  pub fn add_file_dependency<P: ToUstrPath + ?Sized>(&mut self, dep: &P) {
+  pub fn add_file_dependency<P: ToResolverPath + ?Sized>(&mut self, dep: &P) {
     if let Some(deps) = &mut self.file_dependencies {
-      deps.push(dep.to_ustr_path());
+      deps.push(dep.to_resolver_path());
     }
   }
 
-  pub fn add_missing_dependency<P: ToUstrPath + ?Sized>(&mut self, dep: &P) {
+  pub fn add_missing_dependency<P: ToResolverPath + ?Sized>(&mut self, dep: &P) {
     if let Some(deps) = &mut self.missing_dependencies {
-      deps.push(dep.to_ustr_path());
+      deps.push(dep.to_resolver_path());
     }
   }
 

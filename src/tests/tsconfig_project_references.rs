@@ -1,8 +1,8 @@
 //! Tests for tsconfig project references
 
 use crate::{
-  ResolveContext, ResolveError, ResolveOptions, Resolver, TsconfigOptions, TsconfigReferences,
-  UstrPath,
+  ResolveContext, ResolveError, ResolveOptions, Resolver, ResolverPath, TsconfigOptions,
+  TsconfigReferences,
 };
 
 #[tokio::test]
@@ -75,7 +75,9 @@ async fn tsconfig_file_as_file_dependencies() {
   ];
   for dependency in expected_dependencies {
     assert!(
-      ctx.file_dependencies.contains(&UstrPath::from(&dependency)),
+      ctx
+        .file_dependencies
+        .contains(&ResolverPath::from(&dependency)),
       "missing tsconfig file dependency {dependency:?}: {:?}",
       ctx.file_dependencies
     );
@@ -95,7 +97,7 @@ async fn tsconfig_dependency_is_one_interned_pointer_across_resolves() {
   });
 
   let shared_tsconfig = f.join("app/tsconfig.json");
-  let expected = UstrPath::from(&shared_tsconfig);
+  let expected = ResolverPath::from(&shared_tsconfig);
 
   let mut pointers = vec![];
   for (dir, request) in [

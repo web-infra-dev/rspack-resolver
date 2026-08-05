@@ -58,9 +58,9 @@ mod options;
 mod package_json;
 mod path;
 mod resolution;
+mod resolver_path;
 mod specifier;
 mod tsconfig;
-mod ustr_path;
 
 #[cfg(test)]
 mod tests;
@@ -97,7 +97,7 @@ pub use crate::{
   },
   package_json::{JSONValue, ModuleType, PackageJson},
   resolution::Resolution,
-  ustr_path::{IdentityHasher, ToUstrPath, UstrPath, UstrPathSet},
+  resolver_path::{IdentityHasher, ResolverPath, ResolverPathSet, ToResolverPath},
 };
 
 type ResolveResult = Result<Option<CachedPath>, ResolveError>;
@@ -106,10 +106,10 @@ type ResolveResult = Result<Option<CachedPath>, ResolveError>;
 #[derive(Debug, Default, Clone)]
 pub struct ResolveContext {
   /// Files that were found on file system
-  pub file_dependencies: UstrPathSet,
+  pub file_dependencies: ResolverPathSet,
 
   /// Dependencies that were not found on file system
-  pub missing_dependencies: UstrPathSet,
+  pub missing_dependencies: ResolverPathSet,
 }
 
 /// Resolver with the current operating system as the file system
@@ -126,10 +126,10 @@ pub struct ResolverGeneric<Fs> {
   /// `options.tsconfig.config_file` interned once at construction, since it is
   /// constant per resolver but looked up on every `require_without_parse` entry
   /// into `load_tsconfig_paths`. Interning it per-call would serialize every
-  /// thread on the same `ustr` bin mutex for a hash that never changes.
-  tsconfig_config_file: Option<UstrPath>,
+  /// thread on the same interner shard for a hash that never changes.
+  tsconfig_config_file: Option<ResolverPath>,
   #[cfg(feature = "yarn_pnp")]
-  pnp_manifest: Arc<arc_swap::ArcSwapOption<(UstrPath, pnp::Manifest)>>,
+  pnp_manifest: Arc<arc_swap::ArcSwapOption<(ResolverPath, pnp::Manifest)>>,
   /// Paths that have been searched and confirmed to have no `.pnp.cjs` reachable by filesystem walk.
   #[cfg(feature = "yarn_pnp")]
   pnp_no_manifest_cache: Arc<DashSet<CachedPath>>,
@@ -157,7 +157,7 @@ impl<Fs: Send + Sync + FileSystem + Default> ResolverGeneric<Fs> {
     let tsconfig_config_file = options
       .tsconfig
       .as_ref()
-      .map(|t| t.config_file.to_ustr_path());
+      .map(|t| t.config_file.to_resolver_path());
     Self {
       options,
       cache: Arc::new(Cache::new(Fs::default())),
@@ -181,7 +181,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     let tsconfig_config_file = options
       .tsconfig
       .as_ref()
-      .map(|t| t.config_file.to_ustr_path());
+      .map(|t| t.config_file.to_resolver_path());
     Self {
       options,
       cache: Arc::new(Cache::new(file_system)),
@@ -205,7 +205,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     let tsconfig_config_file = options
       .tsconfig
       .as_ref()
-      .map(|t| t.config_file.to_ustr_path());
+      .map(|t| t.config_file.to_resolver_path());
     Self {
       options,
       cache: Arc::clone(&self.cache),
@@ -771,7 +771,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     &self,
     cached_path: &CachedPath,
     ctx: &mut Ctx,
-  ) -> Result<UstrPath, ResolveError> {
+  ) -> Result<ResolverPath, ResolveError> {
     if self.options.symlinks {
       cached_path
         .realpath(&self.cache.fs)
@@ -782,7 +782,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         })
         .map_err(ResolveError::from)
     } else {
-      Ok(cached_path.to_ustr_path())
+      Ok(cached_path.to_resolver_path())
     }
   }
 
@@ -1024,7 +1024,10 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
 
   #[cfg(feature = "yarn_pnp")]
   #[cfg_attr(feature = "enable_instrument", tracing::instrument(level=tracing::Level::DEBUG, skip_all, fields(path = cached_path.path().as_str())))]
-  fn find_pnp_manifest(&self, cached_path: &CachedPath) -> Option<Arc<(UstrPath, pnp::Manifest)>> {
+  fn find_pnp_manifest(
+    &self,
+    cached_path: &CachedPath,
+  ) -> Option<Arc<(ResolverPath, pnp::Manifest)>> {
     // 1. Already have a manifest → return it (covers global cache paths too)
     if let Some(manifest) = self.pnp_manifest.load_full() {
       return Some(manifest);
@@ -1053,7 +1056,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
     tracing::debug!("use manifest path: {:?}", manifest_path);
 
     let manifest = pnp::load_pnp_manifest(&manifest_path).ok()?;
-    let manifest = Arc::new((manifest_path.to_ustr_path(), manifest));
+    let manifest = Arc::new((manifest_path.to_resolver_path(), manifest));
 
     let previous = self
       .pnp_manifest
@@ -1538,7 +1541,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
   fn load_tsconfig<'a>(
     &'a self,
     root: bool,
-    path: UstrPath,
+    path: ResolverPath,
     references: &'a TsconfigReferences,
   ) -> BoxFuture<'a, Result<Arc<TsConfig>, ResolveError>> {
     let fut = async move {
@@ -1611,7 +1614,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
           .cache
           .tsconfig(
             /* root */ true,
-            reference_tsconfig_path.to_ustr_path(),
+            reference_tsconfig_path.to_resolver_path(),
             |mut reference_tsconfig| {
               let current_path = current_path.clone();
               async move {
@@ -1688,7 +1691,7 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       let extended_tsconfig = self
         .load_tsconfig(
           /* root */ false,
-          extended_tsconfig_path.to_ustr_path(),
+          extended_tsconfig_path.to_resolver_path(),
           &TsconfigReferences::Disabled,
         )
         .await?;

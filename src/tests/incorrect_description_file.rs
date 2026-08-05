@@ -1,8 +1,8 @@
 //! <https://github.com/webpack/enhanced-resolve/blob/main/test/incorrect-description-file.test.js>
 
 use crate::{
-  JSONError, Resolution, ResolveContext, ResolveError, ResolveOptions, Resolver, UstrPath,
-  UstrPathSet,
+  JSONError, Resolution, ResolveContext, ResolveError, ResolveOptions, Resolver, ResolverPath,
+  ResolverPathSet,
 };
 
 // should not resolve main in incorrect description file #1
@@ -24,9 +24,9 @@ async fn incorrect_description_file_1() {
   assert!(matches!(resolution, Err(ResolveError::JSON(_))));
   assert_eq!(
     ctx.file_dependencies,
-    UstrPathSet::from_iter([
-      UstrPath::from(f.join("pack1")),
-      UstrPath::from(f.join("pack1/package.json")),
+    ResolverPathSet::from_iter([
+      ResolverPath::from(f.join("pack1")),
+      ResolverPath::from(f.join("pack1/package.json")),
     ])
   );
   assert!(!ctx.missing_dependencies.is_empty());

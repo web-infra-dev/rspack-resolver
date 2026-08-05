@@ -93,7 +93,7 @@ rustc-hash          = { version = "2.1.2", default-features = false, features = 
 thiserror           = "2.0.18"
 # Backing table for `src/interner.rs`. `HashTable` is the piece that off-the-
 # shelf interners cannot offer: it looks up by a caller-supplied hash, so the
-# interner reuses the `FxHash` `UstrPath` already computed instead of hashing
+# interner reuses the `FxHash` `ResolverPath` already computed instead of hashing
 # every path a second time. Version tracks what `indexmap` resolves to, so no
 # extra copy of hashbrown enters the graph.
 hashbrown = { version = "0.17.0", default-features = false, features = ["inline-more"] }

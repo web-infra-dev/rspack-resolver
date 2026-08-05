@@ -7,12 +7,12 @@ use serde::Deserialize;
 
 use crate::{
   path::PathUtil,
-  ustr_path::{ToUstrPath, UstrPath},
+  resolver_path::{ResolverPath, ToResolverPath},
 };
 
 pub type CompilerOptionsPathsMap = IndexMap<String, Vec<String>, BuildHasherDefault<FxHasher>>;
 pub type FileDependencies =
-  IndexSet<UstrPath, BuildHasherDefault<crate::ustr_path::IdentityHasher>>;
+  IndexSet<ResolverPath, BuildHasherDefault<crate::resolver_path::IdentityHasher>>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -91,13 +91,13 @@ impl TsConfig {
       let mut tsconfig: Self = serde_json::from_str("{}")?;
       tsconfig.root = root;
       tsconfig.path = path.to_path_buf();
-      tsconfig.file_dependencies.insert(path.to_ustr_path());
+      tsconfig.file_dependencies.insert(path.to_resolver_path());
       return Ok(tsconfig);
     }
     let mut tsconfig: Self = serde_json::from_str(json)?;
     tsconfig.root = root;
     tsconfig.path = path.to_path_buf();
-    tsconfig.file_dependencies.insert(path.to_ustr_path());
+    tsconfig.file_dependencies.insert(path.to_resolver_path());
     let directory = tsconfig.directory().to_path_buf();
     if let Some(base_url) = &tsconfig.compiler_options.base_url {
       // keep the `${configDir}` template variable in the baseUrl

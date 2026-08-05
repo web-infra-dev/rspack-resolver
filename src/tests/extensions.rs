@@ -1,8 +1,8 @@
 //! <https://github.com/webpack/enhanced-resolve/blob/main/test/extensions.test.js>
 
 use crate::{
-  EnforceExtension, Resolution, ResolveContext, ResolveError, ResolveOptions, Resolver, UstrPath,
-  UstrPathSet,
+  EnforceExtension, Resolution, ResolveContext, ResolveError, ResolveOptions, Resolver,
+  ResolverPath, ResolverPathSet,
 };
 
 #[tokio::test]
@@ -65,9 +65,9 @@ async fn default_enforce_extension() {
   );
   assert_eq!(
     ctx.file_dependencies,
-    UstrPathSet::from_iter([
-      UstrPath::from(f.join("foo.ts")),
-      UstrPath::from(f.join("package.json")),
+    ResolverPathSet::from_iter([
+      ResolverPath::from(f.join("foo.ts")),
+      ResolverPath::from(f.join("package.json")),
     ])
   );
   assert!(ctx.missing_dependencies.is_empty());
@@ -93,14 +93,14 @@ async fn respect_enforce_extension() {
   );
   assert_eq!(
     ctx.file_dependencies,
-    UstrPathSet::from_iter([
-      UstrPath::from(f.join("foo.ts")),
-      UstrPath::from(f.join("package.json")),
+    ResolverPathSet::from_iter([
+      ResolverPath::from(f.join("foo.ts")),
+      ResolverPath::from(f.join("package.json")),
     ])
   );
   assert_eq!(
     ctx.missing_dependencies,
-    UstrPathSet::from_iter([UstrPath::from(f.join("foo"))])
+    ResolverPathSet::from_iter([ResolverPath::from(f.join("foo"))])
   );
 }
 

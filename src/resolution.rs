@@ -4,12 +4,12 @@ use std::{
   sync::Arc,
 };
 
-use crate::{package_json::PackageJson, ustr_path::UstrPath};
+use crate::{package_json::PackageJson, resolver_path::ResolverPath};
 
 /// The final path resolution with optional `?query` and `#fragment`
 #[derive(Clone)]
 pub struct Resolution {
-  pub(crate) path: UstrPath,
+  pub(crate) path: ResolverPath,
 
   /// path query `?query`, contains `?`.
   pub(crate) query: Option<String>,
@@ -48,7 +48,7 @@ impl Resolution {
   ///
   /// Zero-copy: hand this to a downstream store instead of `path()` to avoid
   /// re-allocating and re-hashing the string.
-  pub fn ustr_path(&self) -> UstrPath {
+  pub fn resolver_path(&self) -> ResolverPath {
     self.path.clone()
   }
 
@@ -101,17 +101,17 @@ async fn test() {
 }
 
 #[tokio::test]
-async fn ustr_path_accessor_is_the_same_pointer_as_the_stored_path() {
+async fn resolver_path_accessor_is_the_same_pointer_as_the_stored_path() {
   let resolution = Resolution {
     path: "foo".into(),
     query: None,
     fragment: None,
     package_json: None,
   };
-  assert_eq!(resolution.ustr_path().as_str(), "foo");
+  assert_eq!(resolution.resolver_path().as_str(), "foo");
   assert_eq!(
-    resolution.ustr_path().as_str().as_ptr(),
-    UstrPath::new("foo").as_str().as_ptr()
+    resolution.resolver_path().as_str().as_ptr(),
+    ResolverPath::new("foo").as_str().as_ptr()
   );
   // The legacy accessors keep their signatures.
   assert_eq!(resolution.path(), Path::new("foo"));

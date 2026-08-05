@@ -1,7 +1,7 @@
 //! A refcounted, sharded global string interner that reclaims its own entries.
 //!
 //! Exists because the two obvious off-the-shelf choices each fail one half of
-//! what [`crate::UstrPath`] needs:
+//! what [`crate::ResolverPath`] needs:
 //!
 //! - `ustr` never frees, so a dev server's RSS climbs monotonically across
 //!   rebuilds.
@@ -234,7 +234,7 @@ impl Interner {
   /// `hash` must be a deterministic function of `s` alone; two calls with the
   /// same string and different hashes would create two entries for it and break
   /// the one-entry-per-string guarantee that [`Interned::ptr_eq`] relies on. It
-  /// is not otherwise constrained — [`crate::UstrPath`] deliberately passes a
+  /// is not otherwise constrained — [`crate::ResolverPath`] deliberately passes a
   /// hash that folds equivalent Windows spellings together, which only makes
   /// those spellings share a shard and a bucket.
   pub fn intern(&self, s: &str, hash: u64) -> Interned {
@@ -512,7 +512,7 @@ mod tests {
 
   #[test]
   fn hash_is_returned_verbatim() {
-    // The interner must not re-derive the hash: `UstrPath` relies on getting
+    // The interner must not re-derive the hash: `ResolverPath` relies on getting
     // back exactly what it computed, including a Windows-folded value that
     // does not match the stored bytes.
     let interner = Interner::new();

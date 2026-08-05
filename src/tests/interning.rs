@@ -1,6 +1,6 @@
-//! End-to-end guarantees for `UstrPath` interning.
+//! End-to-end guarantees for `ResolverPath` interning.
 //!
-//! These assert on **pointer identity**, never on `ustr::num_entries()` or
+//! These assert on **pointer identity**, never on a global entry count or
 //! `total_allocated()` — the interner is process-global and shared with every
 //! other test running in parallel, so any global-count assertion is flaky by
 //! construction.
@@ -73,7 +73,7 @@ async fn equal_paths_from_different_sources_are_one_pointer() {
   );
 
   for dep in &ctx.file_dependencies {
-    let reinterned = crate::UstrPath::new(dep.as_str());
+    let reinterned = crate::ResolverPath::new(dep.as_str());
     assert_eq!(
       dep.as_str().as_ptr(),
       reinterned.as_str().as_ptr(),

@@ -6,7 +6,7 @@
 use camino::Utf8Path;
 
 use crate::{
-  path::PathUtil, ResolveContext, ResolveError::NotFound, ResolveOptions, Resolver, UstrPath,
+  path::PathUtil, ResolveContext, ResolveError::NotFound, ResolveOptions, Resolver, ResolverPath,
 };
 
 #[tokio::test]
@@ -100,7 +100,7 @@ async fn pnp_file_dependencies() {
   assert!(
     ctx
       .file_dependencies
-      .contains(&UstrPath::from(fixture.join(".pnp.cjs"))),
+      .contains(&ResolverPath::from(fixture.join(".pnp.cjs"))),
     ".pnp.cjs should be in file_dependencies, got: {:?}",
     ctx.file_dependencies
   );

@@ -16,7 +16,7 @@ use simd_json::{
   to_borrowed_value, BorrowedValue, Error as SimdParseError, ObjectHasher,
 };
 
-use crate::{path::PathUtil, ResolveError, UstrPath};
+use crate::{path::PathUtil, ResolveError, ResolverPath};
 
 pub type JSONMap<'a> = simd_json::borrowed::Object<'a>;
 
@@ -134,10 +134,10 @@ impl Default for JSONCell {
 #[derive(Debug, Default)]
 pub struct PackageJson {
   /// Path to `package.json`. Contains the `package.json` filename.
-  pub path: UstrPath,
+  pub path: ResolverPath,
 
   /// Realpath to `package.json`. Contains the `package.json` filename.
-  pub realpath: UstrPath,
+  pub realpath: ResolverPath,
 
   /// The "name" field defines your package's name.
   /// The "name" field can be used in addition to the "exports" field to self-reference a package using its name.
@@ -190,8 +190,8 @@ impl PackageJson {
   /// # Panics
   /// # Errors
   pub(crate) fn parse(
-    path: UstrPath,
-    realpath: UstrPath,
+    path: ResolverPath,
+    realpath: ResolverPath,
     json: Vec<u8>,
   ) -> Result<Self, ParseError> {
     if json.starts_with(&BOM) {

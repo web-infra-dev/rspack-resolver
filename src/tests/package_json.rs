@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-  use crate::{package_json::ParseError, PackageJson, UstrPath};
+  use crate::{package_json::ParseError, PackageJson, ResolverPath};
 
   #[tokio::test]
   async fn test_json_with_bom() {
-    let mock_path = UstrPath::new("package.json");
+    let mock_path = ResolverPath::new("package.json");
     let json_with_bom = b"\xEF\xBB\xBF{\"name\": \"example-package\"}".to_vec();
 
     let result = PackageJson::parse(mock_path.clone(), mock_path, json_with_bom).err();
@@ -20,7 +20,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_normal_json() {
-    let mock_path = UstrPath::new("package.json");
+    let mock_path = ResolverPath::new("package.json");
     let json_with_bom = r##"{"name": "example-package"}"##.as_bytes().to_vec();
 
     let parsed = PackageJson::parse(mock_path.clone(), mock_path, json_with_bom).unwrap();
@@ -30,7 +30,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_broken_json() {
-    let mock_path = UstrPath::new("package.json");
+    let mock_path = ResolverPath::new("package.json");
     let json_with_bom = r##"{"broken":"string"##.as_bytes().to_vec();
 
     let parsed_err = PackageJson::parse(mock_path.clone(), mock_path, json_with_bom).err();
@@ -47,7 +47,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_empty_string() {
-    let mock_path = UstrPath::new("package.json");
+    let mock_path = ResolverPath::new("package.json");
     let json_with_bom = "    ".as_bytes().to_vec();
 
     let parse_error = PackageJson::parse(mock_path.clone(), mock_path, json_with_bom)

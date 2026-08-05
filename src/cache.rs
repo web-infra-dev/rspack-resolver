@@ -17,7 +17,7 @@ use tokio::sync::OnceCell as OnceLock;
 use crate::{
   context::ResolveContext as Ctx,
   package_json::{off_to_location, PackageJson},
-  ustr_path::{ToUstrPath, UstrPath},
+  resolver_path::{ResolverPath, ToResolverPath},
   FileMetadata, FileSystem, JSONError, ResolveError, ResolveOptions, TsConfig,
 };
 
@@ -25,7 +25,7 @@ use crate::{
 pub struct Cache<Fs> {
   pub(crate) fs: Fs,
   paths: DashSet<CachedPath, BuildHasherDefault<IdentityHasher>>,
-  tsconfigs: DashMap<UstrPath, Arc<TsConfig>, BuildHasherDefault<FxHasher>>,
+  tsconfigs: DashMap<ResolverPath, Arc<TsConfig>, BuildHasherDefault<FxHasher>>,
 }
 
 impl<Fs: Send + Sync + FileSystem> Cache<Fs> {
@@ -60,12 +60,12 @@ impl<Fs: Send + Sync + FileSystem> Cache<Fs> {
   /// `path` must already be interned by the caller. `config_file` is constant
   /// per resolver but this is re-entered several times per resolve, so
   /// interning here on every hit would serialize every thread on the same
-  /// `ustr` bin mutex for a hash that never changes; see `ResolverGeneric`'s
+  /// shard lock for a hash that never changes; see `ResolverGeneric`'s
   /// `tsconfig_config_file` field, computed once at construction.
   pub async fn tsconfig<F, Fut>(
     &self,
     root: bool,
-    path: UstrPath,
+    path: ResolverPath,
     callback: F, // callback for modifying tsconfig with `extends`
   ) -> Result<Arc<TsConfig>, ResolveError>
   where
@@ -166,25 +166,25 @@ pub struct CachedPathImpl {
   path: Box<Utf8Path>,
   parent: Option<CachedPath>,
   meta: OnceLock<Option<FileMetadata>>,
-  canonicalized: OnceLock<Option<UstrPath>>,
+  canonicalized: OnceLock<Option<ResolverPath>>,
   node_modules: OnceLock<Option<CachedPath>>,
   package_json: OnceLock<Option<Arc<PackageJson>>>,
   /// Memoized interned form of `self.path`. Without it every `is_file` /
   /// `is_dir` dependency push would re-enter the interner (bin lock + probe).
-  dep_path: std::sync::OnceLock<UstrPath>,
+  dep_path: std::sync::OnceLock<ResolverPath>,
   /// Memoized `<self.path>/node_modules`. `cached_node_modules` replays a
   /// missing-dependency push on every cache hit where `node_modules` is
   /// absent, which is most directory levels during an upward walk.
-  node_modules_dep_path: std::sync::OnceLock<UstrPath>,
+  node_modules_dep_path: std::sync::OnceLock<ResolverPath>,
   /// Memoized `<self.path>/package.json` for the `missing_dependencies` push
   /// that fires on every `package_json` cache-hit `None` (~97% of
   /// `package_json` calls in dep-tracking workloads).
-  package_json_dep_path: std::sync::OnceLock<UstrPath>,
+  package_json_dep_path: std::sync::OnceLock<ResolverPath>,
 }
 
-impl ToUstrPath for CachedPathImpl {
+impl ToResolverPath for CachedPathImpl {
   #[inline]
-  fn to_ustr_path(&self) -> UstrPath {
+  fn to_resolver_path(&self) -> ResolverPath {
     self.dep_path()
   }
 }
@@ -205,26 +205,26 @@ impl CachedPathImpl {
     }
   }
 
-  fn dep_path(&self) -> UstrPath {
+  fn dep_path(&self) -> ResolverPath {
     self
       .dep_path
-      .get_or_init(|| self.path.to_ustr_path())
+      .get_or_init(|| self.path.to_resolver_path())
       .clone()
   }
 
-  fn node_modules_dep_path(&self) -> UstrPath {
+  fn node_modules_dep_path(&self) -> ResolverPath {
     self
       .node_modules_dep_path
-      .get_or_init(|| self.path.join("node_modules").to_ustr_path())
+      .get_or_init(|| self.path.join("node_modules").to_resolver_path())
       .clone()
   }
 
   /// Without this cache, each `None` cache-hit on `package_json` would
   /// re-`join` + re-intern on every push.
-  fn package_json_dep_path(&self) -> UstrPath {
+  fn package_json_dep_path(&self) -> ResolverPath {
     self
       .package_json_dep_path
-      .get_or_init(|| self.path.join("package.json").to_ustr_path())
+      .get_or_init(|| self.path.join("package.json").to_resolver_path())
       .clone()
   }
 
@@ -272,7 +272,7 @@ impl CachedPathImpl {
     )
   }
 
-  pub async fn realpath<Fs: FileSystem + Send + Sync>(&self, fs: &Fs) -> io::Result<UstrPath> {
+  pub async fn realpath<Fs: FileSystem + Send + Sync>(&self, fs: &Fs) -> io::Result<ResolverPath> {
     // Cache hit: avoid the heap-allocated `Box::pin` for the cache-miss state machine
     // by returning before delegating to the boxed recursive helper. Both arms are a
     // refcount bump — neither allocates or re-enters the interner.
@@ -285,7 +285,7 @@ impl CachedPathImpl {
   fn realpath_uncached<'a, Fs: FileSystem + Send + Sync>(
     &'a self,
     fs: &'a Fs,
-  ) -> BoxFuture<'a, io::Result<UstrPath>> {
+  ) -> BoxFuture<'a, io::Result<ResolverPath>> {
     Box::pin(async move {
       self
         .canonicalized
@@ -298,7 +298,7 @@ impl CachedPathImpl {
             return fs
               .canonicalize(self.path.as_std_path())
               .await
-              .map(|path| Some(path.to_ustr_path()));
+              .map(|path| Some(path.to_resolver_path()));
           }
           if let Some(parent) = self.parent() {
             // Reuse the parent's realpath as a mutable buffer for the final
@@ -314,7 +314,7 @@ impl CachedPathImpl {
               }
               _ => {}
             }
-            return Ok(Some(real_path.to_ustr_path()));
+            return Ok(Some(real_path.to_resolver_path()));
           }
           Ok(None)
         })
@@ -421,12 +421,16 @@ impl CachedPathImpl {
           return Ok(None);
         };
         let real_path = if options.symlinks {
-          self.realpath(fs).await?.join("package.json").to_ustr_path()
+          self
+            .realpath(fs)
+            .await?
+            .join("package.json")
+            .to_resolver_path()
         } else {
-          package_json_path.to_ustr_path()
+          package_json_path.to_resolver_path()
         };
         match PackageJson::parse(
-          package_json_path.to_ustr_path(),
+          package_json_path.to_resolver_path(),
           real_path,
           package_json_string,
         ) {
@@ -573,8 +577,8 @@ mod tests {
     let cache = Cache::new(FileSystemOs::default());
     let cached = cache.value(Utf8Path::new("/a/b/c.js"));
 
-    let first = cached.to_ustr_path();
-    let second = cached.to_ustr_path();
+    let first = cached.to_resolver_path();
+    let second = cached.to_resolver_path();
     assert_eq!(first.as_str().as_ptr(), second.as_str().as_ptr());
     // Memoized: the second call must not have gone through the interner at all.
     assert!(cached.dep_path.get().is_some());
@@ -626,7 +630,7 @@ mod tests {
     let unique = Utf8Path::new("/only/this/test/interns/this/exact/path.js");
 
     let cached = cache.value(unique);
-    let handle = cached.to_ustr_path();
+    let handle = cached.to_resolver_path();
     drop(cached);
 
     let held = handle.refcount();

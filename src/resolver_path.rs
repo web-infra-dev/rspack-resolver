@@ -18,7 +18,7 @@ use crate::interner::{self, Interned};
 /// costs N pointers rather than N copies.
 ///
 /// Equality is a pointer comparison whenever the strings are byte-identical,
-/// and hashing is a single `u64` load from the entry header, so `UstrPathSet`
+/// and hashing is a single `u64` load from the entry header, so `ResolverPathSet`
 /// lookups cost one `write_u64`. On Windows, spellings that differ only in
 /// separators or drive case are distinct entries, so both fall back to
 /// `Path`'s component semantics to keep them one key. Paths are stored
@@ -35,7 +35,7 @@ use crate::interner::{self, Interned};
 /// climb monotonically in a dev server. The flip side is that `as_str()`
 /// borrows from `self` rather than being `'static`.
 #[derive(Clone)]
-pub struct UstrPath(Interned);
+pub struct ResolverPath(Interned);
 
 /// Hash a path the way `PartialEq` compares it, so `a == b` implies equal
 /// hashes on every platform.
@@ -77,8 +77,8 @@ const fn is_sep(c: u8) -> bool {
 /// Platform-independent on purpose. camino's `Utf8Path::components()` picks its
 /// separator set at compile time, so it cannot express Windows semantics on a
 /// unix host — this would otherwise be untestable off Windows.
-// NOT CURRENTLY WIRED UP. `UstrPath::new` used to call this on Windows, but
-// `UstrPath` also carries strings that are not canonical filesystem paths —
+// NOT CURRENTLY WIRED UP. `ResolverPath::new` used to call this on Windows, but
+// `ResolverPath` also carries strings that are not canonical filesystem paths —
 // rspack stores caller-supplied dependency specifiers such as
 // `addBuildDependency("./build.txt")` in path sets — and rewriting those
 // changed values observable through the public JS API (`./build.txt` came back
@@ -143,7 +143,7 @@ fn normalize_windows_separators(s: &str) -> Option<String> {
   Some(out)
 }
 
-impl UstrPath {
+impl ResolverPath {
   /// Intern `path` verbatim and return a handle to it.
   ///
   /// The string is stored exactly as given — rspack puts caller-supplied
@@ -195,7 +195,7 @@ impl UstrPath {
   }
 }
 
-impl Default for UstrPath {
+impl Default for ResolverPath {
   /// The empty path — a handle to a real interned `""`, not a dangling one.
   #[inline]
   fn default() -> Self {
@@ -203,14 +203,14 @@ impl Default for UstrPath {
   }
 }
 
-impl PartialEq for UstrPath {
+impl PartialEq for ResolverPath {
   /// Byte-identical strings share one interner entry, so the pointer check
   /// settles them — on unix that is the whole story, matching the byte-wise
   /// comparison `hash_utf8_path` has always used for resolver paths.
   ///
   /// Windows additionally folds spellings: `Path`'s `Eq` walks components, so
   /// `C:/a/b`, `C:\a\b`, `C:\a\\b`, `C:\a\b\` and `c:\a\b` are all one path.
-  /// Since [`UstrPath::new`] stores the string verbatim those are distinct
+  /// Since [`ResolverPath::new`] stores the string verbatim those are distinct
   /// entries, and only the component walk can tell they are equal. The hash
   /// check in front of it is a cheap reject, valid because `hash_path_str`
   /// hashes components on Windows too.
@@ -231,12 +231,12 @@ impl PartialEq for UstrPath {
   }
 }
 
-impl Eq for UstrPath {}
+impl Eq for ResolverPath {}
 
-impl Hash for UstrPath {
+impl Hash for ResolverPath {
   /// One `write_u64` of the hash computed at construction.
   ///
-  /// The single write is load-bearing, not stylistic: [`UstrPathSet`] is keyed
+  /// The single write is load-bearing, not stylistic: [`ResolverPathSet`] is keyed
   /// by [`IdentityHasher`], whose `write` only reads a value when handed
   /// exactly 8 bytes and **silently yields 0** otherwise. Hashing the path
   /// inline here would feed it component-sized writes and collapse every key
@@ -247,7 +247,7 @@ impl Hash for UstrPath {
   }
 }
 
-impl Deref for UstrPath {
+impl Deref for ResolverPath {
   type Target = Utf8Path;
 
   #[inline]
@@ -256,54 +256,54 @@ impl Deref for UstrPath {
   }
 }
 
-impl AsRef<Utf8Path> for UstrPath {
+impl AsRef<Utf8Path> for ResolverPath {
   #[inline]
   fn as_ref(&self) -> &Utf8Path {
     self.as_utf8_path()
   }
 }
 
-impl AsRef<Path> for UstrPath {
+impl AsRef<Path> for ResolverPath {
   #[inline]
   fn as_ref(&self) -> &Path {
     self.as_std_path()
   }
 }
 
-impl AsRef<str> for UstrPath {
+impl AsRef<str> for ResolverPath {
   #[inline]
   fn as_ref(&self) -> &str {
     self.as_str()
   }
 }
 
-impl fmt::Debug for UstrPath {
+impl fmt::Debug for ResolverPath {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     self.as_utf8_path().fmt(f)
   }
 }
 
-impl fmt::Display for UstrPath {
+impl fmt::Display for ResolverPath {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     f.write_str(self.as_str())
   }
 }
 
-/// A `HashSet<UstrPath>` keyed by the interner's precomputed hash.
+/// A `HashSet<ResolverPath>` keyed by the interner's precomputed hash.
 ///
 /// Spelled with [`IdentityHasher`] rather than a set-local hasher so rspack's
 /// `ArcPathSet` is the same concrete type and can take these sets by
 /// `mem::take` instead of re-bucketing every element.
-pub type UstrPathSet = HashSet<UstrPath, BuildHasherDefault<IdentityHasher>>;
+pub type ResolverPathSet = HashSet<ResolverPath, BuildHasherDefault<IdentityHasher>>;
 
 /// Passes an already-computed hash straight through.
 ///
-/// [`UstrPath::hash`] writes the hash it computed at construction, so re-mixing
+/// [`ResolverPath::hash`] writes the hash it computed at construction, so re-mixing
 /// it here would be wasted work. Downstream spells its own path sets with this
 /// exact type so it can `mem::take` ours instead of re-bucketing every element.
 ///
 /// Only `write_u64` is meaningful. Anything else is a misuse — the key type is
-/// not `UstrPath` — and would silently produce 0 for every key, so it panics in
+/// not `ResolverPath` — and would silently produce 0 for every key, so it panics in
 /// debug builds rather than quietly degrading the map into a linked list.
 #[derive(Default, Clone, Copy)]
 pub struct IdentityHasher(u64);
@@ -314,7 +314,7 @@ impl Hasher for IdentityHasher {
     debug_assert!(
       false,
       "IdentityHasher only accepts write_u64; got a {}-byte write. The key \
-       type is probably not UstrPath.",
+       type is probably not ResolverPath.",
       bytes.len()
     );
     // Release builds: fold the bytes rather than yielding 0, so a misuse
@@ -335,82 +335,82 @@ impl Hasher for IdentityHasher {
   }
 }
 
-/// Convert any path-shaped value into an interned [`UstrPath`].
+/// Convert any path-shaped value into an interned [`ResolverPath`].
 ///
 /// The two `std::path` implementations panic on non-UTF-8 input, matching what
 /// the resolver already does at every `Path -> Utf8Path` boundary (see the
 /// `expect("path should be UTF-8")` calls in `lib.rs` and `cache.rs`).
-pub trait ToUstrPath {
-  fn to_ustr_path(&self) -> UstrPath;
+pub trait ToResolverPath {
+  fn to_resolver_path(&self) -> ResolverPath;
 }
 
-impl ToUstrPath for str {
+impl ToResolverPath for str {
   #[inline]
-  fn to_ustr_path(&self) -> UstrPath {
-    UstrPath::new(self)
+  fn to_resolver_path(&self) -> ResolverPath {
+    ResolverPath::new(self)
   }
 }
 
-impl ToUstrPath for String {
+impl ToResolverPath for String {
   #[inline]
-  fn to_ustr_path(&self) -> UstrPath {
-    UstrPath::new(self)
+  fn to_resolver_path(&self) -> ResolverPath {
+    ResolverPath::new(self)
   }
 }
 
-impl ToUstrPath for Utf8Path {
+impl ToResolverPath for Utf8Path {
   #[inline]
-  fn to_ustr_path(&self) -> UstrPath {
-    UstrPath::new(self.as_str())
+  fn to_resolver_path(&self) -> ResolverPath {
+    ResolverPath::new(self.as_str())
   }
 }
 
-impl ToUstrPath for Utf8PathBuf {
+impl ToResolverPath for Utf8PathBuf {
   #[inline]
-  fn to_ustr_path(&self) -> UstrPath {
-    UstrPath::new(self.as_str())
+  fn to_resolver_path(&self) -> ResolverPath {
+    ResolverPath::new(self.as_str())
   }
 }
 
-impl ToUstrPath for Path {
+impl ToResolverPath for Path {
   #[inline]
-  fn to_ustr_path(&self) -> UstrPath {
-    UstrPath::new(self.to_str().expect("path should be UTF-8"))
+  fn to_resolver_path(&self) -> ResolverPath {
+    ResolverPath::new(self.to_str().expect("path should be UTF-8"))
   }
 }
 
-impl ToUstrPath for PathBuf {
+impl ToResolverPath for PathBuf {
   #[inline]
-  fn to_ustr_path(&self) -> UstrPath {
-    self.as_path().to_ustr_path()
+  fn to_resolver_path(&self) -> ResolverPath {
+    self.as_path().to_resolver_path()
   }
 }
 
-impl ToUstrPath for UstrPath {
+impl ToResolverPath for ResolverPath {
   #[inline]
-  fn to_ustr_path(&self) -> UstrPath {
+  fn to_resolver_path(&self) -> ResolverPath {
     self.clone()
   }
 }
 
-impl<T: ?Sized + ToUstrPath> From<&T> for UstrPath {
+impl<T: ?Sized + ToResolverPath> From<&T> for ResolverPath {
   #[inline]
   fn from(value: &T) -> Self {
-    value.to_ustr_path()
+    value.to_resolver_path()
   }
 }
 
-impl From<Utf8PathBuf> for UstrPath {
+impl From<Utf8PathBuf> for ResolverPath {
   #[inline]
   fn from(value: Utf8PathBuf) -> Self {
-    value.to_ustr_path()
+    value.to_resolver_path()
   }
 }
 
-impl From<PathBuf> for UstrPath {
+impl From<PathBuf> for ResolverPath {
   #[inline]
   fn from(value: PathBuf) -> Self {
-    value.to_ustr_path()
+    value.to_resolver_path()
   }
 }
 
@@ -427,39 +427,39 @@ mod tests {
 
   #[test]
   fn default_is_the_empty_path() {
-    assert_eq!(UstrPath::default().as_str(), "");
+    assert_eq!(ResolverPath::default().as_str(), "");
   }
 
   /// The handle must stay one pointer wide. It is stored by the million
-  /// downstream — every dependency set, every `Vec<UstrPath>` — so widening it
+  /// downstream — every dependency set, every `Vec<ResolverPath>` — so widening it
   /// (by caching the hash beside the pointer instead of in the interner entry,
   /// say) shows up directly as `memcpy` in the resolver benchmarks.
   #[test]
   fn the_handle_is_one_pointer_wide() {
     assert_eq!(
-      std::mem::size_of::<UstrPath>(),
+      std::mem::size_of::<ResolverPath>(),
       std::mem::size_of::<usize>()
     );
   }
 
   #[test]
   fn same_string_is_same_pointer() {
-    let a = UstrPath::new("/a/b/c.js");
-    let b = UstrPath::new("/a/b/c.js");
+    let a = ResolverPath::new("/a/b/c.js");
+    let b = ResolverPath::new("/a/b/c.js");
     assert_eq!(a.as_str().as_ptr(), b.as_str().as_ptr());
     assert_eq!(a, b);
   }
 
   #[test]
   fn different_strings_are_not_equal() {
-    assert_ne!(UstrPath::new("/a/b"), UstrPath::new("/a/c"));
+    assert_ne!(ResolverPath::new("/a/b"), ResolverPath::new("/a/c"));
   }
 
-  /// `UstrPathSet` is keyed by [`IdentityHasher`], so this is the hash that
+  /// `ResolverPathSet` is keyed by [`IdentityHasher`], so this is the hash that
   /// actually decides bucketing. Folding it through that hasher — rather than a
   /// generic one — is what proves `Hash` still delivers exactly 8 bytes: the
   /// identity hasher silently yields 0 for any other width.
-  fn set_hash(p: &UstrPath) -> u64 {
+  fn set_hash(p: &ResolverPath) -> u64 {
     let mut hasher = IdentityHasher::default();
     p.hash(&mut hasher);
     hasher.finish()
@@ -470,9 +470,9 @@ mod tests {
   fn windows_spellings_of_one_path_are_equal_and_hash_alike() {
     // Stored verbatim, so these are genuinely distinct interned handles —
     // the folding has to come from `PartialEq`/`Hash`, not from interning.
-    let canonical = UstrPath::new(r"C:\a\b");
+    let canonical = ResolverPath::new(r"C:\a\b");
     for spelling in ["C:/a/b", r"C:/a\b", r"C:\a\\b", r"C:\a\b\", r"c:\a\b"] {
-      let p = UstrPath::new(spelling);
+      let p = ResolverPath::new(spelling);
       assert_ne!(
         p.as_str(),
         canonical.as_str(),
@@ -490,18 +490,18 @@ mod tests {
   #[cfg(windows)]
   #[test]
   fn windows_distinct_paths_stay_distinct() {
-    assert_ne!(UstrPath::new(r"C:\a\b"), UstrPath::new(r"C:\a\c"));
-    assert_ne!(UstrPath::new(r"C:\a\b"), UstrPath::new(r"D:\a\b"));
+    assert_ne!(ResolverPath::new(r"C:\a\b"), ResolverPath::new(r"C:\a\c"));
+    assert_ne!(ResolverPath::new(r"C:\a\b"), ResolverPath::new(r"D:\a\b"));
   }
 
   #[cfg(windows)]
   #[test]
   fn windows_equal_paths_are_one_key_in_a_set() {
-    let mut set: UstrPathSet = HashSet::default();
-    set.insert(UstrPath::new(r"C:\a\b"));
-    assert!(set.contains(&UstrPath::new("C:/a/b")));
-    assert!(set.contains(&UstrPath::new(r"c:\a\b")));
-    set.insert(UstrPath::new("C:/a/b"));
+    let mut set: ResolverPathSet = HashSet::default();
+    set.insert(ResolverPath::new(r"C:\a\b"));
+    assert!(set.contains(&ResolverPath::new("C:/a/b")));
+    assert!(set.contains(&ResolverPath::new(r"c:\a\b")));
+    set.insert(ResolverPath::new("C:/a/b"));
     assert_eq!(set.len(), 1, "equal spellings must collapse to one entry");
   }
 
@@ -510,13 +510,16 @@ mod tests {
     // Guards both branches of `Hash`: a regression that forwarded
     // `Path::hash` straight through would write component-sized chunks, and
     // `IdentityHasher` would silently return 0 rather than fail.
-    assert_ne!(set_hash(&UstrPath::new("/some/long/path/segment.js")), 0);
+    assert_ne!(
+      set_hash(&ResolverPath::new("/some/long/path/segment.js")),
+      0
+    );
   }
 
   #[test]
   fn equal_paths_always_hash_equal() {
-    let a = UstrPath::new("/a/b");
-    let b = UstrPath::new("/a/b");
+    let a = ResolverPath::new("/a/b");
+    let b = ResolverPath::new("/a/b");
     assert_eq!(a, b);
     assert_eq!(set_hash(&a), set_hash(&b));
   }
@@ -529,7 +532,7 @@ mod tests {
   // `hash_delivers_eight_bytes_to_the_identity_hasher`.
   #[cfg(not(windows))]
   fn hash_is_the_precomputed_hash() {
-    let p = UstrPath::new("/x/y");
+    let p = ResolverPath::new("/x/y");
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     p.hash(&mut hasher);
     // The value written into the hasher is the precomputed one, not a
@@ -541,15 +544,15 @@ mod tests {
 
   #[test]
   fn works_in_an_identity_hashed_set() {
-    let mut set: UstrPathSet = HashSet::default();
-    set.insert(UstrPath::new("/a/b"));
-    assert!(set.contains(&UstrPath::new("/a/b")));
-    assert!(!set.contains(&UstrPath::new("/a/c")));
+    let mut set: ResolverPathSet = HashSet::default();
+    set.insert(ResolverPath::new("/a/b"));
+    assert!(set.contains(&ResolverPath::new("/a/b")));
+    assert!(!set.contains(&ResolverPath::new("/a/c")));
   }
 
   #[test]
   fn derefs_to_utf8_path() {
-    let p = UstrPath::new("/a/b/c.js");
+    let p = ResolverPath::new("/a/b/c.js");
     assert_eq!(p.file_name(), Some("c.js"));
     assert_eq!(p.parent(), Some(Utf8Path::new("/a/b")));
     assert_eq!(p.extension(), Some("js"));
@@ -557,18 +560,18 @@ mod tests {
   }
 
   #[test]
-  fn debug_prints_the_path_not_the_ustr_wrapper() {
-    // `Debug`/`Display` render the path, not `Ustr`'s own `u!("...")` wrapper.
+  fn debug_prints_the_path_not_the_handle() {
+    // `Debug`/`Display` render the path, not the handle wrapping it.
     // Platform-independent because interning is verbatim — the string comes
     // back exactly as passed in on every platform.
-    let p = UstrPath::new("/a/b");
+    let p = ResolverPath::new("/a/b");
     assert_eq!(format!("{p:?}"), "\"/a/b\"");
     assert_eq!(format!("{p}"), "/a/b");
   }
 
   #[test]
   fn as_ref_targets_compile_and_agree() {
-    let p = UstrPath::new("/a/b");
+    let p = ResolverPath::new("/a/b");
     let as_utf8: &Utf8Path = p.as_ref();
     let std_path: &std::path::Path = p.as_ref();
     let str_ref: &str = p.as_ref();
@@ -579,11 +582,11 @@ mod tests {
   #[test]
   fn identity_hasher_receives_eight_bytes() {
     // `IdentityHasher::write` silently produces a 0 hash unless it gets
-    // exactly 8 bytes. `UstrPath::hash` goes through the default `write_u64`,
+    // exactly 8 bytes. `ResolverPath::hash` goes through the default `write_u64`,
     // which forwards `u64::to_ne_bytes()` — exactly 8. Guard that invariant so
     // a future change to `Hash` cannot silently collapse every key to bucket 0.
     let mut hasher = IdentityHasher::default();
-    UstrPath::new("/some/long/path/that/is/not/eight/bytes").hash(&mut hasher);
+    ResolverPath::new("/some/long/path/that/is/not/eight/bytes").hash(&mut hasher);
     assert_ne!(hasher.finish(), 0);
   }
 
@@ -677,35 +680,41 @@ mod tests {
 
   // `equivalent_windows_spellings_intern_to_one_pointer` used to live here. It
   // asserted every spelling interned to one pointer, which only held while
-  // `UstrPath::new` normalized. Interning is verbatim now, so the spellings are
+  // `ResolverPath::new` normalized. Interning is verbatim now, so the spellings are
   // distinct handles that compare and hash equal instead — asserted by
   // `windows_spellings_of_one_path_are_equal_and_hash_alike` above, which also
   // checks the strings really are stored distinctly.
 
   #[test]
-  fn to_ustr_path_accepts_every_path_flavor() {
+  fn to_resolver_path_accepts_every_path_flavor() {
     use camino::Utf8PathBuf;
 
-    let expected = UstrPath::new("/a/b");
-    assert_eq!("/a/b".to_ustr_path(), expected);
-    assert_eq!(String::from("/a/b").to_ustr_path(), expected);
-    assert_eq!(Utf8Path::new("/a/b").to_ustr_path(), expected);
-    assert_eq!(Utf8PathBuf::from("/a/b").to_ustr_path(), expected);
-    assert_eq!(std::path::Path::new("/a/b").to_ustr_path(), expected);
-    assert_eq!(std::path::PathBuf::from("/a/b").to_ustr_path(), expected);
-    assert_eq!(expected.to_ustr_path(), expected);
+    let expected = ResolverPath::new("/a/b");
+    assert_eq!("/a/b".to_resolver_path(), expected);
+    assert_eq!(String::from("/a/b").to_resolver_path(), expected);
+    assert_eq!(Utf8Path::new("/a/b").to_resolver_path(), expected);
+    assert_eq!(Utf8PathBuf::from("/a/b").to_resolver_path(), expected);
+    assert_eq!(std::path::Path::new("/a/b").to_resolver_path(), expected);
+    assert_eq!(
+      std::path::PathBuf::from("/a/b").to_resolver_path(),
+      expected
+    );
+    assert_eq!(expected.to_resolver_path(), expected);
   }
 
   #[test]
-  fn from_impls_match_to_ustr_path() {
+  fn from_impls_match_to_resolver_path() {
     use camino::Utf8PathBuf;
 
-    let expected = UstrPath::new("/a/b");
-    assert_eq!(UstrPath::from("/a/b"), expected);
-    assert_eq!(UstrPath::from(Utf8Path::new("/a/b")), expected);
-    assert_eq!(UstrPath::from(Utf8PathBuf::from("/a/b")), expected);
-    assert_eq!(UstrPath::from(std::path::Path::new("/a/b")), expected);
-    assert_eq!(UstrPath::from(std::path::PathBuf::from("/a/b")), expected);
+    let expected = ResolverPath::new("/a/b");
+    assert_eq!(ResolverPath::from("/a/b"), expected);
+    assert_eq!(ResolverPath::from(Utf8Path::new("/a/b")), expected);
+    assert_eq!(ResolverPath::from(Utf8PathBuf::from("/a/b")), expected);
+    assert_eq!(ResolverPath::from(std::path::Path::new("/a/b")), expected);
+    assert_eq!(
+      ResolverPath::from(std::path::PathBuf::from("/a/b")),
+      expected
+    );
   }
 
   #[test]
@@ -715,6 +724,6 @@ mod tests {
     use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
 
     let bad = std::path::Path::new(OsStr::from_bytes(b"/a/\xff/b"));
-    let _ = bad.to_ustr_path();
+    let _ = bad.to_resolver_path();
   }
 }
