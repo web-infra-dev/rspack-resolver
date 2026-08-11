@@ -1026,7 +1026,7 @@ dependencies = [
 
 [[package]]
 name = "rspack_resolver"
-version = "0.9.4"
+version = "0.10.0"
 dependencies = [
  "arc-swap",
  "async-trait",
