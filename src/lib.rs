@@ -1492,7 +1492,8 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
       .await?;
     // TODO: restore once these can be reported without costing `module count * tsconfig count`.
     // Temporarily disabled: a monorepo with project references bursts memory in the consumer,
-    // which keeps this set per module. See `tsconfig_file_as_file_dependencies`, ignored for now.
+    // which keeps this set per module. Trade-off: tsconfig edits won't invalidate watch builds.
+    // See `tsconfig_file_as_file_dependencies`, ignored for now.
     // for dependency in &tsconfig.file_dependencies {
     //   ctx.add_file_dependency(dependency.as_path());
     // }
