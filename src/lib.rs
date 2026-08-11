@@ -1490,9 +1490,12 @@ impl<Fs: FileSystem + Send + Sync> ResolverGeneric<Fs> {
         &tsconfig_options.references,
       )
       .await?;
-    for dependency in &tsconfig.file_dependencies {
-      ctx.add_file_dependency(dependency.as_path());
-    }
+    // TODO: restore once these can be reported without costing `module count * tsconfig count`.
+    // Temporarily disabled: a monorepo with project references bursts memory in the consumer,
+    // which keeps this set per module. See `tsconfig_file_as_file_dependencies`, ignored for now.
+    // for dependency in &tsconfig.file_dependencies {
+    //   ctx.add_file_dependency(dependency.as_path());
+    // }
     let paths = tsconfig.resolve(cached_path.path(), specifier);
     for path in paths {
       let cached_path = self.cache.value(&path);
