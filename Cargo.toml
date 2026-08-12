@@ -15,7 +15,7 @@ name         = "rspack_resolver"
 readme       = "README.md"
 repository   = "https://github.com/rstackjs/rspack-resolver"
 rust-version = "1.70"
-version      = "0.9.4"
+version      = "0.10.0"
 
 [lib]
 doctest = false
