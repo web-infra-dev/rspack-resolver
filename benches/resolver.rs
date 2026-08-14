@@ -284,6 +284,35 @@ fn bench_resolver(c: &mut Criterion) {
     },
   );
 
+  // Models the `@rspack/resolver` (NAPI) `.sync()` entry point — the common npm
+  // path — which runs one `Handle::current().block_on(resolve(...))` per call.
+  // Unlike `single-thread` (a single async block over the whole batch), every
+  // resolve enters and exits the runtime on its own, matching how a synchronous
+  // consumer (rspack injecting the resolver, or a direct `.sync()` caller)
+  // actually invokes it.
+  group.bench_with_input(
+    BenchmarkId::from_parameter("napi-sync (block_on per resolve)"),
+    &data,
+    |b, data| {
+      let runner = runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to create tokio runtime");
+      let rspack_resolver = rspack_resolver(false);
+
+      b.iter_with_setup(
+        || {
+          rspack_resolver.clear_cache();
+        },
+        |_| {
+          for (path, request) in data {
+            let _ = runner.block_on(rspack_resolver.resolve(path, request));
+          }
+        },
+      );
+    },
+  );
+
   group.bench_with_input(
     BenchmarkId::from_parameter("[single-threaded]resolve with many extensions"),
     &data,
