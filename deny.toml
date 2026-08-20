@@ -92,6 +92,7 @@ allow = [
     "MIT",
     "Apache-2.0",
     "BSD-2-Clause",
+    "ISC",
     "Unicode-3.0", 
     "Zlib"
     #"Apache-2.0 WITH LLVM-exception",
@@ -132,7 +133,7 @@ exceptions = [
 # published to private registries.
 # To see how to mark a crate as unpublished (to the official registry),
 # visit https://doc.rust-lang.org/cargo/reference/manifest.html#the-publish-field.
-ignore = false
+ignore = true
 # One or more private registries that you might publish crates to, if a crate
 # is only published to private registries, and ignore is true, the crate will
 # not have its license(s) checked

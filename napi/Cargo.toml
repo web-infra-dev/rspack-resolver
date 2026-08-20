@@ -14,7 +14,7 @@ napi               = { version = "3.9.0", default-features = false, features = [
 napi-build         = { version = "2.3.2", default-features = false }
 napi-derive        = { version = "3.5.6" }
 regex              = "1.12.4"
-rspack_resolver    = { path = "..", package = "rspack_resolver" }
+rspack_resolver    = "=0.102.0-beta.1"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "fmt", "ansi"] }
 
 [build-dependencies]

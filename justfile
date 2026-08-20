@@ -10,7 +10,7 @@ alias r := ready
 # or install via `cargo install cargo-binstall`
 # Initialize the project by installing all the necessary tools.
 init:
-  cargo binstall cargo-watch typos-cli taplo-cli cargo-llvm-cov -y
+  cargo binstall cargo-watch typos-cli taplo-cli -y
 
 install:
   pnpm install
@@ -32,10 +32,6 @@ ready:
 watch command:
   cargo watch -x '{{command}}'
 
-# Run the example in `parser`, `formatter`, `linter`
-example *args='':
-  just watch 'run --example resolver -- {{args}}'
-
 # Format all files
 fmt:
   cargo fmt
@@ -47,31 +43,9 @@ check:
 
 # Run all the tests
 test:
-  cargo test --all-features
+  pnpm run build:binding:debug
+  pnpm test
 
 # Lint the whole project
 lint:
   cargo clippy --all-features -- --deny warnings
-
-# Generate doc
-doc:
-  RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features
-
-# Get code coverage
-codecov:
-  cargo codecov --html
-
-# Run the benchmarks. See `tasks/benchmark`
-benchmark:
-  cargo benchmark
-
-# Run cargo-fuzz
-fuzz:
-  cd fuzz && cargo +nightly fuzz run --sanitizer none resolver -- -only_ascii=1 -max_total_time=900
-
-# Manual Release
-release:
-  cargo binstall -y release-plz
-  release-plz update
-  just check
-  # NOTE: make sure to update version in npm/package.json

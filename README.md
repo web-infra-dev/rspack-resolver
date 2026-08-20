@@ -2,6 +2,9 @@
 
 Rust port of [enhanced-resolve](https://github.com/webpack/enhanced-resolve).
 
+This repository ships the `@rspack/resolver` npm package. The `rspack_resolver` crate it binds to is developed in
+[rspack](https://github.com/web-infra-dev/rspack/tree/main/crates/rspack_resolver).
+
 - built-in [tsconfig-paths-webpack-plugin](https://github.com/jonaskello/tsconfig-paths-webpack-plugin)
   - support extending tsconfig defined in `tsconfig.extends`
   - support paths alias defined in `tsconfig.compilerOptions.paths`
