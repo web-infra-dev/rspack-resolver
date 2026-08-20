@@ -3,8 +3,10 @@
 Thanks A lof for your interest in contributing to this project!
 We welcome contributions from everyone. Below are some guidelines to help you get started.
 
-Rspack-Resolver is built using [Rust](https://www.rust-lang.org/) and [NAPI-RS](https://napi.rs/),
-then released as both npm [package](https://www.npmjs.com/package/@rspack/resolver) and Rust [crate](https://crates.io/crates/rspack_resolver).
+Rspack-Resolver is the npm [package](https://www.npmjs.com/package/@rspack/resolver) built with [NAPI-RS](https://napi.rs/)
+on top of the [`rspack_resolver`](https://crates.io/crates/rspack_resolver) crate, whose source lives in the
+[rspack](https://github.com/web-infra-dev/rspack/tree/main/crates/rspack_resolver) repository.
+Changes to the resolving algorithm belong there; this repository only wires the crate to Node.js.
 
 ## Prerequisites
 
@@ -51,27 +53,15 @@ npm run build:release
 You can switch to `profiling` and `debug` profile by `npm run build:profiling` and `npm run build:debug` respectively.
 
 ```bash
-# Run all Rust tests
-cargo test
-```
-
-```bash
 # Run all Node.js tests
 npm run test
 ```
 
 ## Releasing
 
-### Publish Crate
-
-1. create a release branch as `release/x.y.z`
-2. Bump version in `Cargo.toml`
-3. Commit and push the release branch
-4. Run the `release-plz.yml` workflow in GitHub Actions to publish the crate to [crates.io](https://crates.io/crates/rspack_resolver).
-
 ### Publish NPM Package
 
-In most cases, We publish @rspack/resolver npm package after rspack-resolver crate.
+Bump `rspack_resolver` in `napi/Cargo.toml` first when the npm release needs a newer crate.
 
 1. Bump version by `./x version <major|minor|patch>` in the root directory
 2. Commit and push the release branch
