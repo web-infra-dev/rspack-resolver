@@ -55,7 +55,7 @@ jobs:
       - name: Build Benchmark
         env:
           RUSTFLAGS: "-C debuginfo=1 -C strip=none -g"
-        run: cargo codspeed build
+        run: cargo codspeed build --features package_json_raw_json_api
 
       - name: Prepare Valgrind temporary directory
         run: mkdir -p "${RUNNER_TEMP}/codspeed-valgrind-tmp"
