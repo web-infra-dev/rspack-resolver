@@ -161,7 +161,7 @@ jobs:
           components: rustfmt
           cache: false
       - run: cargo fmt --all -- --check
-      - run: pnpm run prettier:ci
+      - run: pnpm run check
       - run: pnpm exec taplo format --check
 
   lint:
@@ -196,8 +196,8 @@ jobs:
           - ubuntu-latest
           - macos-14
         node:
-          - 20
           - 22
+          - 24
     runs-on: ${{ matrix.os }}
     env:
       RUST_BACKTRACE: 1
