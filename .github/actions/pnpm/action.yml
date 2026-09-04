@@ -26,18 +26,9 @@ runs:
           NPM_PREFIX=$(cygpath -u "$(npm config get prefix)")
           export PATH="$NPM_PREFIX:$PATH"
         fi
-        PNPM_VERSION=$(node -p "require('./package.json').packageManager.replace('pnpm@', '')")
         npm install -g corepack@0.31.0 --force
         echo "Corepack version: $(corepack --version)"
-        if [[ "${{ inputs.node-version }}" == 20* ]]; then
-          # Node 20's bundled module loader crashes when invoking pnpm 11 via the
-          # corepack shim (ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING). Enable only the
-          # yarn shim from corepack and install pnpm as a standalone binary.
-          corepack enable yarn
-          npm install -g "@pnpm/exe@$PNPM_VERSION" --force
-        else
-          corepack enable
-        fi
+        corepack enable
         pnpm --version
 
     - name: yarn

@@ -1,7 +1,0 @@
-fixtures/tsconfig/tsconfig_broken.json
-fixtures/enhanced_resolve/test/fixtures/incorrect-package/pack1/package.json
-fixtures/enhanced_resolve/test/fixtures/tsconfig-paths/malformed-json/tsconfig.json
-pnpm-lock.yaml
-**/.pnp.cjs
-.claude/worktrees
-bindings
